@@ -9,7 +9,7 @@ import { DUE_FLAG, fmtDue } from '../utils/agenda'
 import { occurrencesOn, recurringCount, recurringTimes, type RecurOccurrence } from '../utils/occur'
 import ProjectTree from './ProjectTree'
 import InfoIcon from './InfoIcon'
-import TaskCheck from './TaskCheck'
+import TaskCheck, { RecurringCheck } from './TaskCheck'
 
 interface Props {
   mode: 'sidebar' | 'full'
@@ -77,12 +77,7 @@ export default function TasksPanel({ mode, onExpand }: Props) {
     return (
       <div key={`${rt.id}-${occ.key}`} className="task-row"
         onClick={() => ui.openRecurring({ rt, occurrence: occ.key })}>
-        <input type="checkbox" className="cb" checked={done}
-          style={cbTint(color)}
-          onClick={(e) => e.stopPropagation()}
-          onChange={() => (times > 1
-            ? dispatch({ type: 'setRecurringCount', id: rt.id, date: occ.key, count: done ? 0 : times })
-            : dispatch({ type: 'toggleRecurring', id: rt.id, date: occ.key }))} />
+        <RecurringCheck rt={rt} date={occ.key} color={color} />
         <div className="body">
           {label && (
             <span className="tag" style={{ background: hexToRgba(color, 0.22), color }}>{label}</span>

@@ -100,10 +100,12 @@ export default function TaskModal({ init, onClose }: { init: TaskModalInit; onCl
   const [target, setTarget] = useState<string>(() =>
     encodeProjectSection(t?.projectId ?? init.projectId ?? null, t?.sectionId ?? null))
   const [date, setDate] = useState<string>(t?.date ?? init.date ?? '')
-  const [hasTime, setHasTime] = useState(t?.startMin != null)
-  const [time, setTime] = useState(minToHm(t?.startMin ?? 9 * 60))
-  const [hasBlock, setHasBlock] = useState(t?.endMin != null)
-  const [endTime, setEndTime] = useState(minToHm(t?.endMin ?? 10 * 60))
+  // A new task only starts timed/blocked when the caller prefilled it — which
+  // is what a drag-created block on the grid does.
+  const [hasTime, setHasTime] = useState(t ? t.startMin != null : init.startMin != null)
+  const [time, setTime] = useState(minToHm(t?.startMin ?? init.startMin ?? 9 * 60))
+  const [hasBlock, setHasBlock] = useState(t ? t.endMin != null : init.endMin != null)
+  const [endTime, setEndTime] = useState(minToHm(t?.endMin ?? init.endMin ?? 10 * 60))
   const [dueDate, setDueDate] = useState<string>(t?.dueDate ?? '')
   const [hasDueTime, setHasDueTime] = useState(t?.dueMin != null)
   const [dueTime, setDueTime] = useState(minToHm(t?.dueMin ?? 17 * 60))
@@ -187,6 +189,26 @@ export default function TaskModal({ init, onClose }: { init: TaskModalInit; onCl
     commit(granted
       ? { ...pendingLater, extensions: [...(t.extensions ?? []), { dueDate: t.dueDate, dueMin: t.dueMin ?? null }] }
       : pendingLater)
+  }
+
+  // Task fields an event has no home for. Listed in the confirm below, but only
+  // the ones actually set — a bare task converts without a question.
+  const dropped = [
+    t?.dueDate ? 'due date' : null,
+    t?.submitted ? 'submitted' : null,
+    t?.extensions?.length ? 'extension history' : null,
+    t?.attachmentUploadIds?.length ? 'attachments' : null,
+    t?.yptState ? 'progress state' : null,
+    t?.sectionId ? 'section' : null,
+  ].filter((s): s is string => s != null)
+
+  /** Swap this task for an event on the same day (one undo step; see the store). */
+  const convert = () => {
+    if (!t?.date) return
+    if (dropped.length && !window.confirm(
+      `Converting to an event drops: ${dropped.join(', ')}.\n\nConvert anyway?`)) return
+    dispatch({ type: 'convertTaskToEvent', id: t.id })
+    onClose()
   }
 
   return (
@@ -334,6 +356,14 @@ export default function TaskModal({ init, onClose }: { init: TaskModalInit; onCl
           {t && (
             <button className="btn danger" onClick={() => { dispatch({ type: 'deleteTask', id: t.id }); onClose() }}>
               Delete
+            </button>
+          )}
+          {t && (
+            <button className="btn convert" onClick={convert} disabled={!t.date}
+              title={t.date
+                ? 'Turn the saved task into an event on the same day and time'
+                : 'An event has to sit on a day — give this task a date and save it first.'}>
+              Convert to event ⇄
             </button>
           )}
           <div className="spacer" />

@@ -17,7 +17,9 @@ import { clampMin, columnAtX, MIN_BLOCK_MIN, minutesAtY, pastThreshold, snapMin 
 import {
   occurrenceAt, recurringCount, recurringTimes, type EditScope, type RecurOccurrence,
 } from '../utils/occur'
-import TaskCheck from './TaskCheck'
+import TaskCheck, { RecurringCheck } from './TaskCheck'
+import { DayLogBlock, JournalBox } from './daylog/DayLogControls'
+import { PencilGlyph } from './daylog/glyphs'
 import { ExtensionPopover, ScopePopover } from './modals/DragPopovers'
 import BirthdayPopover, { GiftMark } from './modals/BirthdayPopover'
 import {
@@ -60,6 +62,24 @@ interface Drag {
 
 /** Everything beginDrag needs about the block being grabbed. */
 type DragInit = Pick<Drag, 'kind' | 'id' | 'mode' | 'occurrence' | 'occKey' | 'origStart' | 'origEnd'>
+
+/**
+ * A drag on EMPTY grid space, sketching the block a new item would occupy.
+ * It holds nothing yet: on release it just hands its span to the slot chooser,
+ * so the user still picks what the block becomes.
+ */
+interface CreateDrag {
+  iso: string
+  /** Index into `dates` — a sketch stays in the column it started in. */
+  dayIdx: number
+  /** Where the press landed; the block grows from here, up or down. */
+  anchorMin: number
+  startMin: number
+  endMin: number
+  x0: number
+  y0: number
+  active: boolean // past the threshold: a sketch, not a plain click
+}
 
 /** A dragged repeating event waiting for the user to pick its edit scope. */
 interface ScopePrompt {
@@ -118,6 +138,10 @@ export default function WeekGrid({ anchor, days }: Props) {
 
   const start = days === 7 ? startOfWeek(fromISO(anchor), state.weekStart) : fromISO(anchor)
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i))
+
+  // Two lane-level view prefs (persisted, outside undo history).
+  const allDayShut = state.collapseAllDay ?? false
+  const journalShut = state.collapseJournal ?? false
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: SCROLL_TO_HOUR * HOUR_H })
@@ -320,31 +344,9 @@ export default function WeekGrid({ anchor, days }: Props) {
    * "several times a day" habit — one box per slot, filled left to right.
    * Clicking a filled box drops the count back to it, so undoing is one click.
    */
-  const recurCheck = (occ: RecurOccurrence) => {
-    const color = taskColor(state, occ.rt.projectId)
-    const times = recurringTimes(occ.rt)
-    const count = recurringCount(occ.rt, occ.key)
-    if (times === 1) {
-      return (
-        <input type="checkbox" className="cb" checked={count > 0} style={cbTint(color)}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onChange={() => dispatch({ type: 'toggleRecurring', id: occ.rt.id, date: occ.key })} />
-      )
-    }
-    return (
-      <span className="rt-slots" onPointerDown={(e) => e.stopPropagation()}>
-        {Array.from({ length: times }, (_, i) => (
-          <input key={i} type="checkbox" className="cb" checked={i < count} style={cbTint(color)}
-            title={`${i + 1} of ${times}`}
-            onClick={(e) => e.stopPropagation()}
-            onChange={() => dispatch({
-              type: 'setRecurringCount', id: occ.rt.id, date: occ.key, count: i < count ? i : i + 1,
-            })} />
-        ))}
-      </span>
-    )
-  }
+  const recurCheck = (occ: RecurOccurrence) => (
+    <RecurringCheck rt={occ.rt} date={occ.key} color={taskColor(state, occ.rt.projectId)} />
+  )
 
   /**
    * One reschedule ghost: the slot a task used to occupy, left behind in its
@@ -369,8 +371,10 @@ export default function WeekGrid({ anchor, days }: Props) {
   // Empty-slot click opens a small chooser (Event · Task · Study log) at the
   // click point; Event/Task route to the existing flows, Study log opens the
   // manual-log modal. The popover is closed by a click anywhere outside it.
+  // `endMin` is set only when the slot was DRAGGED open (see createDrag below);
+  // without it every branch keeps its own default length.
   const [slotChooser, setSlotChooser] = useState<
-    | { iso: string; startMin: number; x: number; y: number }
+    | { iso: string; startMin: number; endMin?: number; x: number; y: number }
     | null
   >(null)
   const clickSlot = (iso: string) => (e: React.MouseEvent<HTMLDivElement>) => {
@@ -395,6 +399,81 @@ export default function WeekGrid({ anchor, days }: Props) {
       document.removeEventListener('keydown', onKey)
     }
   }, [slotChooser])
+
+  /* ---------- Drag-to-create on empty grid space ---------- */
+
+  // Anchored on the same empty column surface as clickSlot, behind the same
+  // `e.target === e.currentTarget` guard: blocks, chips, due bars, ghosts and
+  // journal cells sit above it and keep their own pointerdowns, so a press on
+  // one never reaches this. A press that never passes the drag threshold is
+  // left entirely alone — the click still opens the chooser as it always has.
+  const [createDrag, setCreateDrag] = useState<CreateDrag | null>(null)
+  const createRef = useRef<CreateDrag | null>(null)
+  const putCreate = (c: CreateDrag | null) => {
+    createRef.current = c
+    setCreateDrag(c)
+  }
+
+  const startCreate = (iso: string, dayIdx: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || e.target !== e.currentTarget) return
+    const min = clampMin(snapMin(minutesAtY(e.currentTarget.getBoundingClientRect().top, e.clientY, HOUR_H)))
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    putCreate({
+      iso, dayIdx, anchorMin: min, startMin: min, endMin: min,
+      x0: e.clientX, y0: e.clientY, active: false,
+    })
+  }
+
+  useEffect(() => {
+    if (!createDrag) return
+    const onMove = (e: PointerEvent) => {
+      const c = createRef.current
+      if (!c) return
+      if (!c.active && !pastThreshold(c.x0, c.y0, e.clientX, e.clientY)) return
+      swallowClick.current = true
+      const rect = colRefs.current[c.dayIdx]?.getBoundingClientRect()
+      if (!rect) return
+      const cur = clampMin(snapMin(minutesAtY(rect.top, e.clientY, HOUR_H)))
+      let startMin = Math.min(c.anchorMin, cur)
+      let endMin = Math.max(c.anchorMin, cur)
+      // Never thinner than one snap step, growing away from the anchor.
+      if (endMin - startMin < MIN_BLOCK_MIN) {
+        if (cur < c.anchorMin) startMin = endMin - MIN_BLOCK_MIN
+        else endMin = startMin + MIN_BLOCK_MIN
+      }
+      if (startMin < 0) { startMin = 0; endMin = MIN_BLOCK_MIN }
+      if (endMin > 24 * 60) { endMin = 24 * 60; startMin = endMin - MIN_BLOCK_MIN }
+      putCreate({ ...c, active: true, startMin, endMin })
+    }
+    const onUp = (e: PointerEvent) => {
+      const c = createRef.current
+      putCreate(null)
+      // Below the threshold this was a plain click: leave it entirely alone so
+      // the chooser opens the way it always has.
+      if (!c?.active) return
+      // Safety net: if no click follows the release, don't swallow a later one.
+      setTimeout(() => { swallowClick.current = false }, 300)
+      // The sketch doesn't decide what it becomes: hand the span to the same
+      // chooser a plain click opens, at the point the drag was released.
+      setSlotChooser({ iso: c.iso, startMin: c.startMin, endMin: c.endMin, x: e.clientX, y: e.clientY })
+    }
+    const onKey = (e: KeyboardEvent) => {
+      // Abandon the sketch; the click after the eventual release is still eaten,
+      // so Escape doesn't fall through to opening the chooser.
+      if (e.key === 'Escape') putCreate(null)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('keydown', onKey)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createDrag !== null])
 
   return (
     <>
@@ -431,17 +510,39 @@ export default function WeekGrid({ anchor, days }: Props) {
                 }}>
                 ⛱
               </button>
+              {/* The day's log — weather, meals, mood — at the foot of the
+                  header cell. Week and day views only: the month grid's cells
+                  have no room for it. */}
+              <DayLogBlock date={iso} />
             </div>
           )
         })}
       </div>
 
-      {/* All-day lane: all-day events + date-only tasks + recurring occurrences */}
-      <div className="allday-lane">
-        <div className="gutter">all-day</div>
+      {/* All-day lane: all-day events + date-only tasks + recurring occurrences.
+          Collapsible down to a per-day count when the week is busy up here. */}
+      <div className={`allday-lane${allDayShut ? ' lane-shut' : ''}`}>
+        <button type="button" className="gutter lane-toggle"
+          title={allDayShut ? 'Show all-day items' : 'Collapse all-day items'}
+          aria-expanded={!allDayShut}
+          onClick={() => dispatch({ type: 'setCollapseAllDay', on: !allDayShut })}>
+          <span className={`caret ${allDayShut ? '' : 'open'}`}>▶</span>
+          <span className="lane-toggle-label">all-day</span>
+        </button>
         {dates.map((d) => {
           const iso = toISO(d)
           const items = itemsForDay(state, iso)
+          if (allDayShut) {
+            const n = items.allDayEvents.length + items.allDayTasks.length
+              + items.allDayRecurring.length + birthdaysForDay(state, iso).length
+            return (
+              <div key={iso} className={`allday-cell allday-count ${isDayOff(state, iso) ? 'day-off' : ''}`}
+                title={n ? `${n} all-day item${n === 1 ? '' : 's'} — click to expand` : 'Click to expand'}
+                onClick={() => dispatch({ type: 'setCollapseAllDay', on: false })}>
+                {n > 0 && <span className="ac-n">{n}</span>}
+              </div>
+            )
+          }
           return (
             <div key={iso} className={`allday-cell ${isDayOff(state, iso) ? 'day-off' : ''}`}
               onClick={(e) => {
@@ -523,7 +624,8 @@ export default function WeekGrid({ anchor, days }: Props) {
 
       {/* Time grid */}
       <div className="grid-scroll" ref={scrollRef}>
-        <div className={`grid-body${drag?.active ? ' grid-dragging' : ''}`} style={{ height: 24 * HOUR_H }}>
+        <div className={`grid-body${drag?.active || createDrag?.active ? ' grid-dragging' : ''}`}
+          style={{ height: 24 * HOUR_H }}>
           <div className="hour-gutter">
             {Array.from({ length: 23 }, (_, i) => i + 1).map((h) => (
               <div key={h} className="hour-label" style={{ top: h * HOUR_H }}>{fmtHourLabel(h)}</div>
@@ -560,6 +662,7 @@ export default function WeekGrid({ anchor, days }: Props) {
               <div key={iso}
                 ref={(el) => { colRefs.current[dayIdx] = el }}
                 className={`day-col ${isToday ? 'today-col' : ''} ${isDayOff(state, iso) ? 'day-off' : ''}`}
+                onPointerDown={startCreate(iso, dayIdx)}
                 onClick={clickSlot(iso)}>
                 {Array.from({ length: 24 }, (_, h) => (
                   <div key={h} className="hour-line" style={{ top: h * HOUR_H }} />
@@ -888,7 +991,45 @@ export default function WeekGrid({ anchor, days }: Props) {
                   )
                 )}
 
+                {/* The block being sketched on empty space, same outline as a drop preview. */}
+                {createDrag?.active && createDrag.iso === iso && (
+                  <div className="drag-preview"
+                    style={{
+                      top: (createDrag.startMin / 60) * HOUR_H,
+                      height: Math.max(((createDrag.endMin - createDrag.startMin) / 60) * HOUR_H - 2, 16),
+                    }}>
+                    <span className="dp-time">{fmtTime(createDrag.startMin)} – {fmtTime(createDrag.endMin)}</span>
+                  </div>
+                )}
+
                 {isToday && <div className="now-line" style={{ top: (now.minutes / 60) * HOUR_H }} />}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Past midnight: one journal box per day, in the same scrollport as the
+            time grid (so the default scroll position is untouched and it is
+            found by scrolling past the last hour). */}
+        <div className={`journal-lane${journalShut ? ' lane-shut' : ''}`}>
+          <button type="button" className="gutter lane-toggle"
+            title={journalShut ? 'Show journal boxes' : 'Collapse journal boxes'}
+            aria-expanded={!journalShut}
+            onClick={() => dispatch({ type: 'setCollapseJournal', on: !journalShut })}>
+            <span className={`caret ${journalShut ? '' : 'open'}`}>▶</span>
+          </button>
+          {dates.map((d) => {
+            const iso = toISO(d)
+            return (
+              <div key={iso} className={`journal-cell ${isDayOff(state, iso) ? 'day-off' : ''}`}>
+                <button type="button" className="jl-head"
+                  title={journalShut ? 'Show journal boxes' : 'Collapse journal boxes'}
+                  onClick={() => dispatch({ type: 'setCollapseJournal', on: !journalShut })}>
+                  <PencilGlyph size={11} />
+                  <span>Journal</span>
+                  {journalShut && state.dayLogs[iso]?.journal && <span className="jl-dot" aria-label="Has an entry">•</span>}
+                </button>
+                {!journalShut && <JournalBox date={iso} />}
               </div>
             )
           })}
@@ -905,18 +1046,22 @@ export default function WeekGrid({ anchor, days }: Props) {
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button type="button" onClick={() => {
-            ui.openEvent({ date: slotChooser.iso, startMin: slotChooser.startMin })
+            ui.openEvent({ date: slotChooser.iso, startMin: slotChooser.startMin, endMin: slotChooser.endMin })
             setSlotChooser(null)
           }}>Event</button>
+          {/* A plain click still hands the task editor nothing but the day —
+              only a dragged span gives it a time and an expected-time block. */}
           <button type="button" onClick={() => {
-            ui.openTask({ date: slotChooser.iso })
+            ui.openTask(slotChooser.endMin != null
+              ? { date: slotChooser.iso, startMin: slotChooser.startMin, endMin: slotChooser.endMin }
+              : { date: slotChooser.iso })
             setSlotChooser(null)
           }}>Task</button>
           <button type="button" onClick={() => {
             ui.openLogStudy({
               date: slotChooser.iso,
               startMin: slotChooser.startMin,
-              endMin: Math.min(24 * 60, slotChooser.startMin + 60),
+              endMin: slotChooser.endMin ?? Math.min(24 * 60, slotChooser.startMin + 60),
             })
             setSlotChooser(null)
           }}>Study log</button>

@@ -19,14 +19,24 @@ import LiveIcsModal from './components/modals/LiveIcsModal'
 import StaticImportModal from './components/modals/StaticImportModal'
 import LogStudyModal, { type LogStudyModalInit } from './components/modals/LogStudyModal'
 import InsightsPage from './components/insights/InsightsPage'
+import JournalPage from './components/journal/JournalPage'
 import SearchOverlay from './components/search/SearchOverlay'
 import type { ParsedIcsEvent } from './utils/ics'
 
-export type Page = 'calendar' | 'tasks' | 'timer' | 'binder' | 'insights'
+export type Page = 'calendar' | 'tasks' | 'timer' | 'binder' | 'insights' | 'journal'
 export type View = 'day' | 'week' | 'month'
 
-export interface EventModalInit { event?: CalEvent; date?: string; startMin?: number; allDay?: boolean }
-export interface TaskModalInit { task?: Task; date?: string | null; projectId?: ID | null; sectionId?: ID | null }
+/** `startMin`/`endMin` prefill a NEW event's times — a drag-created block passes both. */
+export interface EventModalInit { event?: CalEvent; date?: string; startMin?: number; endMin?: number; allDay?: boolean }
+/** Likewise for a new task: `startMin` sets its time, `endMin` its expected-time block. */
+export interface TaskModalInit {
+  task?: Task
+  date?: string | null
+  startMin?: number
+  endMin?: number
+  projectId?: ID | null
+  sectionId?: ID | null
+}
 /** `occurrence` = the date the rule generated the clicked occurrence on: its
  *  presence turns the editor into a scoped (only this / future / all) edit. */
 export interface RecurringModalInit { rt?: RecurringTask; projectId?: ID; sectionId?: ID | null; occurrence?: string }
@@ -140,6 +150,8 @@ export default function App() {
             </>
           ) : page === 'insights' ? (
             <InsightsPage />
+          ) : page === 'journal' ? (
+            <JournalPage />
           ) : (
             <BinderPage />
           )}

@@ -888,10 +888,30 @@ button { font: inherit; color: inherit; }
 
 .modal-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
+  align-items: center;
 }
 .modal-actions .spacer { flex: 1; }
+
+/* Event ⇄ task conversion: a footer control that must not compete with Save
+   or Delete, so it drops its frame and only gains one on hover. */
+.btn.convert {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+.btn.convert:hover:not(:disabled) {
+  background: var(--bg-inset);
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn.convert:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .quick-add {
   display: flex;
@@ -5047,3 +5067,479 @@ button { font: inherit; color: inherit; }
 .mm-dot-bday { box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg) 70%, transparent); }
 
 /* end ---------- Phase 4 ---------- */
+
+/* ---------- Daily log & journal ---------- */
+
+/* The three glyph families (weather, meals, mood) all draw in currentColor, so
+   a control's state is expressed purely by the colour it hands down. */
+
+/* Moon phase: the disc is the dark side, the path on top the lit side. */
+.moon-icon { flex: 0 0 auto; display: block; }
+.moon-icon .moon-dark { fill: var(--border); }
+.moon-icon .moon-lit { fill: color-mix(in srgb, var(--text) 80%, transparent); }
+.moon-icon .moon-rim {
+  stroke: color-mix(in srgb, var(--text-faint) 60%, transparent);
+  stroke-width: 0.7;
+}
+
+/* ---- The log block, shared by day headers and the Journal tab ---- */
+.daylog {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  min-width: 0;
+}
+
+/* Compact form: squeezed into the bottom of a week/day header cell. */
+.daylog-header {
+  gap: 2px;
+  margin-top: 5px;
+  padding: 3px 3px 0;
+  border-top: 1px solid var(--border);
+}
+
+.dl-weather {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.dl-moon { margin-left: auto; padding-left: 2px; display: flex; flex: 0 0 auto; }
+
+/* Seven toggles have to survive a 7-column week on a 1440px screen, so they
+   share the row evenly and cap out rather than demanding a fixed width. */
+.dl-wx {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  padding: 0;
+  max-width: 16px;
+  height: 15px;
+  min-width: 0;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.dl-wx svg { width: 100%; height: auto; max-width: 13px; }
+.dl-wx:hover { color: var(--text-dim); background: var(--bg-inset); }
+.dl-wx.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* Meals: an icon saying which meal it is, then a bare underlined field. */
+.dl-meals { display: flex; flex-direction: column; gap: 1px; }
+.dl-meal {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.dl-meal-icon { color: var(--text-faint); display: flex; flex: 0 0 auto; }
+.dl-meal-input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0 1px 1px;
+}
+.dl-meal-input:hover { border-bottom-color: var(--border-strong); }
+.dl-meal-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.dl-mood { display: flex; align-items: center; }
+.dl-face {
+  flex: 0 1 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0.55;
+  padding: 0;
+  width: 17px;
+  min-width: 0;
+  height: 17px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.dl-face:hover { opacity: 1; color: var(--text-dim); }
+.dl-face.on {
+  opacity: 1;
+  color: var(--accent);
+}
+.dl-face.on .mf-disc { fill: color-mix(in srgb, var(--accent) 20%, transparent); }
+
+/* Roomier form, used on the Journal tab. */
+.daylog-journal { gap: 5px; }
+.daylog-journal .dl-weather { gap: 1px; }
+.daylog-journal .dl-wx { flex: 0 0 auto; width: 21px; max-width: none; height: 21px; border-radius: 5px; }
+.daylog-journal .dl-wx svg { width: 15px; max-width: none; height: 15px; }
+.daylog-journal .dl-moon svg { width: 15px; height: 15px; }
+.daylog-journal .dl-meals { gap: 3px; }
+.daylog-journal .dl-meal-input { font-size: 12px; padding-bottom: 2px; }
+.daylog-journal .dl-meal-icon svg { width: 13px; height: 13px; }
+.daylog-journal .dl-face { width: 21px; height: 21px; border-radius: 5px; }
+.daylog-journal .dl-face svg { width: 16px; height: 16px; }
+
+/* ---- Journal entry box ---- */
+.dl-journal { position: relative; display: flex; }
+.dl-journal-input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 6px;
+}
+.dl-journal-input::placeholder { color: var(--text-faint); }
+.dl-journal-input:focus { outline: none; border-color: var(--accent); }
+.dl-journal-count {
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  font-size: 9.5px;
+  color: var(--text-faint);
+  background: var(--bg-inset);
+  padding: 0 2px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.dl-journal-count.full { color: var(--due-red); }
+
+/* ---- Collapsible lanes on the week/day grid ---- */
+/* One control per lane, in the gutter where it meets the hour column. */
+.lane-toggle {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+.lane-toggle:hover { color: var(--text-dim); }
+.lane-toggle .caret {
+  display: inline-block;
+  font-size: 8px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 0.12s;
+}
+.lane-toggle .caret.open { transform: rotate(90deg); }
+
+/* All-day lane, collapsed: a slim strip with one count per day. */
+.allday-lane.lane-shut { min-height: 0; }
+.allday-cell.allday-count {
+  align-items: center;
+  justify-content: center;
+  padding: 1px 0;
+  min-height: 17px;
+}
+.ac-n {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-inset);
+  border-radius: 7px;
+  padding: 0 5px;
+  line-height: 15px;
+}
+
+/* Bottom-of-day journal: after the last hour row, inside the same scrollport,
+   so it is found by scrolling past midnight and the default scroll position
+   (7:30am) is untouched. */
+.journal-lane {
+  display: flex;
+  border-top: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+}
+.journal-lane .gutter { align-items: flex-start; padding-top: 6px; }
+.journal-cell {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding: 4px 5px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.journal-cell.day-off { background-color: color-mix(in srgb, var(--text-faint) 6%, transparent); }
+.jl-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 0;
+  cursor: pointer;
+  text-align: left;
+}
+.jl-head:hover { color: var(--text-dim); }
+.jl-dot { color: var(--accent); font-size: 13px; line-height: 1; }
+.journal-lane.lane-shut .journal-cell { padding-bottom: 4px; }
+
+/* ---- Journal page ---- */
+.journal-page {
+  flex: 1;
+  overflow: auto;
+  padding: 22px 26px 56px;
+}
+.jp-wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jp-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.jp-title h1 {
+  margin: 0;
+  font-size: 21px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jp-sub { font-size: 12px; color: var(--text-dim); }
+.jp-tools { display: flex; align-items: center; gap: 8px; }
+
+.jp-search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.jp-search:focus-within { border-color: var(--accent); }
+.jp-search-icon { color: var(--text-faint); font-size: 14px; }
+.jp-search input {
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  width: 210px;
+}
+.jp-search input::placeholder { color: var(--text-faint); }
+
+/* This month at a glance: how the days felt. */
+.jp-moodstrip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 12px;
+}
+.jp-moodstrip-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+}
+.jp-moodcount {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+  opacity: 0.5;
+}
+.jp-moodcount.has { color: var(--accent); opacity: 1; }
+.jp-moodcount b { font-size: 12px; font-weight: 600; color: var(--text-dim); }
+
+.jp-empty {
+  background: var(--bg-raised);
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  padding: 16px 18px;
+  max-width: 640px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.jp-empty p { margin: 0 0 8px; }
+.jp-empty p:last-child { margin-bottom: 0; }
+.jp-empty b { color: var(--text); }
+
+.jp-searchnote { font-size: 12px; color: var(--text-dim); }
+
+.jp-year-group { display: flex; flex-direction: column; gap: 4px; }
+.jp-year {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 6px 2px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.jp-year-name { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+.jp-year-count { font-size: 11px; color: var(--text-faint); }
+
+.jp-month-group { display: flex; flex-direction: column; gap: 4px; }
+.jp-month {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 2px 4px 14px;
+  text-align: left;
+}
+.jp-month:hover { color: var(--text); }
+.jp-month-name { font-size: 12.5px; font-weight: 600; }
+.jp-month-count { font-size: 11px; color: var(--text-faint); }
+/* A month with nothing in it: a slim marker, not a control. */
+.jp-month-empty {
+  color: var(--text-faint);
+  cursor: default;
+  padding-left: 26px;
+  opacity: 0.65;
+}
+.jp-month-empty .jp-month-name { font-weight: 500; }
+
+.jp-year .caret,
+.jp-month .caret {
+  display: inline-block;
+  width: 10px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-faint);
+  transform: rotate(0deg);
+  transition: transform 0.12s;
+}
+.jp-year .caret.open,
+.jp-month .caret.open { transform: rotate(90deg); }
+
+.jp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 8px 14px;
+}
+.jp-row {
+  display: grid;
+  grid-template-columns: 84px minmax(160px, 210px) 1fr;
+  gap: 14px;
+  align-items: start;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+.jp-row.is-today { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+
+.jp-date {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 1px;
+}
+.jp-dow { font-size: 11px; color: var(--text-faint); font-weight: 600; }
+.jp-dnum { font-size: 14px; font-weight: 600; }
+.jp-today-pill {
+  margin-top: 3px;
+  align-self: flex-start;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-text);
+  background: var(--accent);
+  border-radius: 7px;
+  padding: 1px 6px;
+}
+
+.jp-right { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.jp-right .dl-journal-input { font-size: 12.5px; min-height: 54px; }
+
+/* Search hits, shown read-only under the row: the editable fields above can't
+   carry a highlight, so the matched text is echoed here with the term marked. */
+.jp-matches { display: flex; flex-direction: column; gap: 2px; }
+.jp-match {
+  display: flex;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.jp-match-label {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 1px;
+}
+.jp-match-text { min-width: 0; }
+.jp-hl {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+@media (max-width: 900px) {
+  .jp-row { grid-template-columns: 1fr; gap: 8px; }
+  .jp-date { flex-direction: row; align-items: baseline; gap: 6px; }
+}
+
+/* ---- Location, in the ⚙ view settings ---- */
+.settings-loc-row { display: flex; align-items: center; gap: 6px; }
+.settings-loc-input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 7px;
+}
+.settings-loc-input:focus { outline: none; border-color: var(--accent); }
+.settings-loc-row .pill-row { flex: 0 0 auto; }
+
+/* end ---------- Daily log & journal ---------- */

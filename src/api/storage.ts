@@ -17,11 +17,21 @@ import type { AppState } from '../types'
  *   process or service worker; see NotificationSettings placeholder in types.
  */
 
-const KEY = 'semester-calendar-state-v1'
+const KEY = 'planned-state-v1'
+/** Pre-rename key (the app was briefly named "semester-calendar"). */
+const LEGACY_KEY = 'semester-calendar-state-v1'
 
 export function loadState(): AppState | null {
   try {
-    const raw = localStorage.getItem(KEY)
+    let raw = localStorage.getItem(KEY)
+    if (!raw) {
+      // One-time adoption of data saved under the old name.
+      raw = localStorage.getItem(LEGACY_KEY)
+      if (raw) {
+        localStorage.setItem(KEY, raw)
+        localStorage.removeItem(LEGACY_KEY)
+      }
+    }
     return raw ? (JSON.parse(raw) as AppState) : null
   } catch {
     return null

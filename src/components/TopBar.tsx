@@ -50,6 +50,7 @@ export default function TopBar({ page, setPage, view, setView, anchor, setAnchor
         <button className={page === 'timer' ? 'active' : ''} onClick={() => setPage('timer')}>Timer</button>
         <button className={page === 'binder' ? 'active' : ''} onClick={() => setPage('binder')}>Binder</button>
         <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Insights</button>
+        <button className={page === 'journal' ? 'active' : ''} onClick={() => setPage('journal')}>Journal</button>
       </div>
 
       {page === 'calendar' && (
@@ -129,11 +130,21 @@ const GHOST_OPTIONS: { value: boolean; label: string }[] = [
   { value: false, label: 'Hide' },
 ]
 
+const HEMISPHERE_OPTIONS: { value: 'N' | 'S'; label: string }[] = [
+  { value: 'N', label: 'N' },
+  { value: 'S', label: 'S' },
+]
+
 /** ⚙ popover for view-level prefs: week start day + theme. Mirrors NotificationCenter's open/close-on-outside-click pattern. */
 function ViewSettings() {
   const { state, dispatch } = useStore()
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  // The place name is free text, so it commits on blur / Enter rather than
+  // writing to the store on every keystroke.
+  const [loc, setLoc] = useState(state.location?.label ?? '')
+  useEffect(() => setLoc(state.location?.label ?? ''), [state.location?.label])
+  const commitLoc = () => dispatch({ type: 'setLocation', location: { ...state.location, label: loc } })
 
   useEffect(() => {
     if (!open) return
@@ -197,6 +208,38 @@ function ViewSettings() {
                   {o.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="settings-section">
+            <div className="proj-section-label">
+              Location
+              <InfoIcon text="Only used for the moon-phase icon on the daily log: south of the equator the moon is seen the other way round, so the lit side is mirrored. The place name is just a note to yourself — nothing is sent anywhere." />
+            </div>
+            <div className="settings-loc-row">
+              <input
+                type="text"
+                className="settings-loc-input"
+                placeholder="Where you are"
+                aria-label="Location"
+                value={loc}
+                onChange={(e) => setLoc(e.target.value)}
+                onBlur={commitLoc}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') { setLoc(state.location?.label ?? ''); e.currentTarget.blur() }
+                }}
+              />
+              <div className="pill-row">
+                {HEMISPHERE_OPTIONS.map((o) => (
+                  <button key={o.value} type="button"
+                    title={o.value === 'N' ? 'Northern hemisphere' : 'Southern hemisphere'}
+                    className={`pill ${(state.location?.hemisphere ?? 'N') === o.value ? 'active' : ''}`}
+                    onClick={() => dispatch({ type: 'setLocation', location: { ...state.location, hemisphere: o.value } })}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

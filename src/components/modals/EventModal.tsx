@@ -27,7 +27,9 @@ export default function EventModal({ init, onClose }: { init: EventModalInit; on
   const [scope, setScope] = useState<EditScope>('one')
   const [allDay, setAllDay] = useState(ev?.allDay ?? init.allDay ?? false)
   const [start, setStart] = useState(minToHm(ev?.startMin ?? init.startMin ?? 9 * 60))
-  const [end, setEnd] = useState(minToHm(ev?.endMin ?? (init.startMin != null ? init.startMin + 60 : 10 * 60)))
+  const [end, setEnd] = useState(
+    minToHm(ev?.endMin ?? init.endMin ?? (init.startMin != null ? init.startMin + 60 : 10 * 60)),
+  )
   const [repeat, setRepeat] = useState<Repeat>(ev?.repeat ?? 'none')
   const [location, setLocation] = useState(ev?.location ?? '')
   const [notes, setNotes] = useState(ev?.notes ?? '')
@@ -103,6 +105,13 @@ export default function EventModal({ init, onClose }: { init: EventModalInit; on
     } else {
       dispatch({ type: 'deleteEvent', id: ev.id })
     }
+    onClose()
+  }
+
+  /** Swap this event for a task at the same time (one undo step; see the store). */
+  const convert = () => {
+    if (!ev || isSeries) return
+    dispatch({ type: 'convertEventToTask', id: ev.id })
     onClose()
   }
 
@@ -197,6 +206,14 @@ export default function EventModal({ init, onClose }: { init: EventModalInit; on
         {ev && (
           <button className="btn danger" onClick={remove}>
             Delete{isSeries ? (scope === 'all' ? ' all' : scope === 'future' ? ' this + future' : ' this one') : ''}
+          </button>
+        )}
+        {ev && (
+          <button className="btn convert" onClick={convert} disabled={isSeries}
+            title={isSeries
+              ? 'A repeating event can\'t be converted — turning a series into recurring tasks isn\'t supported.'
+              : 'Turn the saved event into a task on the same day and time'}>
+            Convert to task ⇄
           </button>
         )}
         <div className="spacer" />

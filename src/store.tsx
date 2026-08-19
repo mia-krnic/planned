@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 import type {
   AnkiLog, AppNotification, AppState, BinderPost, BinderSection, BinderUpload, Birthday, CalEvent, ClassFolder,
-  ClassInfo, CustomCalendar, Freq, GradeRow, ID, Project, RecurException, RecurringTask, StudySession, Task,
+  ClassInfo, CustomCalendar, DayLog, Freq, GradeRow, ID, Project, RecurException, RecurringTask, StudySession, Task,
   TaskSection, YptState,
 } from './types'
 import { PALETTE } from './types'
@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 15
+export const SEED_VERSION = 16
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -109,13 +109,13 @@ export function blankState(theme: 'light' | 'dark'): AppState {
   return {
     classes: [], folders: [], customCalendars: [], events: [],
     projects: [personal], taskSections: [], tasks: [], recurring: [], birthdays: [],
-    studySessions: [], gradeRows: [], ankiLogs: [],
+    studySessions: [], gradeRows: [], ankiLogs: [], dayLogs: {},
     hiddenCalendars: [], daysOff: [], showTasksOnCalendar: true,
     weekStart: 0, theme, themeConfig: { mode: theme, lightStart: '07:00', darkStart: '19:00' },
     // No live feed until the user binds one (Sidebar → Import live ICS).
     palette: [...PALETTE], notifications: [], icsUrl: '',
     lastSync: null, deletedUids: [], binderSections: [], binderUploads: [], binderPosts: [],
-    schema: 7,
+    schema: 8,
     // A user who explicitly cleared their data owns it — never auto-reseed them.
     seedVersion: SEED_VERSION, userOwned: true,
   }
@@ -675,10 +675,73 @@ function seed(): AppState {
     { id: uid(), classId: 'c-aaad', text: 'Bring two discussion questions to seminar — he does check.', createdAt: daysAgo(6, 14) },
   ]
 
+  // Example daily log: the ten days either side of the midterm, so the weather
+  // toggles, meals, moods and journal all arrive with something in them. The
+  // moods run a small arc — grinding, then flat, then the relief afterwards —
+  // and today is left half-written (weather + breakfast) as an invitation.
+  const logDay = (n: number) => toISO(addDays(today, -n))
+  const dayLogs: Record<string, DayLog> = {
+    [logDay(9)]: {
+      weather: ['rain'],
+      meals: { b: 'Toast and peanut butter', l: 'Leftover pasta at my desk', d: 'Rice and black beans' },
+      mood: 3,
+    },
+    [logDay(8)]: {
+      weather: ['cloud', 'rain'],
+      meals: { b: 'Porridge with a banana', l: 'Cheese sandwich in the library', d: 'Instant noodles with an egg in it' },
+      mood: 2,
+      journal: 'Rain all day and still three chapters to go before the midterm. Ate lunch at my desk again, which I keep promising not to do. Library at nine tomorrow, no negotiating with myself about it.',
+    },
+    [logDay(7)]: {
+      weather: ['cloud'],
+      meals: { b: 'Coffee only, ran late', l: 'Soup from the canteen', d: 'Stir fry with the last of the veg' },
+      mood: 2,
+    },
+    [logDay(6)]: {
+      weather: ['sun', 'wind'],
+      meals: { b: 'Scrambled eggs', l: 'Chicken wrap with Priya', d: 'Pasta and pesto' },
+      mood: 3,
+      journal: 'Past papers under exam timing, which was humbling. Section C really is the same every year, so at least I know where the hours should go.',
+    },
+    [logDay(5)]: {
+      weather: ['storm', 'rain'],
+      meals: { b: 'Porridge', l: 'Rice bowl, ate it too fast', d: 'Toast — could not face cooking' },
+      mood: 2,
+      journal: 'Thunder all evening and the library wifi kept dropping out. Three hours on related rates and I can finally see the pattern, which is the one good thing about today.',
+    },
+    [logDay(4)]: {
+      weather: ['suncloud'],
+      meals: { b: 'Yoghurt and a banana', l: 'Canteen curry', d: 'Roast veg and couscous' },
+      mood: 3,
+    },
+    [logDay(3)]: {
+      weather: ['sun'],
+      meals: { b: 'Eggs on toast', l: 'Sandwich at the lab bench', d: 'Pizza with the flat' },
+      mood: 4,
+      journal: 'Midterm done. No idea how it went and I am refusing to think about it until the marks are up. Pizza with the flat afterwards — first proper evening off in two weeks.',
+    },
+    [logDay(2)]: {
+      weather: ['sun', 'suncloud'],
+      meals: { b: 'Porridge with honey', l: 'Leftover pizza', d: 'Chilli, made a big batch' },
+      mood: 5,
+      journal: 'Slept nine hours and it changed my entire personality. Cooked something real, did the reading before the seminar instead of during it. This is the version of me I would like to keep.',
+    },
+    [logDay(1)]: {
+      weather: ['cloud', 'wind'],
+      meals: { b: 'Toast and jam', l: 'Soup and bread', d: 'Chilli again, still good' },
+      mood: 4,
+    },
+    [todayIso]: {
+      weather: ['suncloud'],
+      meals: { b: 'Coffee and a croissant from the place by Murray' },
+    },
+  }
+
   return {
     classes, folders, customCalendars, events, projects, taskSections, tasks, recurring, birthdays,
     studySessions, gradeRows,
     ankiLogs: seedAnkiLogs(todayIso, iso(0, semesterStartWeek)),
+    dayLogs,
     hiddenCalendars: [],
     // Explicitly marked day off (Saturday). Sunday is a day off too, but a
     // DERIVED one: Maya's birthday sits there and hasn't opted out.
@@ -694,6 +757,10 @@ function seed(): AppState {
     // Demo daily study goal: 90 min — low enough that some seed days hit it,
     // so the Target Achievement Rate figure shows a real percentage.
     studyGoalMin: 90,
+    // The demo campus is in the northern hemisphere, so the moon icon on the
+    // daily log is drawn the way this student would actually see it.
+    location: { label: 'Chapel Hill', hemisphere: 'N' },
+    // Both grid lanes ship open, so the new log and journal are on show.
     // Demo data: never user-owned, so a SEED_VERSION bump auto-refreshes it.
     seedVersion: SEED_VERSION, userOwned: false,
   }
@@ -814,6 +881,38 @@ export function displayYptState(t: Task): YptState {
   return t.yptState === 2 ? 1 : t.yptState ?? 0
 }
 
+/**
+ * Normalise a merged day log: trim the text fields, drop everything empty, and
+ * return null when nothing at all is left (the caller then removes the date).
+ */
+function cleanDayLog(log: DayLog): DayLog | null {
+  const out: DayLog = {}
+  const meals: NonNullable<DayLog['meals']> = {}
+  for (const k of ['b', 'l', 'd'] as const) {
+    const v = log.meals?.[k]?.trim()
+    if (v) meals[k] = v
+  }
+  if (Object.keys(meals).length) out.meals = meals
+  // Duplicates can't come from the UI, but a hand-edited backup could carry them.
+  const weather = log.weather?.filter((w, i, all) => all.indexOf(w) === i)
+  if (weather?.length) out.weather = weather
+  if (log.mood) out.mood = log.mood
+  const journal = log.journal?.trim()
+  if (journal) out.journal = journal
+  return Object.keys(out).length ? out : null
+}
+
+function sameDayLog(a: DayLog | undefined, b: DayLog | null): boolean {
+  if (!a || !b) return !a && !b
+  const am = a.meals ?? {}
+  const bm = b.meals ?? {}
+  const aw = a.weather ?? []
+  const bw = b.weather ?? []
+  return am.b === bm.b && am.l === bm.l && am.d === bm.d
+    && a.mood === b.mood && a.journal === b.journal
+    && aw.length === bw.length && aw.every((w, i) => w === bw[i])
+}
+
 /** Fill in fields added after first release and run one-time schema upgrades. */
 export function migrate(s: AppState): AppState {
   const state: AppState = {
@@ -836,6 +935,7 @@ export function migrate(s: AppState): AppState {
     studySessions: s.studySessions ?? [],
     gradeRows: s.gradeRows ?? [],
     ankiLogs: s.ankiLogs ?? [],
+    dayLogs: s.dayLogs ?? {},
     taskSections: s.taskSections ?? [],
     birthdays: s.birthdays ?? [],
     schema: s.schema ?? 1,
@@ -1029,6 +1129,12 @@ export function migrate(s: AppState): AppState {
     state.schema = 7
   }
 
+  if (state.schema < 8) {
+    // The daily log & journal arrives empty: `dayLogs` is defaulted above, so
+    // this stage only records that the upgrade has run.
+    state.schema = 8
+  }
+
   return state
 }
 
@@ -1134,6 +1240,15 @@ export type Action =
    * single undo step even when it splits the series (see scopedEventEdit).
    */
   | { type: 'moveEventOccurrence'; id: ID; occurrence: string; scope: EditScope; patch: Partial<CalEvent> }
+  /**
+   * Event ⇄ task, in one step. Two dispatches (add + delete) would record two
+   * history entries, so the swap lives in the reducer instead and stays a
+   * single undo. Refused — and the modals disable their control — for a
+   * repeating event (a series of recurring tasks is out of scope) or a task
+   * with no date (an event must sit on a day).
+   */
+  | { type: 'convertEventToTask'; id: ID }
+  | { type: 'convertTaskToEvent'; id: ID }
   | { type: 'addTask'; task: Task }
   | { type: 'updateTask'; task: Task }
   | { type: 'deleteTask'; id: ID }
@@ -1232,6 +1347,10 @@ export type Action =
   // Re-enabling ghosts also un-dismisses every ghost (see the ⓘ in ViewSettings).
   | { type: 'setShowGhosts'; on: boolean }
   | { type: 'setStudyGoal'; minutes: number | null } // daily study-time goal (minutes)
+  | { type: 'updateDayLog'; date: string; patch: Partial<DayLog> } // merged into the day's log
+  | { type: 'setLocation'; location: AppState['location'] } // hemisphere drives the moon icon
+  | { type: 'setCollapseAllDay'; on: boolean }
+  | { type: 'setCollapseJournal'; on: boolean }
   | { type: 'replaceState'; state: AppState } // backup import
 
 function reducer(state: AppState, a: Action): AppState {
@@ -1282,6 +1401,66 @@ function reducer(state: AppState, a: Action): AppState {
         ...state,
         events: [...state.events.map((e) => (e.id === a.id ? trimmed : e)), detached],
       }
+    }
+
+    /**
+     * Event → task. The time becomes the task's scheduled block; an all-day
+     * event becomes an all-day (date-only) task. Everything the event carried
+     * that a task has no home for (repeat, exam flag, sync fields) is dropped
+     * with it, which is why the control is refused on a series.
+     */
+    case 'convertEventToTask': {
+      const ev = state.events.find((e) => e.id === a.id)
+      if (!ev || ev.repeat !== 'none') return state
+      const task: Task = {
+        id: uid(),
+        title: ev.title,
+        projectId: projectForCalendar(state, ev.classId, ev.calendarId),
+        sectionId: null,
+        date: ev.date,
+        startMin: ev.allDay ? null : ev.startMin,
+        endMin: ev.allDay ? null : ev.endMin,
+        dueDate: null,
+        dueMin: null,
+        location: ev.location,
+        done: false,
+        notes: ev.notes,
+      }
+      const gone = reducer(state, { type: 'deleteEvent', id: a.id })
+      return { ...gone, tasks: [...gone.tasks, task] }
+    }
+
+    /**
+     * Task → event, the mirror. A task with a start but no expected-time block
+     * gets the editor's default hour; an all-day task becomes an all-day event.
+     * The task-only fields (due date, submitted, extensions, attachments, ypt
+     * state, section) have no counterpart and are dropped — TaskModal confirms
+     * that first when any of them is set.
+     */
+    case 'convertTaskToEvent': {
+      const t = state.tasks.find((x) => x.id === a.id)
+      if (!t || !t.date) return state
+      const p = projectById(state, t.projectId)
+      const calendarId = p?.classId ? null : p?.calendarId ?? null
+      const allDay = t.startMin == null
+      const startMin = t.startMin ?? 0
+      const event: CalEvent = {
+        id: uid(),
+        title: t.title,
+        classId: p?.classId ?? null,
+        calendarId: calendarId === 'personal' ? null : calendarId,
+        date: t.date,
+        allDay,
+        startMin: allDay ? 0 : startMin,
+        endMin: allDay
+          ? 0
+          : t.endMin != null && t.endMin > startMin ? t.endMin : Math.min(startMin + 60, 24 * 60),
+        repeat: 'none',
+        location: t.location,
+        notes: t.notes,
+      }
+      const gone = reducer(state, { type: 'deleteTask', id: a.id })
+      return { ...gone, events: [...gone.events, event] }
     }
 
     case 'addTask':
@@ -2075,6 +2254,35 @@ function reducer(state: AppState, a: Action): AppState {
     case 'setStudyGoal':
       return state.studyGoalMin === a.minutes ? state : { ...state, studyGoalMin: a.minutes }
 
+    /**
+     * The day's log is edited one control at a time, so every dispatch is a
+     * merge. Emptying the last field removes the date's record entirely rather
+     * than leaving a husk of empty strings behind.
+     */
+    case 'updateDayLog': {
+      const prev = state.dayLogs[a.date]
+      const next = cleanDayLog({ ...prev, ...a.patch, meals: { ...prev?.meals, ...a.patch.meals } })
+      if (sameDayLog(prev, next)) return state
+      const dayLogs = { ...state.dayLogs }
+      if (next) dayLogs[a.date] = next
+      else delete dayLogs[a.date]
+      return { ...state, dayLogs }
+    }
+
+    case 'setLocation': {
+      const label = a.location?.label?.trim()
+      const hemisphere = a.location?.hemisphere
+      const next = label || hemisphere ? { ...(label ? { label } : null), ...(hemisphere ? { hemisphere } : null) } : undefined
+      const cur = state.location
+      if ((cur?.label ?? '') === (next?.label ?? '') && (cur?.hemisphere ?? '') === (next?.hemisphere ?? '')) return state
+      return { ...state, location: next }
+    }
+
+    case 'setCollapseAllDay':
+      return (state.collapseAllDay ?? false) === a.on ? state : { ...state, collapseAllDay: a.on || undefined }
+    case 'setCollapseJournal':
+      return (state.collapseJournal ?? false) === a.on ? state : { ...state, collapseJournal: a.on || undefined }
+
     case 'replaceState':
       return a.state
   }
@@ -2115,7 +2323,7 @@ const COALESCE_MS = 1000
  */
 const SKIP_HISTORY = new Set<Action['type']>([
   'setTheme', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
-  'setTaskCheckStyle', 'setShowGhosts',
+  'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal',
 ])
 
 /**
@@ -2142,12 +2350,17 @@ function keepUnversioned(restored: AppState, current: AppState): AppState {
     restored.weekStart === current.weekStart &&
     restored.themeConfig === current.themeConfig &&
     restored.taskCheckStyle === current.taskCheckStyle &&
-    restored.showGhosts === current.showGhosts
+    restored.showGhosts === current.showGhosts &&
+    restored.location === current.location &&
+    restored.collapseAllDay === current.collapseAllDay &&
+    restored.collapseJournal === current.collapseJournal
   ) return restored
   return {
     ...restored,
     theme: current.theme, weekStart: current.weekStart, themeConfig: current.themeConfig,
     taskCheckStyle: current.taskCheckStyle, showGhosts: current.showGhosts,
+    location: current.location,
+    collapseAllDay: current.collapseAllDay, collapseJournal: current.collapseJournal,
   }
 }
 
@@ -2307,6 +2520,20 @@ export function classById(state: AppState, id: ID | null): ClassInfo | null {
 
 export function projectById(state: AppState, id: ID | null): Project | null {
   return id ? state.projects.find((p) => p.id === id) ?? null : null
+}
+
+/**
+ * The project that owns the tasks of one calendar — the inverse of
+ * `taskCalendarId`. Projects are 1:1 with classes and calendars, so an event's
+ * (classId, calendarId) picks exactly one; an absent calendarId means Personal.
+ * Null only when the class/calendar has no project left (see deleteClass).
+ */
+export function projectForCalendar(
+  state: AppState, classId: ID | null, calendarId?: ID | null,
+): ID | null {
+  if (classId) return state.projects.find((p) => p.classId === classId)?.id ?? null
+  const calId = calendarId ?? 'personal'
+  return state.projects.find((p) => p.classId == null && (p.calendarId ?? 'personal') === calId)?.id ?? null
 }
 
 /** Color for a task: its project's class color, else the project's calendar color, else neutral. */

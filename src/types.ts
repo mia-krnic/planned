@@ -451,6 +451,24 @@ export interface Birthday {
 /** Calendar id of the built-in Birthdays calendar (hiddenCalendars, filters). */
 export const BIRTHDAY_CAL_ID = 'birthdays'
 
+/* ---------- Daily log & journal ---------- */
+
+/** The seven weather marks a day can be tagged with (several at once). */
+export type WeatherKind = 'sun' | 'suncloud' | 'cloud' | 'rain' | 'storm' | 'snow' | 'wind'
+
+/**
+ * One day's diary: what the weather did, what was eaten, how the day felt and
+ * a free-text entry. Every field is optional and a day with nothing in it is
+ * not stored at all (see the updateDayLog reducer), so `dayLogs` only ever
+ * holds days the user actually wrote something on.
+ */
+export interface DayLog {
+  meals?: { b?: string; l?: string; d?: string }
+  weather?: WeatherKind[]
+  mood?: 1 | 2 | 3 | 4 | 5
+  journal?: string
+}
+
 export interface AppState {
   classes: ClassInfo[]
   folders: ClassFolder[]
@@ -464,6 +482,7 @@ export interface AppState {
   studySessions: StudySession[]
   gradeRows: GradeRow[] // assessed components per class (the grade tracker)
   ankiLogs: AnkiLog[] // manual flashcard review counts, one per (date, classId)
+  dayLogs: Record<string, DayLog> // the daily log & journal, keyed by ISO date
   hiddenCalendars: ID[] // class ids (or 'personal') hidden from the calendar
   daysOff: string[] // ISO dates marked as days off (greyed columns + outlined date)
   showTasksOnCalendar: boolean
@@ -492,6 +511,16 @@ export interface AppState {
   showGhosts?: boolean
   /** Daily study-time goal in minutes (set in the study timer section). null/absent = no goal. */
   studyGoalMin?: number | null
+  /**
+   * Where the user is. Only the hemisphere is used by the app (it mirrors the
+   * moon-phase icon, which southern observers see the other way round); the
+   * label is a note to self. Absent hemisphere = 'N'.
+   */
+  location?: { label?: string; hemisphere?: 'N' | 'S' }
+  /** All-day lane collapsed to a per-day count strip. Absent = expanded. */
+  collapseAllDay?: boolean
+  /** Bottom-of-day journal boxes collapsed to their header row. Absent = expanded. */
+  collapseJournal?: boolean
 }
 
 export const PALETTE = [

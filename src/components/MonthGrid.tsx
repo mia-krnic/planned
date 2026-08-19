@@ -5,12 +5,12 @@ import {
   BIRTHDAY_COLOR, birthdayLabel, birthdaysForDay, DUE_FLAG, dueBarsForDay, eventColor, examColorsForDay,
   examRingBackground, isDayOff, itemsForDay, recurringDueBarsForDay,
 } from '../utils/agenda'
-import type { Birthday, CalEvent, ID, Task } from '../types'
+import type { Birthday, CalEvent, ID, RecurringTask, Task } from '../types'
 import { cbTint, hexToRgba } from '../utils/color'
 import { addDays, daysBetween, fmtTime, fromISO, isSameDay, monthMatrix, toISO, weekdayLabels } from '../utils/date'
 import { pastThreshold } from '../utils/drag'
 import { recurringCount, recurringTimes, type EditScope } from '../utils/occur'
-import TaskCheck from './TaskCheck'
+import TaskCheck, { RecurringCheck } from './TaskCheck'
 import { ScopePopover } from './modals/DragPopovers'
 import BirthdayPopover, { GiftMark } from './modals/BirthdayPopover'
 
@@ -151,7 +151,7 @@ export default function MonthGrid({ anchor }: { anchor: string }) {
               // Recurring occurrences are generated per day, so they take a
               // plain box in both checking modes. Dragging them needs a time
               // grid (and a scope prompt), so it stays a week-view affordance.
-              | { key: string; kind: 'recurring'; color: string; label: string; done: boolean; onClick: (e: React.MouseEvent) => void; onToggle: () => void }
+              | { key: string; kind: 'recurring'; color: string; label: string; done: boolean; rt: RecurringTask; occKey: string; onClick: (e: React.MouseEvent) => void }
               | { key: string; kind: 'birthday'; color: string; label: string; bday: Birthday; onClick: (e: React.MouseEvent) => void }
             const chips: Chip[] = [
               ...birthdaysForDay(state, iso).map((b): Chip => ({
@@ -181,12 +181,8 @@ export default function MonthGrid({ anchor }: { anchor: string }) {
                 return {
                   key: `r${occ.rt.id}-${occ.key}`, kind: 'recurring', color: taskColor(state, occ.rt.projectId),
                   label: `${when}${occ.rt.title} ↻${slots}`, done: count >= times,
+                  rt: occ.rt, occKey: occ.key,
                   onClick: () => ui.openRecurring({ rt: occ.rt, occurrence: occ.key }),
-                  // One box for the whole day here: the per-slot ticks live on
-                  // the week grid, where there is room for them.
-                  onToggle: () => (times > 1
-                    ? dispatch({ type: 'setRecurringCount', id: occ.rt.id, date: occ.key, count: count >= times ? 0 : times })
-                    : dispatch({ type: 'toggleRecurring', id: occ.rt.id, date: occ.key })),
                 }
               }),
             ]
@@ -260,11 +256,7 @@ export default function MonthGrid({ anchor }: { anchor: string }) {
                       {c.kind === 'task' && <TaskCheck task={c.task} color={c.color} />}
                       {c.kind === 'birthday' && <GiftMark size={12} />}
                       {c.kind === 'recurring' && (
-                        <input type="checkbox" className="cb" checked={c.done}
-                          style={cbTint(c.color)}
-                          onClick={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onChange={c.onToggle} />
+                        <RecurringCheck rt={c.rt} date={c.occKey} color={c.color} compact />
                       )}
                       <span className={`label ${done ? 'done-strike' : ''}`}>{c.label}</span>
                     </div>
