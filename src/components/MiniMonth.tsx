@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useStore } from '../store'
-import { dueColorsForDay, examColorsForDay, examRingBackground, isDayOff } from '../utils/agenda'
+import {
+  BIRTHDAY_COLOR, birthdayLabel, birthdaysForDay, dueColorsForDay, examColorsForDay, examRingBackground, isDayOff,
+} from '../utils/agenda'
+import { hexToRgba } from '../utils/color'
 import { fromISO, isSameDay, monthMatrix, MONTHS, toISO, weekdayLabels } from '../utils/date'
 
 interface Props {
@@ -46,22 +49,36 @@ export default function MiniMonth({ anchor, onSelect }: Props) {
             isSameDay(d, anchorDate) && !isSameDay(d, today) ? 'selected' : '',
           ].join(' ')
           const examBg = examRingBackground(examColorsForDay(state, iso))
+          const bdays = birthdaysForDay(state, iso)
           const dayOff = isDayOff(state, iso)
+          // Birthdays take the same tinted box behind the number as an exam
+          // day. An exam outranks them (its pie carries per-class meaning), so
+          // a day with both keeps the pie and the birthday drops to a dot.
+          const bdayBox = bdays.length > 0 && !examBg
+          const bdayTip = bdays.map((b) => birthdayLabel(b, iso)).join(' · ')
           return (
-            <button key={iso} className={cls} onClick={() => onSelect(iso)}>
+            <button key={iso} className={cls} onClick={() => onSelect(iso)}
+              title={bdayTip || undefined}>
               {/* Exam fill lives on a layer BELOW .mm-num so today's solid
                   accent circle always paints on top of it. */}
               {examBg && <span className="exam-box" style={{ background: examBg }} />}
+              {bdayBox && (
+                <span className="exam-box bday-box" style={{ background: hexToRgba(BIRTHDAY_COLOR, 0.38) }} />
+              )}
               <span className="mm-num">
                 {dayOff && <span className="dayoff-box" />}
                 {d.getDate()}
               </span>
               {/* Dots mark DEADLINES only — one per distinct colour of task
-                  due that day, up to three. */}
+                  due that day, up to three — plus a warm one for a birthday
+                  that lost its box to an exam. */}
               <span className="mm-dots">
                 {dueColorsForDay(state, iso).map((c, i) => (
                   <span key={i} className="mm-dot" style={{ background: c }} />
                 ))}
+                {bdays.length > 0 && examBg && (
+                  <span className="mm-dot mm-dot-bday" style={{ background: BIRTHDAY_COLOR }} />
+                )}
               </span>
             </button>
           )

@@ -1091,7 +1091,25 @@ button { font: inherit; color: inherit; }
 }
 .chip.chip-exam { border: 1.5px solid; border-left-width: 3px; }
 
-.exam-countdown { padding: 12px 2px 0; border-top: 1px solid var(--border); margin-top: 12px; }
+/* Boxed like the tasks panel's PINNED group so it reads as its own thing;
+   the divider that used to sit under the mini month now sits BELOW this box
+   (drawn into the sidebar gap by the ::after), separating it from MY CALENDARS. */
+.exam-countdown {
+  position: relative;
+  padding: 8px 8px 9px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.exam-countdown::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -8px;
+  height: 1px;
+  background: var(--border);
+}
+.exam-countdown h3 { margin-bottom: 4px; }
 .exam-row {
   display: flex;
   align-items: center;
@@ -5021,5 +5039,11 @@ button { font: inherit; color: inherit; }
 .bday-list-row:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .bday-list-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bday-list-date { color: var(--text-faint); font-size: 11px; }
+
+/* A birthday tints the mini-month date box the way an exam does, in the
+   Birthdays calendar's warm amber. The colour is mixed with the page ground so
+   it stays legible on both the light and the dark background. */
+.mm-cell .bday-box { z-index: 0; }
+.mm-dot-bday { box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg) 70%, transparent); }
 
 /* end ---------- Phase 4 ---------- */

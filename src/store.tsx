@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 14
+export const SEED_VERSION = 15
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -79,6 +79,18 @@ const SEED_FILE_CONTENTS: Record<string, { name: string; type: string; content: 
     name: 'lecture2-dna-replication-notes.txt', type: 'text/plain',
     content: 'BIOL 103 — Lecture 2 summary\n\nDNA replication is semi-conservative.\nKey enzymes: helicase, primase, DNA polymerase III, ligase.\nExam hint: know the leading vs lagging strand difference!\n',
   },
+  'seed-chem-past': {
+    name: 'midterm1-past-paper.txt', type: 'text/plain',
+    content: 'CHEM 101 — Midterm 1, last year\n\nSection A (20 marks): naming and formulae.\nSection B (30 marks): stoichiometry, limiting reagent.\nSection C (25 marks): gas laws — one full derivation.\nNo formula sheet. Calculator allowed.\n',
+  },
+  'seed-math-formula': {
+    name: 'derivatives-formula-sheet.txt', type: 'text/plain',
+    content: 'MATH 118 — derivative rules to have cold\n\nProduct: (fg)\' = f\'g + fg\'\nQuotient: (f/g)\' = (f\'g − fg\')/g²\nChain: (f(g(x)))\' = f\'(g(x))·g\'(x)\nImplicit: differentiate both sides, then solve for dy/dx.\nRelated rates: draw it, name the rates, THEN differentiate.\n',
+  },
+  'seed-phil-prompt': {
+    name: 'essay2-prompt.txt', type: 'text/plain',
+    content: 'PHIL 105 — Essay 2 prompt\n\n1500 words. Pick ONE argument from weeks 4–7 and reconstruct it\nin standard form, then give the strongest objection you can and\nreply to it. Marks are for the reply, not the summary.\n',
+  },
 }
 
 /** Write the demo file blobs into IndexedDB if they aren't there yet. */
@@ -111,9 +123,11 @@ export function blankState(theme: 'light' | 'dark'): AppState {
 
 function seed(): AppState {
   const today = new Date()
+  const todayDow = today.getDay()
   const week0 = startOfWeek(today) // Sunday of current week
   const iso = (dowOffset: number, weeksBack = 0) => toISO(addDays(week0, dowOffset - 7 * weeksBack))
-  const semesterStartWeek = 1 // classes started a week ago
+  const todayIso = toISO(today)
+  const semesterStartWeek = 8 // the demo semester is eight weeks old
 
   const folders: ClassFolder[] = [
     { id: 'f-sci', name: 'Sciences', collapsed: false },
@@ -126,51 +140,92 @@ function seed(): AppState {
 
   const classes: ClassInfo[] = [
     {
-      id: 'c-chem', name: 'CHEM 101-003', color: '#e8879c', folderId: 'f-sci',
+      id: 'c-chem', name: 'CHEM 101-003', color: '#e8879c', code: 'CHEM101', folderId: 'f-sci',
       meta: {
         professor: 'Prof R. Alvarez', room: 'Murray Hall G202',
         homework: 'Problem set due Mondays',
         other: 'Office hours Tue 2–4pm (Murray 310). Lab coat required for practicals.',
       },
     },
-    { id: 'c-biol', name: 'BIOL 103-003', color: '#8ecfa8', folderId: 'f-sci', meta: { professor: 'Dr T. Nwosu', room: 'Genome Sciences G200' } },
-    { id: 'c-phil', name: 'PHIL 105-001', color: '#c79be0', folderId: 'f-hum', pinnedFolder: true, meta: { homework: 'Weekly reading response, due before seminar' } },
-    { id: 'c-math', name: 'MATH 118-001', color: '#7faee8', folderId: 'f-sci', pinnedBinder: true },
-    { id: 'c-aaad', name: 'AAAD 89-003', color: '#7c9a5e' },
+    {
+      id: 'c-biol', name: 'BIOL 103-003', color: '#8ecfa8', code: 'BIOL103', folderId: 'f-sci',
+      meta: {
+        professor: 'Dr T. Nwosu', room: 'Genome Sciences G200',
+        other: 'Lab notebook checked at the start of every Friday session.',
+      },
+    },
+    {
+      id: 'c-phil', name: 'PHIL 105-001', color: '#c79be0', code: 'PHIL105', folderId: 'f-hum', pinnedFolder: true,
+      meta: { professor: 'Dr H. Bergmann', room: 'Peabody Hall 2066', homework: 'Weekly reading response, due before seminar' },
+    },
+    {
+      id: 'c-math', name: 'MATH 118-001', color: '#7faee8', code: 'MATH118', folderId: 'f-sci', pinnedBinder: true,
+      meta: { professor: 'Prof L. Okafor', room: 'Phillips Hall 332', homework: 'Problem sets every other week (Mon + Wed), due two days later' },
+    },
+    {
+      id: 'c-aaad', name: 'AAAD 89-003', color: '#7c9a5e', code: 'AAAD89',
+      meta: { professor: 'Dr M. Sundstrom', room: 'Alumni Bldg 404', other: 'First-year seminar — participation is 15% of the grade.' },
+    },
   ]
 
   const mk = (
     classId: ID | null, title: string, dow: number, start: number, end: number,
-    location?: string,
+    location?: string, extra?: Partial<CalEvent>,
   ): CalEvent => ({
     id: uid(), title, classId, date: iso(dow, semesterStartWeek),
-    allDay: false, startMin: start, endMin: end, repeat: 'weekly', location,
+    allDay: false, startMin: start, endMin: end, repeat: 'weekly', location, ...extra,
   })
 
   const chemLecture = mk('c-chem', 'CHEM 101-003', 1, 8 * 60 + 30, 9 * 60 + 45, 'Murray Hall · G202')
   const biolLecture = mk('c-biol', 'BIOL 103-003', 3, 13 * 60 + 30, 14 * 60 + 45, 'Genome Sciences · G200')
+  // The Tuesday maths lecture doesn't run this week: the midterm takes its slot,
+  // so the series skips that one occurrence (an "only this event" deletion).
+  const mathTuesday = mk('c-math', 'MATH 118-001', 2, 10 * 60, 11 * 60 + 15, 'Phillips Hall · 332', { exDates: [iso(2)] })
 
   const events: CalEvent[] = [
-    // Class meetings (weekly series)
+    // Class meetings (weekly series, running since the start of the semester)
     chemLecture,
     mk('c-chem', 'CHEM 101-003', 3, 8 * 60 + 30, 9 * 60 + 45, 'Murray Hall · G202'),
     mk('c-chem', 'CHEM 101-003', 5, 8 * 60 + 30, 9 * 60 + 45, 'Murray Hall · G202'),
-    mk('c-math', 'MATH 118-001', 2, 10 * 60, 11 * 60 + 15, 'Phillips Hall · 332'),
+    mk('c-chem', 'CHEM 101 Lab', 3, 15 * 60 + 30, 18 * 60, 'Murray Hall · G160', {
+      notes: 'Lab coat + goggles. Write-up is due the following Tuesday.',
+    }),
+    mathTuesday,
     mk('c-math', 'MATH 118-001', 4, 10 * 60, 11 * 60 + 15, 'Phillips Hall · 332'),
     biolLecture,
     mk('c-biol', 'BIOL 103-003', 5, 13 * 60 + 30, 14 * 60 + 45, 'Genome Sciences · G200'),
     mk('c-phil', 'PHIL 105-001', 2, 15 * 60, 16 * 60 + 15, 'Peabody Hall · 2066'),
     mk('c-phil', 'PHIL 105-001', 4, 15 * 60, 16 * 60 + 15, 'Peabody Hall · 2066'),
     mk('c-aaad', 'AAAD 89-003', 1, 15 * 60, 16 * 60 + 15, 'Alumni Bldg · 404'),
-    // Exams (same day → split-circle highlight + countdown rows in the sidebar)
-    { id: uid(), title: 'MATH 118 Midterm', classId: 'c-math', date: iso(5 + 7), allDay: false, startMin: 10 * 60, endMin: 12 * 60, repeat: 'none', location: 'Phillips Hall · 332', isExam: true },
-    { id: uid(), title: 'CHEM 101 Midterm', classId: 'c-chem', date: iso(5 + 7), allDay: false, startMin: 14 * 60, endMin: 16 * 60, repeat: 'none', location: 'Murray Hall · G202', isExam: true },
+    // Midterm week: two exams on the same Tuesday → split-circle date highlight
+    // in the mini month and the week header, plus countdown rows in the sidebar.
+    {
+      id: uid(), title: 'MATH 118 Midterm', classId: 'c-math', date: iso(2), allDay: false,
+      startMin: 10 * 60, endMin: 11 * 60 + 15, repeat: 'none', location: 'Phillips Hall · 332', isExam: true,
+      notes: 'In the usual lecture slot. Calculator yes, formula sheet no.',
+    },
+    {
+      id: uid(), title: 'CHEM 101 Midterm 2', classId: 'c-chem', date: iso(2), allDay: false,
+      startMin: 18 * 60, endMin: 20 * 60, repeat: 'none', location: 'Murray Hall · G202', isExam: true,
+      notes: 'Chapters 4–7. Evening sitting — get there ten minutes early.',
+    },
+    {
+      id: uid(), title: 'BIOL 103 Midterm', classId: 'c-biol', date: iso(1 + 7), allDay: false,
+      startMin: 18 * 60, endMin: 20 * 60, repeat: 'none', location: 'Genome Sciences · G200', isExam: true,
+    },
     // Personal
     { id: uid(), title: 'Lunch', classId: null, date: iso(2, semesterStartWeek), allDay: false, startMin: 11 * 60 + 30, endMin: 12 * 60 + 15, repeat: 'daily' },
-    { id: uid(), title: 'Photography Club', classId: null, date: iso(5, semesterStartWeek), allDay: false, startMin: 11 * 60 + 30, endMin: 12 * 60 + 30, repeat: 'weekly' },
-    { id: uid(), title: 'Career Fair', classId: null, date: iso(3), allDay: true, startMin: 0, endMin: 0, repeat: 'none' },
+    { id: uid(), title: 'Photography Club', classId: null, date: iso(5, semesterStartWeek), allDay: false, startMin: 17 * 60, endMin: 18 * 60 + 30, repeat: 'weekly', location: 'Hanes Art Center · darkroom' },
+    { id: uid(), title: 'Career Fair', classId: null, date: iso(3), allDay: true, startMin: 0, endMin: 0, repeat: 'none', location: 'Student Union · Great Hall' },
+    { id: uid(), title: 'Spring registration opens', classId: null, date: iso(5), allDay: true, startMin: 0, endMin: 0, repeat: 'none' },
+    {
+      id: uid(), title: 'Advising appointment', classId: null, date: iso(1), allDay: false,
+      startMin: 16 * 60 + 30, endMin: 17 * 60, repeat: 'none', location: 'Steele Bldg · 2nd floor',
+      notes: 'Bring the printed degree audit and a shortlist of spring courses.',
+    },
     // Custom calendar example (see customCalendars above)
-    { id: uid(), title: 'Film Society Screening', classId: null, calendarId: 'cal-society', date: iso(4, semesterStartWeek), allDay: false, startMin: 19 * 60, endMin: 21 * 60, repeat: 'weekly' },
+    { id: uid(), title: 'Film Society Screening', classId: null, calendarId: 'cal-society', date: iso(4, semesterStartWeek), allDay: false, startMin: 19 * 60, endMin: 21 * 60, repeat: 'weekly', location: 'Murphy Hall · 116' },
+    { id: uid(), title: 'Film Society committee', classId: null, calendarId: 'cal-society', date: iso(3), allDay: false, startMin: 18 * 60 + 30, endMin: 19 * 60 + 15, repeat: 'none' },
   ]
 
   // One project per class (auto-created), one project per calendar (Personal
@@ -211,213 +266,325 @@ function seed(): AppState {
     d.setHours(h, 30, 0, 0)
     return d.toISOString()
   }
+  /** The same stamp pinned to a specific day, so archives and uploads stay coherent. */
+  const stampOn = (isoDate: string, h = 18) => {
+    const d = fromISOLocal(isoDate)
+    d.setHours(h, 30, 0, 0)
+    return d.toISOString()
+  }
 
   const tasks: Task[] = [
-    // Stable ids: the example study sessions reference these tasks.
-    { id: 't-quiz', title: 'Polyatomic Ions Quiz', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-coursework', date: iso(today.getDay()), startMin: 14 * 60, done: false },
-    // Example of an expected time block (outlined box on the grid).
-    // Worked on today, due Friday lunchtime — and the Friday due date IS the
-    // extension: the original Wednesday deadline still shows, struck through.
+    /* ---- CHEM 101 ---- */
+    // Stable ids: the example study sessions and grade rows reference these.
+    { id: 't-quiz', title: 'Polyatomic ions quiz', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-coursework', date: todayIso, startMin: 14 * 60, done: false },
     {
-      id: uid(), title: 'Essay draft — focused work', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-coursework',
-      date: iso(today.getDay()), startMin: 16 * 60, endMin: 17 * 60 + 30,
-      dueDate: iso(5), dueMin: 13 * 60, extensions: [{ dueDate: iso(3), dueMin: 17 * 60 }],
-      done: false, pinned: true,
+      id: uid(), title: 'Post-lab questions — calorimetry', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-coursework',
+      date: iso(4), startMin: 19 * 60, endMin: 20 * 60, dueDate: iso(5), dueMin: 9 * 60, done: false,
+      notes: 'Q4 needs the ICE table from Wednesday\'s lab sheet.',
     },
-    { id: uid(), title: 'Sort out laundry', projectId: null, date: iso(today.getDay()), startMin: 19 * 60, endMin: 20 * 60, done: false, order: 0 },
-    // Half done in YPT mode (◺): flip "Task checking" in ⚙ view settings to see it.
-    { id: 't-fallacies', title: 'Read Chapter 3: Fallacies', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-studies', date: iso(today.getDay()), startMin: 18 * 60 + 45, done: false, yptState: 1 },
-    // Rescheduled: planned for Tuesday morning, moved to Thursday — the
-    // abandoned Tuesday slot keeps a translucent ghost on the week grid.
-    {
-      id: 't-labprep', title: 'Lab prep reading', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies',
-      date: iso(4), startMin: 11 * 60, endMin: 12 * 60, done: false,
-      ghosts: [{ date: iso(2), startMin: 9 * 60 }],
-    },
-    // Due date with no time → drawn at end of day (11:59pm). Neither done nor
-    // submitted, due today → ‼ banner at the top of the calendar.
-    { id: uid(), title: 'Submit Health Inequality Paper', projectId: 'p-c-aaad', sectionId: 'sec-p-c-aaad-coursework', date: iso(today.getDay()), startMin: 23 * 60 + 59, dueDate: iso(today.getDay()), dueMin: null, done: false, pinned: true },
-    // Written, not handed in yet, due today → ! banner (a second class).
-    { id: uid(), title: 'Cell biology worksheet', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-coursework', date: null, startMin: null, dueDate: iso(today.getDay()), dueMin: 16 * 60, done: true, completedAt: doneAt(1, 21) },
-    { id: uid(), title: 'Read Chapter 5: DNA Replication and Repair', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-studies', date: iso(today.getDay() + 1), startMin: null, dueDate: iso(today.getDay() + 1), dueMin: 12 * 60, done: false },
-    { id: uid(), title: 'Prepare for Midterm on Differentiation', projectId: 'p-c-math', sectionId: 'sec-p-c-math-studies', date: iso(5 + 7), startMin: null, dueDate: iso(5 + 7), dueMin: 10 * 60, done: false },
-    // Handed in: its due bar on Thursday is faded and struck through. Also the
+    { id: uid(), title: 'Problem set 6', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-coursework', date: null, startMin: null, dueDate: iso(1, 1), dueMin: 9 * 60, done: true, submitted: true, completedAt: stampOn(iso(0, 1), 21) },
+    // Handed in: its due bar on Tuesday is faded and struck through. Also the
     // worked example of the task↔binder link — the lab brief is attached here,
     // which is how the grade tracker's "Lab reports" row finds its documents.
     // Also the fully-done YPT example (⊘) — `done` already implies state 2.
-    { id: 't-titration', title: 'Titration lab write-up', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-lab', date: iso(4), startMin: null, dueDate: iso(4), dueMin: 17 * 60, location: 'Chemistry lab prep room', done: true, submitted: true, completedAt: doneAt(2, 16), attachmentUploadIds: ['u-chem-lab'], yptState: 2 },
-    // Errand with a location — tasks can carry places just like events
-    { id: uid(), title: 'Collect reserved books', projectId: null, date: iso(today.getDay() + 1), startMin: null, dueDate: iso(today.getDay() + 2), dueMin: null, location: 'Library front desk · office 2.1', done: false, order: 1 },
-    { id: uid(), title: 'Weekly reading response', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-coursework', date: null, startMin: null, dueDate: iso(1, semesterStartWeek - 1), dueMin: 9 * 60, done: false },
+    { id: 't-titration', title: 'Titration lab write-up', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-lab', date: null, startMin: null, dueDate: iso(2), dueMin: 17 * 60, location: 'Chemistry lab prep room', done: true, submitted: true, completedAt: doneAt(2, 16), attachmentUploadIds: ['u-chem-lab'], yptState: 2 },
+    {
+      id: 't-chem-lab2', title: 'Calorimetry lab write-up', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-lab',
+      date: iso(5), startMin: 16 * 60 + 30, endMin: 18 * 60, dueDate: iso(2 + 7), dueMin: 17 * 60,
+      location: 'Murray Hall · G160', done: false,
+      notes: 'Same structure as the titration one — method, results table, error discussion.',
+    },
+    // Rescheduled: planned for Sunday morning, moved to Wednesday — the
+    // abandoned Sunday slot keeps a translucent ghost (⇢) on the week grid.
+    {
+      id: 't-labprep', title: 'Lab prep reading', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies',
+      date: iso(3), startMin: 12 * 60 + 30, endMin: 13 * 60 + 15, done: false,
+      ghosts: [{ date: iso(0), startMin: 9 * 60 }],
+    },
+    { id: uid(), title: 'Redo the gas-law worked examples', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies', date: null, startMin: null, done: true, completedAt: doneAt(3, 20) },
+    { id: uid(), title: 'Print the periodic table cheat sheet', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-misc', date: null, startMin: null, done: false },
+
+    /* ---- BIOL 103 ---- */
+    // Written, not handed in yet, due today → ! banner (one open step).
+    { id: 't-biol-worksheet', title: 'Cell biology worksheet', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-coursework', date: null, startMin: null, dueDate: todayIso, dueMin: 16 * 60, done: true, completedAt: doneAt(1, 21) },
+    { id: uid(), title: 'Lab notebook check', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-coursework', date: iso(5), startMin: null, dueDate: iso(5), dueMin: 13 * 60 + 30, location: 'Genome Sciences · G200', done: false },
+    { id: uid(), title: 'Osmosis problem set', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-coursework', date: null, startMin: null, dueDate: iso(3, 1), dueMin: 17 * 60, done: true, submitted: true, completedAt: stampOn(iso(3, 1), 16) },
+    // All-day task: dated but time-less, so it sits in the day's top lane.
+    { id: uid(), title: 'Read Chapter 5: DNA replication and repair', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-studies', date: iso(3), startMin: null, dueDate: iso(3), dueMin: 12 * 60, done: false },
+    {
+      id: uid(), title: 'Midterm revision — chapters 4–7', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-studies',
+      date: iso(0 + 7), startMin: 15 * 60, endMin: 17 * 60, dueDate: iso(1 + 7), dueMin: 18 * 60, done: false,
+      notes: 'Redraw the replication fork from memory — that is what actually sticks.',
+    },
+
+    /* ---- MATH 118 ---- */
+    {
+      id: uid(), title: 'Practice past midterm papers', projectId: 'p-c-math', sectionId: 'sec-p-c-math-studies',
+      date: iso(1), startMin: 19 * 60, endMin: 20 * 60 + 40, dueDate: iso(2), dueMin: 10 * 60, done: false,
+      notes: 'Related rates first — she hinted at it twice in the review session.',
+    },
+    { id: uid(), title: 'Quiz 3 corrections', projectId: 'p-c-math', sectionId: 'sec-p-c-math-coursework', date: null, startMin: null, done: true, submitted: true, completedAt: doneAt(6, 17) },
+    { id: uid(), title: 'Ask about the extra-credit project', projectId: 'p-c-math', sectionId: 'sec-p-c-math-misc', date: null, startMin: null, done: false },
+
+    /* ---- PHIL 105 ---- */
+    // Expected time block (outlined box on the grid), worked on today. Due
+    // Friday lunchtime — and that Friday date IS the extension: the original
+    // Wednesday deadline still shows on Wednesday, struck through.
+    {
+      id: 't-essay', title: 'Essay 2 draft — focused work', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-coursework',
+      date: todayIso, startMin: 16 * 60, endMin: 17 * 60 + 30,
+      dueDate: iso(5), dueMin: 13 * 60, extensions: [{ dueDate: iso(3), dueMin: 17 * 60 }],
+      done: false, pinned: true,
+      notes: 'Reconstruct the argument in standard form first, objection second.',
+    },
+    // Half done in YPT mode (◺): flip "Task checking" in ⚙ view settings to see it.
+    { id: 't-fallacies', title: 'Read Chapter 3: Fallacies', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-studies', date: todayIso, startMin: 18 * 60 + 45, done: false, yptState: 1 },
+    { id: uid(), title: 'Weekly reading response', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-coursework', date: null, startMin: null, dueDate: iso(2, 1), dueMin: 9 * 60, done: true, submitted: true, completedAt: stampOn(iso(1, 1), 22) },
+    { id: uid(), title: 'Seminar prep — Descartes', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-studies', date: null, startMin: null, done: true, completedAt: doneAt(7, 15) },
+    { id: uid(), title: 'Pick a topic for essay 3', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-misc', date: null, startMin: null, done: false },
+
+    /* ---- AAAD 89 ---- */
+    // Due date with no time → drawn at end of day (11:59pm). Neither done nor
+    // submitted, due today → ‼ banner at the top of the calendar.
+    { id: uid(), title: 'Submit health inequality paper', projectId: 'p-c-aaad', sectionId: 'sec-p-c-aaad-coursework', date: todayIso, startMin: 23 * 60 + 59, dueDate: todayIso, dueMin: null, done: false, pinned: true },
+    { id: uid(), title: 'Watch the documentary for seminar', projectId: 'p-c-aaad', sectionId: 'sec-p-c-aaad-studies', date: iso(0), startMin: 20 * 60, endMin: 21 * 60 + 30, done: true, completedAt: stampOn(iso(0), 21) },
+    { id: uid(), title: 'Find two sources for the final project', projectId: 'p-c-aaad', sectionId: 'sec-p-c-aaad-studies', date: null, startMin: null, done: false },
+
+    /* ---- Personal ---- */
+    // The project's implicit "main" section (no sectionId) — above the named ones.
+    { id: uid(), title: 'Call home', projectId: 'p-personal', date: iso(0), startMin: 19 * 60, endMin: 19 * 60 + 30, done: false },
     // Personal · Errands
     { id: uid(), title: 'Return library book', projectId: 'p-personal', sectionId: 'sec-personal-errands', date: null, startMin: null, done: false },
     { id: uid(), title: 'Renew student ID', projectId: 'p-personal', sectionId: 'sec-personal-errands', date: null, startMin: null, done: false },
+    { id: uid(), title: 'Pick up parcel from the mail room', projectId: 'p-personal', sectionId: 'sec-personal-errands', date: null, startMin: null, done: true, completedAt: doneAt(5, 16) },
     // Personal · Health & Fitness
     { id: uid(), title: 'Book dentist appointment', projectId: 'p-personal', sectionId: 'sec-personal-health', date: null, startMin: null, done: false },
     { id: uid(), title: 'Refill prescription', projectId: 'p-personal', sectionId: 'sec-personal-health', date: null, startMin: null, done: true, completedAt: doneAt(4, 11) },
-    // Personal · Apartment (folded in from old p-apartment)
+    // Personal · Apartment
     { id: uid(), title: 'Buy a desk lamp', projectId: 'p-personal', sectionId: 'sec-personal-apartment', date: null, startMin: null, done: false },
     { id: uid(), title: 'Set up renters insurance', projectId: 'p-personal', sectionId: 'sec-personal-apartment', date: null, startMin: null, done: true, completedAt: doneAt(9, 13) },
     { id: uid(), title: 'Hang posters', projectId: 'p-personal', sectionId: 'sec-personal-apartment', date: null, startMin: null, done: false, yptState: 1 },
-    // Film Society · Screening night (folded in from old p-screening)
-    { id: uid(), title: 'Book the projector room', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: false },
+
+    /* ---- Film Society ---- */
     { id: uid(), title: 'Confirm this week\'s film pick', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: false },
-    { id: uid(), title: 'Bring snacks', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: false },
+    // Dated but time-less → the all-day lane on screening day.
+    { id: uid(), title: 'Bring snacks', projectId: 'p-society', sectionId: 'sec-society-screening', date: iso(4), startMin: null, done: false },
+    { id: uid(), title: 'Book the projector room', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: true, completedAt: doneAt(3, 12) },
+
+    /* ---- Unfiled (no project): manual drag order, one pinned, one archived ---- */
+    {
+      id: uid(), title: 'Email advising about the spring waitlist', projectId: null,
+      date: null, startMin: null, dueDate: iso(4), dueMin: 12 * 60, done: false, pinned: true, order: 0,
+    },
+    { id: uid(), title: 'Sort out laundry', projectId: null, date: todayIso, startMin: 19 * 60, endMin: 20 * 60, done: false, order: 1 },
+    // Scheduled + due + location + notes, all on one task.
+    {
+      id: uid(), title: 'Collect reserved books', projectId: null,
+      date: iso(3), startMin: null, dueDate: iso(4), dueMin: null,
+      location: 'Library front desk · office 2.1', done: false, order: 2,
+      notes: 'Three holds waiting — the AAAD one expires Friday.',
+    },
+    { id: uid(), title: 'Replace the bike lock', projectId: null, date: null, startMin: null, done: true, order: 3, completedAt: doneAt(2, 18) },
   ]
 
-  const gymStart = toISO(addDays(today, -6))
+  const habitStart = toISO(addDays(today, -27))
   const recurring: RecurringTask[] = [
+    // Legacy daily habit (no custom rule) with a visible gap in the strip.
     {
       id: uid(), title: 'Gym', projectId: 'p-personal', sectionId: 'sec-personal-health',
       freq: 'daily', weekday: 1,
-      startDate: gymStart, streak: true,
-      completions: [-6, -5, -3, -2, -1].map((n) => toISO(addDays(today, n))),
+      startDate: habitStart, streak: true,
+      completions: [-9, -8, -7, -6, -5, -3, -2, -1].map((n) => toISO(addDays(today, n))),
+    },
+    // Legacy WEEKLY habit: one occurrence a week, so its strip spans seven
+    // Sundays — with the reading-week one (five weeks back) missing.
+    {
+      id: uid(), title: 'Sunday reset & week plan', projectId: 'p-personal',
+      freq: 'weekly', weekday: 0,
+      startDate: iso(0, semesterStartWeek), streak: true,
+      completions: [0, 1, 2, 3, 4, 6, 7].map((w) => iso(0, w)),
     },
     {
       id: uid(), title: 'Review flashcards', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies',
       freq: 'weekdays', weekday: 1,
-      startDate: gymStart, streak: true,
-      completions: [-6, -5, -4].map((n) => toISO(addDays(today, n))).filter((d) => {
+      startDate: habitStart, streak: true,
+      completions: [-7, -6, -5, -4, -3, -2, -1].map((n) => toISO(addDays(today, n))).filter((d) => {
         const dow = new Date(d + 'T00:00').getDay()
         return dow >= 1 && dow <= 5
       }),
     },
     // Custom rule example: every other week on Mon + Wed, scheduled 9:00–10:30,
-    // each occurrence due two days later at 5pm — and the Wednesday one has
-    // been dragged to Thursday 11am, which writes a per-occurrence exception
+    // each occurrence due two days later at 5pm — and this week's Wednesday one
+    // has been dragged to Thursday 11am, which writes a per-occurrence exception
     // instead of forking the series.
     {
       id: 'r-pset', title: 'Problem set', projectId: 'p-c-math', sectionId: 'sec-p-c-math-coursework',
       freq: 'weekly', weekday: 1,
       rule: { kind: 'biweekly', weekdays: [1, 3], anchor: iso(1) },
-      startDate: iso(1, semesterStartWeek), streak: false, completions: [],
+      startDate: iso(1, semesterStartWeek), streak: false,
+      completions: [iso(1, 2), iso(3, 2), iso(1, 4), iso(3, 4), iso(1, 6)],
       startMin: 9 * 60, endMin: 10 * 60 + 30,
       dueOffsetDays: 2, dueMin: 17 * 60,
-      exceptions: { [iso(3)]: { date: iso(4), startMin: 11 * 60 } },
+      exceptions: { [iso(3)]: { date: iso(4), startMin: 11 * 60, endMin: 12 * 60 + 30 } },
     },
     // Several times a day: three slots, two ticked off today (the third is the
-    // one still open), a couple of fully-done days behind it.
+    // one still open), a few fully-done days behind it.
     {
       id: 'r-water', title: 'Drink water', projectId: 'p-personal', sectionId: 'sec-personal-health',
       freq: 'daily', weekday: 1,
       rule: { kind: 'timesPerDay', times: 3 },
-      startDate: gymStart, streak: true,
-      completions: [-3, -2, -1].map((n) => toISO(addDays(today, n))),
-      partial: { [toISO(today)]: 2 },
+      startDate: habitStart, streak: true,
+      completions: [-4, -3, -2, -1].map((n) => toISO(addDays(today, n))),
+      partial: { [todayIso]: 2 },
     },
   ]
 
-  // The built-in Birthdays calendar. Two land this month (one with a birth year,
-  // so the marker says how old they turn); the other opts out of the day off.
-  const bday = (n: number) => {
-    const d = addDays(today, n)
-    return { month: d.getMonth() + 1, day: d.getDate() }
+  // The built-in Birthdays calendar. Maya's lands on Sunday of THIS week and
+  // takes the day off with it (derived, not stored in daysOff); Dad's is a
+  // normal working day; Priya's is months out.
+  const bdayOf = (isoDate: string) => {
+    const [, m, d] = isoDate.split('-').map(Number)
+    return { month: m, day: d }
   }
   const birthdays: Birthday[] = [
-    { id: 'b-maya', name: 'Maya', ...bday(3), year: 2005 },
-    { id: 'b-dad', name: 'Dad', ...bday(9), year: 1974, dayOff: false },
-    { id: 'b-priya', name: 'Priya', ...bday(48) },
+    { id: 'b-maya', name: 'Maya', ...bdayOf(iso(0)), year: 2005 },
+    { id: 'b-dad', name: 'Dad', ...bdayOf(toISO(addDays(today, 9))), year: 1974, dayOff: false },
+    { id: 'b-priya', name: 'Priya', ...bdayOf(toISO(addDays(today, 48))) },
   ]
 
-  // Example study log: a pomodoro session, a normal one with a manual break,
-  // and an unassigned (grey) evening block.
-  const todayIso = toISO(today)
-  const yesterdayIso = toISO(addDays(today, -1))
+  // Two blocks logged today: a short single-class one, then a longer split
+  // session whose to-dos group under the class chip they belong to.
   const studySessions: StudySession[] = [
     {
-      id: 's-chem-pomo', classId: 'c-chem', taskIds: ['t-quiz', 't-titration'], eventIds: [],
+      id: 's-phil-today', classId: 'c-phil', taskIds: ['t-fallacies'], eventIds: [],
+      date: todayIso, startMin: 12 * 60 + 30, endMin: 13 * 60 + 20, mode: 'normal',
+      breaks: [{ startMin: 12 * 60 + 55, durMin: 5, tag: 'restroom' }],
+      reflection: 'Reading straight after lunch works — the 8am attempts never do.',
+    },
+    {
+      id: 's-chem-today', classId: 'c-chem', taskIds: ['t-quiz', 't-biol-worksheet'], eventIds: [],
       uploadIds: ['u-chem-reading'],
-      date: yesterdayIso, startMin: 16 * 60, endMin: 17 * 60 + 45, mode: 'pomodoro25',
-      // Switched from CHEM to BIOL at 5pm — the stripe changes colour there.
+      date: todayIso, startMin: 16 * 60 + 30, endMin: 18 * 60 + 20, mode: 'pomodoro25',
+      // Switched from CHEM to BIOL at 5:30 — the stripe changes colour there,
+      // and each class's to-dos sit under its own chip.
       classSegments: [
-        { startMin: 16 * 60, classId: 'c-chem' },
-        { startMin: 17 * 60, classId: 'c-biol' },
+        { startMin: 16 * 60 + 30, classId: 'c-chem' },
+        { startMin: 17 * 60 + 30, classId: 'c-biol' },
       ],
       // 25/5 cycles materialised at the end of the session
       breaks: [
-        { startMin: 16 * 60 + 25, durMin: 5, tag: 'rest' },
-        { startMin: 16 * 60 + 55, durMin: 5, tag: 'restroom' },
-        { startMin: 17 * 60 + 25, durMin: 5, tag: 'rest' },
+        { startMin: 16 * 60 + 55, durMin: 5, tag: 'rest' },
+        { startMin: 17 * 60 + 25, durMin: 5, tag: 'meal' },
+        { startMin: 17 * 60 + 55, durMin: 5, tag: 'rest' },
       ],
-      reflection: 'Flashcards before problem sets works much better — do that again.',
-    },
-    {
-      id: 's-phil-morning', classId: 'c-phil', taskIds: ['t-fallacies'], eventIds: [],
-      date: todayIso, startMin: 8 * 60, endMin: 9 * 60 + 10, mode: 'normal',
-      breaks: [{ startMin: 8 * 60 + 35, durMin: 5, tag: 'meal' }],
-      reflection: 'Mornings are the only time the reading actually sticks. Keep the 8am slot.',
-    },
-    {
-      // Second block today so the daily 24h timeline + break analytics have a story.
-      id: 's-chem-today', classId: 'c-chem', taskIds: [], eventIds: [],
-      date: todayIso, startMin: 14 * 60 + 15, endMin: 16 * 60, mode: 'normal',
-      breaks: [
-        { startMin: 14 * 60 + 55, durMin: 10, tag: 'meal' },
-        { startMin: 15 * 60 + 30, durMin: 5, tag: 'rest' },
-      ],
-    },
-    {
-      id: 's-evening', classId: null, taskIds: [], eventIds: [],
-      date: yesterdayIso, startMin: 20 * 60, endMin: 20 * 60 + 45, mode: 'normal',
-      breaks: [],
+      reflection: 'Flashcards before the problem sheet works much better — do that again.',
     },
   ]
 
-  // Historical study log across the previous seven weeks so the Insights
-  // charts (weekly stacked bars + trend) have a real story to tell. A steady
-  // ramp-up with a light week 3 back, class mix varying week to week.
+  /**
+   * A block earlier in THIS week (so the weekly-momentum step chart and the
+   * delta vs last week always have a line to draw). Days that haven't happened
+   * yet — and today, which is written out above — produce nothing.
+   */
+  const weekSession = (
+    dow: number, classId: ID | null, startMin: number, durMin: number, extra?: Partial<StudySession>,
+  ): StudySession[] => (dow >= todayDow ? [] : [{
+    id: `s-wk-${dow}-${classId ?? 'none'}-${startMin}`,
+    classId, taskIds: [], eventIds: [],
+    date: iso(dow), startMin, endMin: startMin + durMin, mode: 'normal', breaks: [],
+    ...extra,
+  }])
+
+  studySessions.push(
+    ...weekSession(0, 'c-math', 15 * 60, 100),
+    ...weekSession(0, null, 20 * 60, 45),
+    ...weekSession(1, 'c-chem', 12 * 60 + 30, 50),
+    ...weekSession(1, 'c-math', 19 * 60, 100, {
+      mode: 'pomodoro25',
+      breaks: [
+        { startMin: 19 * 60 + 25, durMin: 5, tag: 'rest' },
+        { startMin: 19 * 60 + 55, durMin: 5, tag: 'restroom' },
+      ],
+      reflection: 'Past papers under exam timing the night before — brutal, but it worked.',
+    }),
+    ...weekSession(2, 'c-chem', 8 * 60, 80, {
+      breaks: [{ startMin: 8 * 60 + 45, durMin: 10, tag: 'meal' }],
+    }),
+    ...weekSession(2, 'c-chem', 16 * 60, 90),
+    ...weekSession(3, 'c-biol', 12 * 60 + 30, 50),
+    ...weekSession(3, 'c-phil', 19 * 60 + 30, 90, {
+      breaks: [{ startMin: 20 * 60 + 15, durMin: 10, tag: 'rest' }],
+    }),
+    ...weekSession(4, 'c-phil', 12 * 60 + 30, 60),
+    ...weekSession(4, 'c-aaad', 17 * 60, 60),
+    ...weekSession(5, 'c-biol', 15 * 60, 80),
+    ...weekSession(6, 'c-phil', 11 * 60, 90),
+    ...weekSession(6, 'c-aaad', 15 * 60, 60),
+  )
+
+  // Historical study log across the eight weeks of the semester so the Insights
+  // charts (weekly stacked bars, trend, quarter grid) have a real story to
+  // tell: a warm-up, a reading-week dip five weeks back, then the pre-exam ramp.
   const histSession = (
     weeksBack: number, dow: number, classId: ID | null,
     startMin: number, durMin: number, extra?: Partial<StudySession>,
-  ): StudySession => {
-    const d = addDays(today, -weeksBack * 7 - today.getDay() + dow)
-    return {
-      id: `s-hist-${weeksBack}-${dow}-${classId ?? 'none'}-${startMin}`,
-      classId, taskIds: [], eventIds: [],
-      date: toISO(d), startMin, endMin: startMin + durMin, mode: 'normal', breaks: [],
-      ...extra,
-    }
-  }
+  ): StudySession => ({
+    id: `s-hist-${weeksBack}-${dow}-${classId ?? 'none'}-${startMin}`,
+    classId, taskIds: [], eventIds: [],
+    date: iso(dow, weeksBack), startMin, endMin: startMin + durMin, mode: 'normal', breaks: [],
+    ...extra,
+  })
   studySessions.push(
-    // 7 weeks ago — semester warm-up, short sessions
-    histSession(7, 2, 'c-chem', 15 * 60, 50),
-    histSession(7, 4, 'c-phil', 9 * 60, 40),
+    // 8 weeks ago — semester warm-up, short sessions
+    histSession(8, 2, 'c-chem', 15 * 60, 45),
+    histSession(8, 4, 'c-phil', 9 * 60, 40),
+    // 7 weeks ago
+    histSession(7, 1, 'c-math', 14 * 60, 60),
+    histSession(7, 3, 'c-chem', 16 * 60, 55),
+    histSession(7, 5, null, 19 * 60, 40),
     // 6 weeks ago
-    histSession(6, 1, 'c-math', 14 * 60, 75),
-    histSession(6, 3, 'c-chem', 16 * 60, 60),
-    histSession(6, 5, null, 19 * 60, 45),
-    // 5 weeks ago
-    histSession(5, 1, 'c-biol', 10 * 60, 90, {
+    histSession(6, 1, 'c-biol', 10 * 60, 90, {
       reflection: 'Genome diagrams finally clicked after redrawing them from memory.',
     }),
-    histSession(5, 2, 'c-chem', 15 * 60, 60),
-    histSession(5, 4, 'c-phil', 9 * 60, 70),
-    // 4 weeks ago — light week (reading week)
-    histSession(4, 3, 'c-math', 11 * 60, 45),
-    // 3 weeks ago
-    histSession(3, 1, 'c-chem', 16 * 60, 80, { mode: 'pomodoro25' }),
-    histSession(3, 2, 'c-biol', 10 * 60, 60),
-    histSession(3, 4, 'c-aaad', 13 * 60, 55),
-    histSession(3, 6, null, 20 * 60, 40),
-    // 2 weeks ago — split session with a mid-way class switch
-    histSession(2, 1, 'c-math', 14 * 60, 120, {
+    histSession(6, 2, 'c-chem', 15 * 60, 60),
+    histSession(6, 4, 'c-phil', 9 * 60, 70),
+    // 5 weeks ago — reading week, almost nothing logged
+    histSession(5, 3, 'c-math', 11 * 60, 45),
+    // 4 weeks ago — back into it
+    histSession(4, 1, 'c-chem', 16 * 60, 80, { mode: 'pomodoro25' }),
+    histSession(4, 2, 'c-biol', 10 * 60, 60),
+    histSession(4, 4, 'c-aaad', 13 * 60, 55),
+    histSession(4, 6, null, 20 * 60, 40),
+    // 3 weeks ago — split session with a mid-way class switch
+    histSession(3, 1, 'c-math', 14 * 60, 120, {
       classSegments: [
         { startMin: 14 * 60, classId: 'c-math' },
         { startMin: 15 * 60, classId: 'c-chem' },
       ],
       breaks: [{ startMin: 15 * 60, durMin: 10, tag: 'rest' }],
-      reflection: 'Past papers under exam timing — brutal but worth it every week.',
     }),
-    histSession(2, 3, 'c-phil', 9 * 60, 65),
-    histSession(2, 5, 'c-biol', 17 * 60, 70),
-    // last week — heaviest week, exams approaching
-    histSession(1, 0, 'c-chem', 15 * 60, 95, {
+    histSession(3, 3, 'c-phil', 9 * 60, 65),
+    histSession(3, 5, 'c-biol', 17 * 60, 70),
+    // 2 weeks ago
+    histSession(2, 0, 'c-chem', 15 * 60, 95, {
       breaks: [{ startMin: 15 * 60 + 45, durMin: 8, tag: 'restroom' }],
     }),
-    histSession(1, 1, 'c-math', 14 * 60, 85),
-    histSession(1, 3, 'c-phil', 9 * 60, 60),
-    histSession(1, 4, 'c-biol', 10 * 60, 75),
-    histSession(1, 6, 'c-aaad', 13 * 60, 50),
+    histSession(2, 2, 'c-math', 14 * 60, 85, { mode: 'custom', customWork: 40, customBreak: 8 }),
+    histSession(2, 4, 'c-biol', 10 * 60, 75),
+    histSession(2, 6, 'c-aaad', 13 * 60, 50),
+    // last week — the pre-exam ramp, the heaviest week of the semester
+    histSession(1, 0, 'c-math', 14 * 60, 110),
+    histSession(1, 1, 'c-chem', 16 * 60, 100, {
+      breaks: [{ startMin: 16 * 60 + 50, durMin: 10, tag: 'meal' }],
+    }),
+    histSession(1, 2, 'c-biol', 10 * 60, 90),
+    histSession(1, 3, 'c-math', 19 * 60, 120, {
+      mode: 'pomodoro50',
+      reflection: 'Three hours on related rates. Slow, but I can finally see the pattern.',
+    }),
+    histSession(1, 4, 'c-chem', 16 * 60, 95),
+    histSession(1, 5, 'c-phil', 9 * 60, 80),
+    histSession(1, 6, 'c-chem', 13 * 60, 70),
   )
 
   // Example binder: sections per class, a few uploads (backed by demo files) and stream posts.
@@ -425,6 +592,8 @@ function seed(): AppState {
     { id: `sec-res-${c.id}`, classId: c.id, name: 'Resources / Handouts' },
     { id: `sec-notes-${c.id}`, classId: c.id, name: 'Notes' },
   ])
+  // A user-added binder section beyond the two defaults.
+  binderSections.push({ id: 'sec-past-c-chem', classId: 'c-chem', name: 'Past papers' })
   const daysAgo = (n: number, h = 10) => {
     const d = addDays(today, -n)
     d.setHours(h, 0, 0, 0)
@@ -437,47 +606,83 @@ function seed(): AppState {
       caption: 'From the first lecture — appendix A is a lifesaver for sig figs.',
       files: [{ id: 'seed-chem-reading', name: 'week1-reading-list.txt', type: 'text/plain', size: 150 }],
       attach: { kind: 'event', id: chemLecture.id, date: chemLecture.date, label: chemLecture.title },
-      createdAt: daysAgo(7),
+      createdAt: stampOn(chemLecture.date, 10),
     },
     {
-      // Stable id: the titration task attaches this upload (see tasks above).
+      // Stable id: the titration task attaches this upload (see tasks above),
+      // which is also how the grade tracker reaches the document.
       id: 'u-chem-lab', classId: 'c-chem', sectionId: 'sec-res-c-chem',
       title: 'Titration lab brief',
       caption: 'Bring lab coat, goggles and a calculator!',
       files: [{ id: 'seed-chem-lab', name: 'titration-lab-brief.txt', type: 'text/plain', size: 170 }],
+      attach: { kind: 'task', id: 't-titration', date: null, label: 'Titration lab write-up' },
       pinned: 'section',
-      createdAt: daysAgo(3),
+      createdAt: daysAgo(9),
     },
     {
-      id: uid(), classId: 'c-biol', sectionId: 'sec-notes-c-biol',
+      // Pinned to the whole class → its own box at the top of the collation tab.
+      id: 'u-chem-past', classId: 'c-chem', sectionId: 'sec-past-c-chem',
+      title: 'Past paper — Midterm 1 (last year)',
+      caption: 'Section C is basically the same every year.',
+      files: [{ id: 'seed-chem-past', name: 'midterm1-past-paper.txt', type: 'text/plain', size: 230 }],
+      pinned: 'class',
+      createdAt: daysAgo(4, 20),
+    },
+    {
+      // Pinned to the top of the class's stream tab.
+      id: 'u-biol-notes', classId: 'c-biol', sectionId: 'sec-notes-c-biol',
       title: 'Lecture 2 notes — DNA replication',
+      caption: 'Leading vs lagging strand — she said this comes up every single year.',
       files: [{ id: 'seed-biol-slides', name: 'lecture2-dna-replication-notes.txt', type: 'text/plain', size: 210 }],
       attach: { kind: 'event', id: biolLecture.id, date: biolLecture.date, label: biolLecture.title },
-      createdAt: daysAgo(5),
+      pinnedStream: true,
+      createdAt: stampOn(biolLecture.date, 15),
+    },
+    {
+      id: 'u-math-formula', classId: 'c-math', sectionId: 'sec-notes-c-math',
+      title: 'Derivative rules — one page',
+      caption: 'Copied out by hand, which is the only reason I remember any of it.',
+      files: [{ id: 'seed-math-formula', name: 'derivatives-formula-sheet.txt', type: 'text/plain', size: 280 }],
+      createdAt: daysAgo(6, 21),
+    },
+    {
+      id: 'u-phil-prompt', classId: 'c-phil', sectionId: 'sec-res-c-phil',
+      title: 'Essay 2 prompt',
+      caption: 'Marks are for the reply to the objection, not the summary.',
+      files: [{ id: 'seed-phil-prompt', name: 'essay2-prompt.txt', type: 'text/plain', size: 240 }],
+      attach: { kind: 'task', id: 't-essay', date: todayIso, label: 'Essay 2 draft — focused work' },
+      createdAt: daysAgo(14),
     },
   ]
-  // Example grade tracker (Chemistry only): two explicitly-weighted rows, then
-  // two left blank so the even-split of the remaining 45% is on show. Only the
-  // marked rows count towards the current grade.
+  // Example grade tracker (Chemistry only): three explicitly-weighted rows, then
+  // two left blank so the even split of the remaining 35% is on show. Only the
+  // marked rows count towards the current grade, and the lab row reaches its
+  // documents through its bound task's attachments.
   const gradeRows: GradeRow[] = [
-    { id: 'g-chem-midterm', classId: 'c-chem', name: 'Midterm', weightPct: 30, scorePct: 78, taskIds: [] },
-    { id: 'g-chem-lab', classId: 'c-chem', name: 'Lab reports', weightPct: 25, scorePct: null, taskIds: ['t-titration'] },
+    { id: 'g-chem-midterm1', classId: 'c-chem', name: 'Midterm 1', weightPct: 20, scorePct: 78, taskIds: [] },
+    { id: 'g-chem-midterm2', classId: 'c-chem', name: 'Midterm 2', weightPct: 20, scorePct: null, taskIds: [] },
+    { id: 'g-chem-lab', classId: 'c-chem', name: 'Lab reports', weightPct: 25, scorePct: null, taskIds: ['t-titration', 't-chem-lab2'] },
     { id: 'g-chem-quizzes', classId: 'c-chem', name: 'Quizzes', weightPct: null, scorePct: 82, taskIds: ['t-quiz'] },
     { id: 'g-chem-final', classId: 'c-chem', name: 'Final exam', weightPct: null, scorePct: null, taskIds: [] },
   ]
 
   const binderPosts: BinderPost[] = [
-    { id: uid(), classId: 'c-chem', text: "Bring lab coat + goggles for Thursday's practical!", pinned: true, createdAt: daysAgo(2, 15) },
-    { id: uid(), classId: 'c-chem', text: 'Quiz next Monday covers chapters 1–3 only.', createdAt: daysAgo(1, 9) },
+    { id: uid(), classId: 'c-chem', text: 'Lab coat + goggles for Wednesday — she turns people away without them.', pinned: true, createdAt: daysAgo(2, 15) },
+    { id: uid(), classId: 'c-chem', text: 'Midterm 2 covers chapters 4–7 only. Confirmed in class.', createdAt: daysAgo(1, 9) },
     { id: uid(), classId: 'c-phil', text: 'Prof said the essay deadline moved to Friday — double-check the portal.', createdAt: daysAgo(4, 16) },
+    { id: uid(), classId: 'c-biol', text: 'Lab notebooks get checked at the START of Friday, not the end.', createdAt: daysAgo(3, 13) },
+    { id: uid(), classId: 'c-math', text: 'Office hours moved to Wednesday 3pm this week only.', createdAt: daysAgo(5, 11) },
+    { id: uid(), classId: 'c-aaad', text: 'Bring two discussion questions to seminar — he does check.', createdAt: daysAgo(6, 14) },
   ]
 
   return {
     classes, folders, customCalendars, events, projects, taskSections, tasks, recurring, birthdays,
     studySessions, gradeRows,
-    ankiLogs: seedAnkiLogs(todayIso),
+    ankiLogs: seedAnkiLogs(todayIso, iso(0, semesterStartWeek)),
     hiddenCalendars: [],
-    daysOff: [iso(0), iso(6)], // example: this Sunday and Saturday are days off (weekend off)
+    // Explicitly marked day off (Saturday). Sunday is a day off too, but a
+    // DERIVED one: Maya's birthday sits there and hasn't opted out.
+    daysOff: [iso(6)],
     showTasksOnCalendar: true,
     // Ships in classic checkbox mode; the seeded ◺/⊘ states are already there
     // for anyone who flips "Task checking" to YPT-style in ⚙ view settings.
@@ -494,19 +699,18 @@ function seed(): AppState {
   }
 }
 
-/** First day of the example flashcard history (start of the demo semester). */
-const ANKI_SEED_START = '2026-01-05'
 /** Demo per-class decks: the classes a student would realistically drill. */
 const ANKI_SEED_DECKS: ID[] = ['c-chem', 'c-biol', 'c-math']
 
 /**
- * Deterministic example review history — no randomness, so every demo install
- * (and every reload) shows the same heatmap. ~2/3 of days have activity, mostly
+ * Deterministic example review history from `startIso` (the demo semester's
+ * first day) to today — no randomness, so every demo install (and every
+ * reload) shows the same heatmap. ~2/3 of days have activity, mostly
  * general-bucket sessions with per-class decks sprinkled onto weekdays, a
  * couple of cram days, and an unbroken run up to today so the streak stat has
  * something to show.
  */
-function seedAnkiLogs(todayIso: string): AnkiLog[] {
+function seedAnkiLogs(todayIso: string, startIso: string): AnkiLog[] {
   // Cheap deterministic pseudo-random: multiply-xorshift over (day, salt), so
   // each salt gives an independent-looking 0–9999 sequence.
   const h = (day: number, salt: number) => {
@@ -515,7 +719,7 @@ function seedAnkiLogs(todayIso: string): AnkiLog[] {
     x ^= x >>> 13
     return (x >>> 0) % 10000
   }
-  const start = ANKI_SEED_START <= todayIso ? ANKI_SEED_START : todayIso
+  const start = startIso <= todayIso ? startIso : todayIso
   const logs: AnkiLog[] = []
   const total = Math.round((fromISOLocal(todayIso).getTime() - fromISOLocal(start).getTime()) / 86400000)
   for (let i = 0; i <= total; i++) {

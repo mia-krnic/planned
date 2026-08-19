@@ -158,6 +158,26 @@ export function ProjectNode({ project }: { project: Project }) {
   const total = own.length
   const open = !project.collapsed
 
+  // Recurring tasks live inside their section like any other task — the
+  // frequency label (e.g. "every other week · Mon, Wed") marks them as such.
+  const recurringOf = (secId: ID | null) => recurring.filter((r) => (r.sectionId ?? null) === secId)
+  const recurringRow = (rt: (typeof recurring)[number]) => {
+    const color = taskColor(state, rt.projectId)
+    const streak = currentStreak(rt, today)
+    return (
+      <div key={rt.id}>
+        <div className="habit-row">
+          <span className="swatch" style={{ background: color }} />
+          <span className="title" style={{ cursor: 'pointer', color: titleTint(color) }}
+            onClick={() => ui.openRecurring({ rt })}>{rt.title}</span>
+          <span className="freq">{describeRule(rt)}</span>
+          {rt.streak && streak > 0 && <span className="streak-badge">⚡︎ {streak}</span>}
+        </div>
+        {rt.streak && <HabitStrip rt={rt} color={color} />}
+      </div>
+    )
+  }
+
   const submitQuickAdd = () => {
     const raw = quickAdd.trim()
     if (!raw) return
@@ -365,33 +385,13 @@ export function ProjectNode({ project }: { project: Project }) {
       {open && (
         <div className={`proj-body${overKey === 'body' ? ' drop-into' : ''}`}
           {...dropZone('body', { projectId: project.id, sectionId: null })}>
-          {recurring.length > 0 && (
-            <>
-              <div className="proj-section-label">Recurring</div>
-              {recurring.map((rt) => {
-                const color = taskColor(state, rt.projectId)
-                const streak = currentStreak(rt, today)
-                return (
-                  <div key={rt.id}>
-                    <div className="habit-row">
-                      <span className="swatch" style={{ background: color }} />
-                      <span className="title" style={{ cursor: 'pointer', color: titleTint(color) }}
-                        onClick={() => ui.openRecurring({ rt })}>{rt.title}</span>
-                      <span className="freq">{describeRule(rt)}</span>
-                      {rt.streak && streak > 0 && <span className="streak-badge">🔥 {streak}</span>}
-                    </div>
-                    {rt.streak && <HabitStrip rt={rt} color={color} />}
-                  </div>
-                )
-              })}
-            </>
-          )}
-
           {/* Main section: only shown with an explicit header if there are
               named sections too — otherwise its tasks render bare. */}
-          {sections.length > 0 && main.active.length + main.archived.length > 0 && (
+          {sections.length > 0 &&
+            main.active.length + main.archived.length + recurringOf(null).length > 0 && (
             <div className="task-section-head"><span className="task-section-name">Main</span></div>
           )}
+          {recurringOf(null).map(recurringRow)}
           {main.active.map((t) => <TaskRow key={t.id} task={t} planned />)}
           <ArchiveBox tasks={main.archived} planned />
 
@@ -404,6 +404,7 @@ export function ProjectNode({ project }: { project: Project }) {
                 {/* Collapsed: the header (and its drop zone) stays, tasks hide. */}
                 {!sec.collapsed && (
                   <>
+                    {recurringOf(sec.id).map(recurringRow)}
                     {active.map((t) => <TaskRow key={t.id} task={t} planned />)}
                     <ArchiveBox tasks={archived} planned />
                   </>

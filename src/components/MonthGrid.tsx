@@ -219,8 +219,13 @@ export default function MonthGrid({ anchor }: { anchor: string }) {
                 ref={(el) => { cellRefs.current[iso] = el }}
                 className={`month-cell ${d.getMonth() !== anchorDate.getMonth() ? 'outside' : ''} ${isToday ? 'today' : ''} ${dayOff ? 'day-off' : ''}${drag?.active && drag.iso === iso ? ' mc-drop' : ''}`}
                 onClick={() => ui.gotoDay(iso)}>
-                {/* Exam fill on the date pill; today keeps its solid accent pill untinted */}
-                <span className="num" style={examBg && !isToday ? { background: examBg, borderRadius: 8 } : undefined}>
+                {/* Exam fill on the date pill; today keeps its solid accent pill
+                    untinted. A birthday tints the same pill when no exam has
+                    claimed it (the exam pie carries more meaning). */}
+                <span className="num"
+                  style={!isToday && (examBg || birthdaysForDay(state, iso).length > 0)
+                    ? { background: examBg ?? hexToRgba(BIRTHDAY_COLOR, 0.38), borderRadius: 8 }
+                    : undefined}>
                   <span className="num-txt">{d.getDate()}</span>
                 </span>
                 {dueFlags.length > 0 && (
