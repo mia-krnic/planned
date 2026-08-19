@@ -1,0 +1,2213 @@
+import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
+import type {
+  AnkiLog, AppNotification, AppState, BinderPost, BinderSection, BinderUpload, Birthday, CalEvent, ClassFolder,
+  ClassInfo, CustomCalendar, Freq, GradeRow, ID, Project, RecurException, RecurringTask, StudySession, Task,
+  TaskSection, YptState,
+} from './types'
+import { PALETTE } from './types'
+import type { ColorGroup } from './components/ColorSelect'
+import { PERSONAL_COLOR } from './utils/color'
+import { getFile, putFile } from './api/files'
+import { loadState, saveState } from './api/storage'
+import { addDays, daysBetween, fmtFriendly, fmtTime, fromISO, nowMinutes, startOfWeek, toISO } from './utils/date'
+import { derivedBreaks } from './utils/study'
+import { recurringTimes, splitsSeries, type EditScope } from './utils/occur'
+import type { ParsedIcsEvent } from './utils/ics'
+import { diffSnapshot, moduleCodeFrom, snapshotOf } from './utils/sync'
+
+/**
+ * Default sections auto-created inside every class project. "Misc" is the
+ * fallback bin: deleting any section moves its tasks here (created on demand).
+ */
+export const DEFAULT_CLASS_SECTIONS = ['Coursework', 'Studies', 'Misc']
+export const CLASS_FALLBACK_SECTION = 'Misc'
+/** Default sections created with the `assignments` flag on (graded work lives here). */
+export const DEFAULT_ASSIGNMENT_SECTIONS = ['Coursework']
+export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
+
+/**
+ * Bump this whenever seed() changes so demo installs pick up the new example
+ * data automatically on next load (see StoreProvider's initializer below).
+ * User-owned data (blankState or an imported backup) is never replaced.
+ */
+export const SEED_VERSION = 14
+
+/**
+ * A class plus its auto-created project (one per class, no nesting), the
+ * default section list inside that project, and its default binder sections.
+ */
+export function makeClassBundle(name: string, color: string, code?: string) {
+  const cls: ClassInfo = { id: uid(), name, color, code }
+  const project: Project = { id: uid(), name, color, classId: cls.id, calendarId: null, collapsed: false }
+  const taskSections: TaskSection[] = DEFAULT_CLASS_SECTIONS.map((n, i) => ({
+    id: uid(), projectId: project.id, name: n, order: i,
+    assignments: DEFAULT_ASSIGNMENT_SECTIONS.includes(n) || undefined,
+  }))
+  const sections: BinderSection[] = DEFAULT_BINDER_SECTIONS.map((n) => ({ id: uid(), classId: cls.id, name: n }))
+  return { cls, project, taskSections, sections }
+}
+
+/** A blank calendar project for the built-in Personal calendar or a custom one. */
+export function makeCalendarProject(calendarId: string, name: string, color: string): Project {
+  return {
+    id: uid(), name, color, classId: null, calendarId, collapsed: false,
+  }
+}
+
+export const uid = (): ID =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2)
+
+// ---------- Seed data (demo semester) ----------
+
+/**
+ * Tiny demo files backing the example binder uploads. Their blobs are written
+ * into IndexedDB on first load (see ensureSeedFiles) so the example data is
+ * fully clickable.
+ */
+const SEED_FILE_CONTENTS: Record<string, { name: string; type: string; content: string }> = {
+  'seed-chem-reading': {
+    name: 'week1-reading-list.txt', type: 'text/plain',
+    content: 'CHEM 101 — Week 1 reading\n\n• Chapter 1: Matter and Measurement\n• Chapter 2: Atoms, Molecules, Ions\n• Skim appendix A (sig figs refresher)\n',
+  },
+  'seed-chem-lab': {
+    name: 'titration-lab-brief.txt', type: 'text/plain',
+    content: 'Titration lab brief\n\nGoal: determine concentration of unknown HCl sample.\nBring: lab coat, goggles, calculator.\nReport due one week after the session.\n',
+  },
+  'seed-biol-slides': {
+    name: 'lecture2-dna-replication-notes.txt', type: 'text/plain',
+    content: 'BIOL 103 — Lecture 2 summary\n\nDNA replication is semi-conservative.\nKey enzymes: helicase, primase, DNA polymerase III, ligase.\nExam hint: know the leading vs lagging strand difference!\n',
+  },
+}
+
+/** Write the demo file blobs into IndexedDB if they aren't there yet. */
+async function ensureSeedFiles(state: AppState): Promise<void> {
+  const referenced = new Set(state.binderUploads.flatMap((u) => u.files.map((f) => f.id)))
+  for (const [id, f] of Object.entries(SEED_FILE_CONTENTS)) {
+    if (!referenced.has(id)) continue
+    if (!(await getFile(id))) await putFile(id, new Blob([f.content], { type: f.type }))
+  }
+}
+
+/** Empty state for "Delete all data" — a blank slate rather than the example data. */
+export function blankState(theme: 'light' | 'dark'): AppState {
+  // A blank slate still keeps the built-in Personal calendar's (empty) project.
+  const personal = makeCalendarProject('personal', 'Personal', PERSONAL_COLOR)
+  return {
+    classes: [], folders: [], customCalendars: [], events: [],
+    projects: [personal], taskSections: [], tasks: [], recurring: [], birthdays: [],
+    studySessions: [], gradeRows: [], ankiLogs: [],
+    hiddenCalendars: [], daysOff: [], showTasksOnCalendar: true,
+    weekStart: 0, theme, themeConfig: { mode: theme, lightStart: '07:00', darkStart: '19:00' },
+    // No live feed until the user binds one (Sidebar → Import live ICS).
+    palette: [...PALETTE], notifications: [], icsUrl: '',
+    lastSync: null, deletedUids: [], binderSections: [], binderUploads: [], binderPosts: [],
+    schema: 7,
+    // A user who explicitly cleared their data owns it — never auto-reseed them.
+    seedVersion: SEED_VERSION, userOwned: true,
+  }
+}
+
+function seed(): AppState {
+  const today = new Date()
+  const week0 = startOfWeek(today) // Sunday of current week
+  const iso = (dowOffset: number, weeksBack = 0) => toISO(addDays(week0, dowOffset - 7 * weeksBack))
+  const semesterStartWeek = 1 // classes started a week ago
+
+  const folders: ClassFolder[] = [
+    { id: 'f-sci', name: 'Sciences', collapsed: false },
+    { id: 'f-hum', name: 'Humanities', collapsed: false },
+  ]
+
+  const customCalendars: CustomCalendar[] = [
+    { id: 'cal-society', name: 'Film Society', color: '#e8b06c' },
+  ]
+
+  const classes: ClassInfo[] = [
+    {
+      id: 'c-chem', name: 'CHEM 101-003', color: '#e8879c', folderId: 'f-sci',
+      meta: {
+        professor: 'Prof R. Alvarez', room: 'Murray Hall G202',
+        homework: 'Problem set due Mondays',
+        other: 'Office hours Tue 2–4pm (Murray 310). Lab coat required for practicals.',
+      },
+    },
+    { id: 'c-biol', name: 'BIOL 103-003', color: '#8ecfa8', folderId: 'f-sci', meta: { professor: 'Dr T. Nwosu', room: 'Genome Sciences G200' } },
+    { id: 'c-phil', name: 'PHIL 105-001', color: '#c79be0', folderId: 'f-hum', pinnedFolder: true, meta: { homework: 'Weekly reading response, due before seminar' } },
+    { id: 'c-math', name: 'MATH 118-001', color: '#7faee8', folderId: 'f-sci', pinnedBinder: true },
+    { id: 'c-aaad', name: 'AAAD 89-003', color: '#7c9a5e' },
+  ]
+
+  const mk = (
+    classId: ID | null, title: string, dow: number, start: number, end: number,
+    location?: string,
+  ): CalEvent => ({
+    id: uid(), title, classId, date: iso(dow, semesterStartWeek),
+    allDay: false, startMin: start, endMin: end, repeat: 'weekly', location,
+  })
+
+  const chemLecture = mk('c-chem', 'CHEM 101-003', 1, 8 * 60 + 30, 9 * 60 + 45, 'Murray Hall · G202')
+  const biolLecture = mk('c-biol', 'BIOL 103-003', 3, 13 * 60 + 30, 14 * 60 + 45, 'Genome Sciences · G200')
+
+  const events: CalEvent[] = [
+    // Class meetings (weekly series)
+    chemLecture,
+    mk('c-chem', 'CHEM 101-003', 3, 8 * 60 + 30, 9 * 60 + 45, 'Murray Hall · G202'),
+    mk('c-chem', 'CHEM 101-003', 5, 8 * 60 + 30, 9 * 60 + 45, 'Murray Hall · G202'),
+    mk('c-math', 'MATH 118-001', 2, 10 * 60, 11 * 60 + 15, 'Phillips Hall · 332'),
+    mk('c-math', 'MATH 118-001', 4, 10 * 60, 11 * 60 + 15, 'Phillips Hall · 332'),
+    biolLecture,
+    mk('c-biol', 'BIOL 103-003', 5, 13 * 60 + 30, 14 * 60 + 45, 'Genome Sciences · G200'),
+    mk('c-phil', 'PHIL 105-001', 2, 15 * 60, 16 * 60 + 15, 'Peabody Hall · 2066'),
+    mk('c-phil', 'PHIL 105-001', 4, 15 * 60, 16 * 60 + 15, 'Peabody Hall · 2066'),
+    mk('c-aaad', 'AAAD 89-003', 1, 15 * 60, 16 * 60 + 15, 'Alumni Bldg · 404'),
+    // Exams (same day → split-circle highlight + countdown rows in the sidebar)
+    { id: uid(), title: 'MATH 118 Midterm', classId: 'c-math', date: iso(5 + 7), allDay: false, startMin: 10 * 60, endMin: 12 * 60, repeat: 'none', location: 'Phillips Hall · 332', isExam: true },
+    { id: uid(), title: 'CHEM 101 Midterm', classId: 'c-chem', date: iso(5 + 7), allDay: false, startMin: 14 * 60, endMin: 16 * 60, repeat: 'none', location: 'Murray Hall · G202', isExam: true },
+    // Personal
+    { id: uid(), title: 'Lunch', classId: null, date: iso(2, semesterStartWeek), allDay: false, startMin: 11 * 60 + 30, endMin: 12 * 60 + 15, repeat: 'daily' },
+    { id: uid(), title: 'Photography Club', classId: null, date: iso(5, semesterStartWeek), allDay: false, startMin: 11 * 60 + 30, endMin: 12 * 60 + 30, repeat: 'weekly' },
+    { id: uid(), title: 'Career Fair', classId: null, date: iso(3), allDay: true, startMin: 0, endMin: 0, repeat: 'none' },
+    // Custom calendar example (see customCalendars above)
+    { id: uid(), title: 'Film Society Screening', classId: null, calendarId: 'cal-society', date: iso(4, semesterStartWeek), allDay: false, startMin: 19 * 60, endMin: 21 * 60, repeat: 'weekly' },
+  ]
+
+  // One project per class (auto-created), one project per calendar (Personal
+  // and each custom calendar). Every project has default sections.
+  const projects: Project[] = [
+    ...classes.map((c) => ({ id: `p-${c.id}`, name: c.name, color: c.color, classId: c.id, calendarId: null, collapsed: false })),
+    { id: 'p-personal', name: 'Personal', color: PERSONAL_COLOR, classId: null, calendarId: 'personal', collapsed: false },
+    { id: 'p-society', name: 'Film Society', color: '#e8b06c', classId: null, calendarId: 'cal-society', collapsed: false },
+  ]
+
+  // Sections per project. Classes get Coursework/Studies/Misc (Coursework
+  // flagged as the graded-work section); the Film Society calendar project gets
+  // a "Screening night" section (folds in the old p-screening tasks); Personal
+  // gets Errands/Health/Apartment.
+  const classSections = (projectId: ID): TaskSection[] =>
+    DEFAULT_CLASS_SECTIONS.map((n, i) => ({
+      id: `sec-${projectId}-${n.toLowerCase()}`, projectId, name: n, order: i,
+      assignments: DEFAULT_ASSIGNMENT_SECTIONS.includes(n) || undefined,
+    }))
+  const taskSections: TaskSection[] = [
+    ...classes.flatMap((c) => classSections(`p-${c.id}`)),
+    // Personal calendar sections — a few realistic buckets a student would use.
+    { id: 'sec-personal-errands', projectId: 'p-personal', name: 'Errands', order: 0 },
+    { id: 'sec-personal-health', projectId: 'p-personal', name: 'Health & Fitness', order: 1 },
+    { id: 'sec-personal-apartment', projectId: 'p-personal', name: 'Apartment Move', order: 2 },
+    // Film Society calendar section — the recurring screening prep list.
+    { id: 'sec-society-screening', projectId: 'p-society', name: 'Screening night', order: 0 },
+  ]
+
+  // Chemistry gets a Lab Reports section as well (extra example of a
+  // user-added section beyond the defaults) — also graded, so a class can show
+  // more than one assignments-flagged section.
+  taskSections.push({ id: 'sec-p-c-chem-lab', projectId: 'p-c-chem', name: 'Lab Reports', order: 3, assignments: true })
+
+  /** ISO datetime n days back at hour h — the "ticked off at" stamp of a done task. */
+  const doneAt = (n: number, h = 18) => {
+    const d = addDays(today, -n)
+    d.setHours(h, 30, 0, 0)
+    return d.toISOString()
+  }
+
+  const tasks: Task[] = [
+    // Stable ids: the example study sessions reference these tasks.
+    { id: 't-quiz', title: 'Polyatomic Ions Quiz', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-coursework', date: iso(today.getDay()), startMin: 14 * 60, done: false },
+    // Example of an expected time block (outlined box on the grid).
+    // Worked on today, due Friday lunchtime — and the Friday due date IS the
+    // extension: the original Wednesday deadline still shows, struck through.
+    {
+      id: uid(), title: 'Essay draft — focused work', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-coursework',
+      date: iso(today.getDay()), startMin: 16 * 60, endMin: 17 * 60 + 30,
+      dueDate: iso(5), dueMin: 13 * 60, extensions: [{ dueDate: iso(3), dueMin: 17 * 60 }],
+      done: false, pinned: true,
+    },
+    { id: uid(), title: 'Sort out laundry', projectId: null, date: iso(today.getDay()), startMin: 19 * 60, endMin: 20 * 60, done: false, order: 0 },
+    // Half done in YPT mode (◺): flip "Task checking" in ⚙ view settings to see it.
+    { id: 't-fallacies', title: 'Read Chapter 3: Fallacies', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-studies', date: iso(today.getDay()), startMin: 18 * 60 + 45, done: false, yptState: 1 },
+    // Rescheduled: planned for Tuesday morning, moved to Thursday — the
+    // abandoned Tuesday slot keeps a translucent ghost on the week grid.
+    {
+      id: 't-labprep', title: 'Lab prep reading', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies',
+      date: iso(4), startMin: 11 * 60, endMin: 12 * 60, done: false,
+      ghosts: [{ date: iso(2), startMin: 9 * 60 }],
+    },
+    // Due date with no time → drawn at end of day (11:59pm). Neither done nor
+    // submitted, due today → ‼ banner at the top of the calendar.
+    { id: uid(), title: 'Submit Health Inequality Paper', projectId: 'p-c-aaad', sectionId: 'sec-p-c-aaad-coursework', date: iso(today.getDay()), startMin: 23 * 60 + 59, dueDate: iso(today.getDay()), dueMin: null, done: false, pinned: true },
+    // Written, not handed in yet, due today → ! banner (a second class).
+    { id: uid(), title: 'Cell biology worksheet', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-coursework', date: null, startMin: null, dueDate: iso(today.getDay()), dueMin: 16 * 60, done: true, completedAt: doneAt(1, 21) },
+    { id: uid(), title: 'Read Chapter 5: DNA Replication and Repair', projectId: 'p-c-biol', sectionId: 'sec-p-c-biol-studies', date: iso(today.getDay() + 1), startMin: null, dueDate: iso(today.getDay() + 1), dueMin: 12 * 60, done: false },
+    { id: uid(), title: 'Prepare for Midterm on Differentiation', projectId: 'p-c-math', sectionId: 'sec-p-c-math-studies', date: iso(5 + 7), startMin: null, dueDate: iso(5 + 7), dueMin: 10 * 60, done: false },
+    // Handed in: its due bar on Thursday is faded and struck through. Also the
+    // worked example of the task↔binder link — the lab brief is attached here,
+    // which is how the grade tracker's "Lab reports" row finds its documents.
+    // Also the fully-done YPT example (⊘) — `done` already implies state 2.
+    { id: 't-titration', title: 'Titration lab write-up', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-lab', date: iso(4), startMin: null, dueDate: iso(4), dueMin: 17 * 60, location: 'Chemistry lab prep room', done: true, submitted: true, completedAt: doneAt(2, 16), attachmentUploadIds: ['u-chem-lab'], yptState: 2 },
+    // Errand with a location — tasks can carry places just like events
+    { id: uid(), title: 'Collect reserved books', projectId: null, date: iso(today.getDay() + 1), startMin: null, dueDate: iso(today.getDay() + 2), dueMin: null, location: 'Library front desk · office 2.1', done: false, order: 1 },
+    { id: uid(), title: 'Weekly reading response', projectId: 'p-c-phil', sectionId: 'sec-p-c-phil-coursework', date: null, startMin: null, dueDate: iso(1, semesterStartWeek - 1), dueMin: 9 * 60, done: false },
+    // Personal · Errands
+    { id: uid(), title: 'Return library book', projectId: 'p-personal', sectionId: 'sec-personal-errands', date: null, startMin: null, done: false },
+    { id: uid(), title: 'Renew student ID', projectId: 'p-personal', sectionId: 'sec-personal-errands', date: null, startMin: null, done: false },
+    // Personal · Health & Fitness
+    { id: uid(), title: 'Book dentist appointment', projectId: 'p-personal', sectionId: 'sec-personal-health', date: null, startMin: null, done: false },
+    { id: uid(), title: 'Refill prescription', projectId: 'p-personal', sectionId: 'sec-personal-health', date: null, startMin: null, done: true, completedAt: doneAt(4, 11) },
+    // Personal · Apartment (folded in from old p-apartment)
+    { id: uid(), title: 'Buy a desk lamp', projectId: 'p-personal', sectionId: 'sec-personal-apartment', date: null, startMin: null, done: false },
+    { id: uid(), title: 'Set up renters insurance', projectId: 'p-personal', sectionId: 'sec-personal-apartment', date: null, startMin: null, done: true, completedAt: doneAt(9, 13) },
+    { id: uid(), title: 'Hang posters', projectId: 'p-personal', sectionId: 'sec-personal-apartment', date: null, startMin: null, done: false, yptState: 1 },
+    // Film Society · Screening night (folded in from old p-screening)
+    { id: uid(), title: 'Book the projector room', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: false },
+    { id: uid(), title: 'Confirm this week\'s film pick', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: false },
+    { id: uid(), title: 'Bring snacks', projectId: 'p-society', sectionId: 'sec-society-screening', date: null, startMin: null, done: false },
+  ]
+
+  const gymStart = toISO(addDays(today, -6))
+  const recurring: RecurringTask[] = [
+    {
+      id: uid(), title: 'Gym', projectId: 'p-personal', sectionId: 'sec-personal-health',
+      freq: 'daily', weekday: 1,
+      startDate: gymStart, streak: true,
+      completions: [-6, -5, -3, -2, -1].map((n) => toISO(addDays(today, n))),
+    },
+    {
+      id: uid(), title: 'Review flashcards', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies',
+      freq: 'weekdays', weekday: 1,
+      startDate: gymStart, streak: true,
+      completions: [-6, -5, -4].map((n) => toISO(addDays(today, n))).filter((d) => {
+        const dow = new Date(d + 'T00:00').getDay()
+        return dow >= 1 && dow <= 5
+      }),
+    },
+    // Custom rule example: every other week on Mon + Wed, scheduled 9:00–10:30,
+    // each occurrence due two days later at 5pm — and the Wednesday one has
+    // been dragged to Thursday 11am, which writes a per-occurrence exception
+    // instead of forking the series.
+    {
+      id: 'r-pset', title: 'Problem set', projectId: 'p-c-math', sectionId: 'sec-p-c-math-coursework',
+      freq: 'weekly', weekday: 1,
+      rule: { kind: 'biweekly', weekdays: [1, 3], anchor: iso(1) },
+      startDate: iso(1, semesterStartWeek), streak: false, completions: [],
+      startMin: 9 * 60, endMin: 10 * 60 + 30,
+      dueOffsetDays: 2, dueMin: 17 * 60,
+      exceptions: { [iso(3)]: { date: iso(4), startMin: 11 * 60 } },
+    },
+    // Several times a day: three slots, two ticked off today (the third is the
+    // one still open), a couple of fully-done days behind it.
+    {
+      id: 'r-water', title: 'Drink water', projectId: 'p-personal', sectionId: 'sec-personal-health',
+      freq: 'daily', weekday: 1,
+      rule: { kind: 'timesPerDay', times: 3 },
+      startDate: gymStart, streak: true,
+      completions: [-3, -2, -1].map((n) => toISO(addDays(today, n))),
+      partial: { [toISO(today)]: 2 },
+    },
+  ]
+
+  // The built-in Birthdays calendar. Two land this month (one with a birth year,
+  // so the marker says how old they turn); the other opts out of the day off.
+  const bday = (n: number) => {
+    const d = addDays(today, n)
+    return { month: d.getMonth() + 1, day: d.getDate() }
+  }
+  const birthdays: Birthday[] = [
+    { id: 'b-maya', name: 'Maya', ...bday(3), year: 2005 },
+    { id: 'b-dad', name: 'Dad', ...bday(9), year: 1974, dayOff: false },
+    { id: 'b-priya', name: 'Priya', ...bday(48) },
+  ]
+
+  // Example study log: a pomodoro session, a normal one with a manual break,
+  // and an unassigned (grey) evening block.
+  const todayIso = toISO(today)
+  const yesterdayIso = toISO(addDays(today, -1))
+  const studySessions: StudySession[] = [
+    {
+      id: 's-chem-pomo', classId: 'c-chem', taskIds: ['t-quiz', 't-titration'], eventIds: [],
+      uploadIds: ['u-chem-reading'],
+      date: yesterdayIso, startMin: 16 * 60, endMin: 17 * 60 + 45, mode: 'pomodoro25',
+      // Switched from CHEM to BIOL at 5pm — the stripe changes colour there.
+      classSegments: [
+        { startMin: 16 * 60, classId: 'c-chem' },
+        { startMin: 17 * 60, classId: 'c-biol' },
+      ],
+      // 25/5 cycles materialised at the end of the session
+      breaks: [
+        { startMin: 16 * 60 + 25, durMin: 5, tag: 'rest' },
+        { startMin: 16 * 60 + 55, durMin: 5, tag: 'restroom' },
+        { startMin: 17 * 60 + 25, durMin: 5, tag: 'rest' },
+      ],
+      reflection: 'Flashcards before problem sets works much better — do that again.',
+    },
+    {
+      id: 's-phil-morning', classId: 'c-phil', taskIds: ['t-fallacies'], eventIds: [],
+      date: todayIso, startMin: 8 * 60, endMin: 9 * 60 + 10, mode: 'normal',
+      breaks: [{ startMin: 8 * 60 + 35, durMin: 5, tag: 'meal' }],
+      reflection: 'Mornings are the only time the reading actually sticks. Keep the 8am slot.',
+    },
+    {
+      // Second block today so the daily 24h timeline + break analytics have a story.
+      id: 's-chem-today', classId: 'c-chem', taskIds: [], eventIds: [],
+      date: todayIso, startMin: 14 * 60 + 15, endMin: 16 * 60, mode: 'normal',
+      breaks: [
+        { startMin: 14 * 60 + 55, durMin: 10, tag: 'meal' },
+        { startMin: 15 * 60 + 30, durMin: 5, tag: 'rest' },
+      ],
+    },
+    {
+      id: 's-evening', classId: null, taskIds: [], eventIds: [],
+      date: yesterdayIso, startMin: 20 * 60, endMin: 20 * 60 + 45, mode: 'normal',
+      breaks: [],
+    },
+  ]
+
+  // Historical study log across the previous seven weeks so the Insights
+  // charts (weekly stacked bars + trend) have a real story to tell. A steady
+  // ramp-up with a light week 3 back, class mix varying week to week.
+  const histSession = (
+    weeksBack: number, dow: number, classId: ID | null,
+    startMin: number, durMin: number, extra?: Partial<StudySession>,
+  ): StudySession => {
+    const d = addDays(today, -weeksBack * 7 - today.getDay() + dow)
+    return {
+      id: `s-hist-${weeksBack}-${dow}-${classId ?? 'none'}-${startMin}`,
+      classId, taskIds: [], eventIds: [],
+      date: toISO(d), startMin, endMin: startMin + durMin, mode: 'normal', breaks: [],
+      ...extra,
+    }
+  }
+  studySessions.push(
+    // 7 weeks ago — semester warm-up, short sessions
+    histSession(7, 2, 'c-chem', 15 * 60, 50),
+    histSession(7, 4, 'c-phil', 9 * 60, 40),
+    // 6 weeks ago
+    histSession(6, 1, 'c-math', 14 * 60, 75),
+    histSession(6, 3, 'c-chem', 16 * 60, 60),
+    histSession(6, 5, null, 19 * 60, 45),
+    // 5 weeks ago
+    histSession(5, 1, 'c-biol', 10 * 60, 90, {
+      reflection: 'Genome diagrams finally clicked after redrawing them from memory.',
+    }),
+    histSession(5, 2, 'c-chem', 15 * 60, 60),
+    histSession(5, 4, 'c-phil', 9 * 60, 70),
+    // 4 weeks ago — light week (reading week)
+    histSession(4, 3, 'c-math', 11 * 60, 45),
+    // 3 weeks ago
+    histSession(3, 1, 'c-chem', 16 * 60, 80, { mode: 'pomodoro25' }),
+    histSession(3, 2, 'c-biol', 10 * 60, 60),
+    histSession(3, 4, 'c-aaad', 13 * 60, 55),
+    histSession(3, 6, null, 20 * 60, 40),
+    // 2 weeks ago — split session with a mid-way class switch
+    histSession(2, 1, 'c-math', 14 * 60, 120, {
+      classSegments: [
+        { startMin: 14 * 60, classId: 'c-math' },
+        { startMin: 15 * 60, classId: 'c-chem' },
+      ],
+      breaks: [{ startMin: 15 * 60, durMin: 10, tag: 'rest' }],
+      reflection: 'Past papers under exam timing — brutal but worth it every week.',
+    }),
+    histSession(2, 3, 'c-phil', 9 * 60, 65),
+    histSession(2, 5, 'c-biol', 17 * 60, 70),
+    // last week — heaviest week, exams approaching
+    histSession(1, 0, 'c-chem', 15 * 60, 95, {
+      breaks: [{ startMin: 15 * 60 + 45, durMin: 8, tag: 'restroom' }],
+    }),
+    histSession(1, 1, 'c-math', 14 * 60, 85),
+    histSession(1, 3, 'c-phil', 9 * 60, 60),
+    histSession(1, 4, 'c-biol', 10 * 60, 75),
+    histSession(1, 6, 'c-aaad', 13 * 60, 50),
+  )
+
+  // Example binder: sections per class, a few uploads (backed by demo files) and stream posts.
+  const binderSections: BinderSection[] = classes.flatMap((c) => [
+    { id: `sec-res-${c.id}`, classId: c.id, name: 'Resources / Handouts' },
+    { id: `sec-notes-${c.id}`, classId: c.id, name: 'Notes' },
+  ])
+  const daysAgo = (n: number, h = 10) => {
+    const d = addDays(today, -n)
+    d.setHours(h, 0, 0, 0)
+    return d.toISOString()
+  }
+  const binderUploads: BinderUpload[] = [
+    {
+      id: 'u-chem-reading', classId: 'c-chem', sectionId: 'sec-res-c-chem',
+      title: 'Week 1 reading list',
+      caption: 'From the first lecture — appendix A is a lifesaver for sig figs.',
+      files: [{ id: 'seed-chem-reading', name: 'week1-reading-list.txt', type: 'text/plain', size: 150 }],
+      attach: { kind: 'event', id: chemLecture.id, date: chemLecture.date, label: chemLecture.title },
+      createdAt: daysAgo(7),
+    },
+    {
+      // Stable id: the titration task attaches this upload (see tasks above).
+      id: 'u-chem-lab', classId: 'c-chem', sectionId: 'sec-res-c-chem',
+      title: 'Titration lab brief',
+      caption: 'Bring lab coat, goggles and a calculator!',
+      files: [{ id: 'seed-chem-lab', name: 'titration-lab-brief.txt', type: 'text/plain', size: 170 }],
+      pinned: 'section',
+      createdAt: daysAgo(3),
+    },
+    {
+      id: uid(), classId: 'c-biol', sectionId: 'sec-notes-c-biol',
+      title: 'Lecture 2 notes — DNA replication',
+      files: [{ id: 'seed-biol-slides', name: 'lecture2-dna-replication-notes.txt', type: 'text/plain', size: 210 }],
+      attach: { kind: 'event', id: biolLecture.id, date: biolLecture.date, label: biolLecture.title },
+      createdAt: daysAgo(5),
+    },
+  ]
+  // Example grade tracker (Chemistry only): two explicitly-weighted rows, then
+  // two left blank so the even-split of the remaining 45% is on show. Only the
+  // marked rows count towards the current grade.
+  const gradeRows: GradeRow[] = [
+    { id: 'g-chem-midterm', classId: 'c-chem', name: 'Midterm', weightPct: 30, scorePct: 78, taskIds: [] },
+    { id: 'g-chem-lab', classId: 'c-chem', name: 'Lab reports', weightPct: 25, scorePct: null, taskIds: ['t-titration'] },
+    { id: 'g-chem-quizzes', classId: 'c-chem', name: 'Quizzes', weightPct: null, scorePct: 82, taskIds: ['t-quiz'] },
+    { id: 'g-chem-final', classId: 'c-chem', name: 'Final exam', weightPct: null, scorePct: null, taskIds: [] },
+  ]
+
+  const binderPosts: BinderPost[] = [
+    { id: uid(), classId: 'c-chem', text: "Bring lab coat + goggles for Thursday's practical!", pinned: true, createdAt: daysAgo(2, 15) },
+    { id: uid(), classId: 'c-chem', text: 'Quiz next Monday covers chapters 1–3 only.', createdAt: daysAgo(1, 9) },
+    { id: uid(), classId: 'c-phil', text: 'Prof said the essay deadline moved to Friday — double-check the portal.', createdAt: daysAgo(4, 16) },
+  ]
+
+  return {
+    classes, folders, customCalendars, events, projects, taskSections, tasks, recurring, birthdays,
+    studySessions, gradeRows,
+    ankiLogs: seedAnkiLogs(todayIso),
+    hiddenCalendars: [],
+    daysOff: [iso(0), iso(6)], // example: this Sunday and Saturday are days off (weekend off)
+    showTasksOnCalendar: true,
+    // Ships in classic checkbox mode; the seeded ◺/⊘ states are already there
+    // for anyone who flips "Task checking" to YPT-style in ⚙ view settings.
+    taskCheckStyle: 'checkbox', showGhosts: true,
+    weekStart: 0, theme: 'dark', themeConfig: { mode: 'dark', lightStart: '07:00', darkStart: '19:00' },
+    // The demo ships unbound: the user pastes their own school feed URL.
+    palette: [...PALETTE], notifications: [], icsUrl: '',
+    lastSync: null, deletedUids: [], binderSections, binderUploads, binderPosts, schema: 1,
+    // Demo daily study goal: 90 min — low enough that some seed days hit it,
+    // so the Target Achievement Rate figure shows a real percentage.
+    studyGoalMin: 90,
+    // Demo data: never user-owned, so a SEED_VERSION bump auto-refreshes it.
+    seedVersion: SEED_VERSION, userOwned: false,
+  }
+}
+
+/** First day of the example flashcard history (start of the demo semester). */
+const ANKI_SEED_START = '2026-01-05'
+/** Demo per-class decks: the classes a student would realistically drill. */
+const ANKI_SEED_DECKS: ID[] = ['c-chem', 'c-biol', 'c-math']
+
+/**
+ * Deterministic example review history — no randomness, so every demo install
+ * (and every reload) shows the same heatmap. ~2/3 of days have activity, mostly
+ * general-bucket sessions with per-class decks sprinkled onto weekdays, a
+ * couple of cram days, and an unbroken run up to today so the streak stat has
+ * something to show.
+ */
+function seedAnkiLogs(todayIso: string): AnkiLog[] {
+  // Cheap deterministic pseudo-random: multiply-xorshift over (day, salt), so
+  // each salt gives an independent-looking 0–9999 sequence.
+  const h = (day: number, salt: number) => {
+    let x = Math.imul(day + 7919, 2654435761) ^ Math.imul(salt + 1, 1013904223)
+    x = Math.imul(x ^ (x >>> 15), 2246822519)
+    x ^= x >>> 13
+    return (x >>> 0) % 10000
+  }
+  const start = ANKI_SEED_START <= todayIso ? ANKI_SEED_START : todayIso
+  const logs: AnkiLog[] = []
+  const total = Math.round((fromISOLocal(todayIso).getTime() - fromISOLocal(start).getTime()) / 86400000)
+  for (let i = 0; i <= total; i++) {
+    const date = toISO(addDays(fromISOLocal(start), i))
+    const dow = fromISOLocal(date).getDay()
+    const streakRun = total - i < 7 // the last week is always active (current streak)
+    const active = streakRun || h(i, 1) % 100 < 66
+    if (!active) continue
+
+    // General bucket: the everyday "just do my reviews" number.
+    let general = 15 + (h(i, 2) % 106) // 15–120
+    if (h(i, 7) % 53 === 0) general = 200 + (h(i, 8) % 140) // occasional cram day
+    logs.push({ date, classId: null, count: general })
+
+    // Class-specific decks only get drilled on teaching days.
+    if (dow === 0 || dow === 6) continue
+    ANKI_SEED_DECKS.forEach((classId, k) => {
+      if (h(i, 11 + k) % 100 >= 38) return
+      logs.push({ date, classId, count: 10 + (h(i, 21 + k) % 51) }) // 10–60
+    })
+  }
+  return logs
+}
+
+/** Local-midnight Date from 'YYYY-MM-DD' (kept here so seed() has no import cycle). */
+function fromISOLocal(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+/**
+ * Class deletion keeps the flashcard history: that class's counts fold into the
+ * General (unassigned) bucket for the same day, so daily totals never change.
+ */
+function mergeAnkiIntoGeneral(logs: AnkiLog[], classId: ID): AnkiLog[] {
+  if (!logs.some((l) => l.classId === classId)) return logs
+  const out: AnkiLog[] = []
+  const generalAt = new Map<string, number>()
+  for (const l of logs) {
+    if (l.classId === classId) continue
+    if (l.classId === null) generalAt.set(l.date, out.length)
+    out.push(l)
+  }
+  for (const l of logs) {
+    if (l.classId !== classId) continue
+    const at = generalAt.get(l.date)
+    if (at === undefined) {
+      generalAt.set(l.date, out.length)
+      out.push({ date: l.date, classId: null, count: l.count })
+    } else {
+      out[at] = { ...out[at], count: out[at].count + l.count }
+    }
+  }
+  return out
+}
+
+/**
+ * Drop deleted binder uploads from every task that attached them, leaving the
+ * tasks that never referenced them untouched (so React sees no change there).
+ */
+function detachUploads(tasks: Task[], gone: Set<ID>): Task[] {
+  if (!gone.size) return tasks
+  return tasks.map((t) => {
+    const ids = t.attachmentUploadIds
+    if (!ids?.some((id) => gone.has(id))) return t
+    const kept = ids.filter((id) => !gone.has(id))
+    return { ...t, attachmentUploadIds: kept.length ? kept : undefined }
+  })
+}
+
+/**
+ * Records the slot a scheduled task is leaving when its `date` moves to a
+ * different day — from a drag, the task editor, anywhere. Only day-to-day moves
+ * ghost: scheduling a floating task (null → date) leaves nothing behind, and
+ * un-scheduling it (date → null) removes the task from the calendar entirely.
+ */
+function withRescheduleGhost(prev: Task, next: Task): Task {
+  if (!prev.date || !next.date || prev.date === next.date) return next
+  return { ...next, ghosts: [...(next.ghosts ?? []), { date: prev.date, startMin: prev.startMin }] }
+}
+
+/**
+ * The tri-state a task SHOWS in YPT mode. `done` is the source of truth for
+ * completion, `yptState` only remembers the half-done step, so:
+ *   done            → 2 (however the task got completed)
+ *   stored 2, !done → 1 (it was finished then re-opened: half done reads best)
+ *   otherwise       → the stored state (0 or 1), absent = 0
+ * Nothing here writes, so flipping checking modes never destroys a ◺.
+ */
+export function displayYptState(t: Task): YptState {
+  if (t.done) return 2
+  return t.yptState === 2 ? 1 : t.yptState ?? 0
+}
+
+/** Fill in fields added after first release and run one-time schema upgrades. */
+export function migrate(s: AppState): AppState {
+  const state: AppState = {
+    ...s,
+    folders: s.folders ?? [],
+    customCalendars: s.customCalendars ?? [],
+    daysOff: s.daysOff ?? [],
+    weekStart: s.weekStart ?? 0,
+    themeConfig: s.themeConfig ?? { mode: s.theme ?? 'dark', lightStart: '07:00', darkStart: '19:00' },
+    palette: s.palette ?? [...PALETTE],
+    notifications: s.notifications ?? [],
+    // A stored URL is the user's own binding (including the proxy-form Warwick
+    // feed older builds shipped with) — always kept. '' stays unbound.
+    icsUrl: s.icsUrl ?? '',
+    lastSync: s.lastSync ?? null,
+    deletedUids: s.deletedUids ?? [],
+    binderSections: s.binderSections ?? [],
+    binderUploads: s.binderUploads ?? [],
+    binderPosts: s.binderPosts ?? [],
+    studySessions: s.studySessions ?? [],
+    gradeRows: s.gradeRows ?? [],
+    ankiLogs: s.ankiLogs ?? [],
+    taskSections: s.taskSections ?? [],
+    birthdays: s.birthdays ?? [],
+    schema: s.schema ?? 1,
+    seedVersion: s.seedVersion ?? 0,
+    userOwned: s.userOwned ?? false,
+  }
+  if (state.schema < 3) {
+    // Every class gets its default binder sections.
+    const extra: BinderSection[] = []
+    for (const c of state.classes) {
+      for (const n of DEFAULT_BINDER_SECTIONS) {
+        if (!state.binderSections.some((sec) => sec.classId === c.id && sec.name === n)) {
+          extra.push({ id: uid(), classId: c.id, name: n })
+        }
+      }
+    }
+    state.binderSections = [...state.binderSections, ...extra]
+    state.schema = 3
+  }
+  // Every top-level non-class project belongs to a calendar; older data
+  // predates the field, so default it to Personal (also repairs a project whose
+  // custom calendar has since vanished). Legacy: parentId may still exist.
+  type LegacyProject = Project & { parentId?: ID | null }
+  const legacy = state.projects as LegacyProject[]
+  const calIds0 = new Set(state.customCalendars.map((c) => c.id))
+  legacy.forEach((p) => {
+    if (p.classId === null && (p.parentId ?? null) === null && !(p.calendarId && calIds0.has(p.calendarId))) {
+      p.calendarId = 'personal'
+    }
+  })
+
+  if (state.schema < 4) {
+    // ---- Restructure to the new one-project-per-class/calendar model. ----
+    // Flatten parentId, dedupe to one project per class/calendar. Every extra
+    // project becomes a SECTION of the survivor; its tasks inherit that
+    // section id so nothing is lost.
+    const projs = legacy
+    const byId = new Map(projs.map((p) => [p.id, p] as const))
+    const rootOf = (p: LegacyProject): LegacyProject => {
+      let cur: LegacyProject = p
+      const seen = new Set<ID>()
+      while (cur.parentId && !seen.has(cur.id)) {
+        seen.add(cur.id)
+        const next = byId.get(cur.parentId)
+        if (!next) break
+        cur = next
+      }
+      return cur
+    }
+    // 'class:<id>' | 'cal:<id>' — which bin a project's tasks should end up in.
+    const ownerOf = (p: LegacyProject): string => {
+      let cur: LegacyProject = p
+      const seen = new Set<ID>()
+      while (cur.parentId && !seen.has(cur.id)) {
+        seen.add(cur.id)
+        const parent = byId.get(cur.parentId)
+        if (!parent) break
+        if (parent.classId) return 'class:' + parent.classId
+        cur = parent
+      }
+      if (cur.classId) return 'class:' + cur.classId
+      const root = rootOf(cur)
+      const calId = root.calendarId && (calIds0.has(root.calendarId) || root.calendarId === 'personal') ? root.calendarId : 'personal'
+      return 'cal:' + calId
+    }
+
+    // Pick the surviving project per owner: prefer the direct auto-created one.
+    const survivors = new Map<string, LegacyProject>()
+    for (const p of projs) {
+      const key = ownerOf(p)
+      const existing = survivors.get(key)
+      const directMatch = (key.startsWith('class:') && p.classId === key.slice(6) && !p.parentId)
+        || (key.startsWith('cal:') && p.classId == null && !p.parentId && (p.calendarId ?? 'personal') === key.slice(4))
+      if (!existing || directMatch) survivors.set(key, p)
+    }
+    // Backfill: every class and every calendar (incl. Personal) must have a project.
+    for (const c of state.classes) {
+      if (!survivors.has('class:' + c.id)) {
+        const p: LegacyProject = { id: uid(), name: c.name, color: c.color, classId: c.id, calendarId: null, collapsed: false }
+        survivors.set('class:' + c.id, p)
+        projs.push(p)
+      }
+    }
+    const ensureCal = (calId: string, name: string, color: string) => {
+      if (survivors.has('cal:' + calId)) return
+      const p: LegacyProject = { id: uid(), name, color, classId: null, calendarId: calId, collapsed: false }
+      survivors.set('cal:' + calId, p)
+      projs.push(p)
+    }
+    ensureCal('personal', 'Personal', PERSONAL_COLOR)
+    for (const cc of state.customCalendars) ensureCal(cc.id, cc.name, cc.color)
+
+    // Normalise survivor fields to match owner (kill parentId; sync fields).
+    for (const [key, sur] of survivors) {
+      sur.parentId = null
+      if (key.startsWith('class:')) {
+        const cls = state.classes.find((c) => c.id === key.slice(6))
+        sur.classId = cls?.id ?? null
+        sur.calendarId = null
+        if (cls) { sur.name = cls.name; sur.color = cls.color }
+      } else {
+        const calId = key.slice(4)
+        sur.classId = null
+        sur.calendarId = calId
+        const cc = state.customCalendars.find((x) => x.id === calId)
+        if (calId === 'personal') { sur.name = 'Personal'; sur.color = PERSONAL_COLOR }
+        else if (cc) { sur.name = cc.name; sur.color = cc.color }
+      }
+    }
+
+    // Sections: start from existing (empty on first migration), then guarantee
+    // the default class sections and append one section per subsumed project.
+    const newSections: TaskSection[] = [...state.taskSections]
+    const nextOrder = new Map<ID, number>()
+    for (const sec of newSections) {
+      nextOrder.set(sec.projectId, Math.max(nextOrder.get(sec.projectId) ?? 0, sec.order + 1))
+    }
+    for (const [key, sur] of survivors) {
+      if (!key.startsWith('class:')) continue
+      for (const n of DEFAULT_CLASS_SECTIONS) {
+        if (!newSections.some((s) => s.projectId === sur.id && s.name === n)) {
+          const order = nextOrder.get(sur.id) ?? 0
+          newSections.push({ id: uid(), projectId: sur.id, name: n, order })
+          nextOrder.set(sur.id, order + 1)
+        }
+      }
+    }
+    const sectionForProject = new Map<ID, ID>() // old project id -> new section id
+    for (const p of projs) {
+      const key = ownerOf(p)
+      const sur = survivors.get(key)!
+      if (p.id === sur.id) continue
+      const order = nextOrder.get(sur.id) ?? 0
+      const sec: TaskSection = { id: uid(), projectId: sur.id, name: p.name, order }
+      nextOrder.set(sur.id, order + 1)
+      newSections.push(sec)
+      sectionForProject.set(p.id, sec.id)
+    }
+
+    // Rewire tasks / recurring to (survivor project id, new section id).
+    state.tasks = state.tasks.map((t) => {
+      if (t.projectId == null) return t
+      const orig = byId.get(t.projectId)
+      if (!orig) return { ...t, projectId: null, sectionId: null }
+      const key = ownerOf(orig)
+      const sur = survivors.get(key)!
+      const secId = orig.id === sur.id ? (t.sectionId ?? null) : sectionForProject.get(orig.id) ?? null
+      return { ...t, projectId: sur.id, sectionId: secId }
+    })
+    state.recurring = state.recurring.map((r) => {
+      const orig = byId.get(r.projectId)
+      if (!orig) return r
+      const key = ownerOf(orig)
+      const sur = survivors.get(key)!
+      const secId = orig.id === sur.id ? (r.sectionId ?? null) : sectionForProject.get(orig.id) ?? null
+      return { ...r, projectId: sur.id, sectionId: secId }
+    })
+
+    // Final projects list is exactly the survivors — no parentId, no extras.
+    state.projects = [...survivors.values()].map((p) => ({
+      id: p.id, name: p.name, color: p.color, classId: p.classId, calendarId: p.calendarId, collapsed: p.collapsed,
+    }))
+    state.taskSections = newSections
+    state.schema = 4
+  }
+
+  if (state.schema < 5) {
+    // "Revision" was renamed to "Studies", and the section holding graded work
+    // is now flagged so the grade tracker can find it. Both only apply to class
+    // projects; a user's own "Revision" section on a calendar project is theirs.
+    const classProjects = new Set(state.projects.filter((p) => p.classId != null).map((p) => p.id))
+    state.taskSections = state.taskSections.map((s) => {
+      if (!classProjects.has(s.projectId)) return s
+      if (s.name === 'Revision') return { ...s, name: 'Studies' }
+      if (s.name === 'Coursework') return { ...s, assignments: true }
+      return s
+    })
+    state.schema = 5
+  }
+
+  if (state.schema < 6) {
+    // The grade tracker arrives empty for everyone: gradeRows is defaulted
+    // above, so this stage only records that the upgrade has run.
+    state.schema = 6
+  }
+
+  if (state.schema < 7) {
+    // The Birthdays calendar arrives empty (`birthdays` is defaulted above).
+    // Custom recurrence rules need NO migration: a recurring task without a
+    // `rule` keeps repeating by its freq/weekday pair (see recurringOccursOn).
+    state.schema = 7
+  }
+
+  return state
+}
+
+/* ---------- Recurring tasks: scoped occurrence edits ---------- */
+
+/** Copy of `rec` keeping only the keys `keep` accepts; undefined when empty. */
+function pickByDate<T>(rec: Record<string, T> | undefined, keep: (k: string) => boolean): Record<string, T> | undefined {
+  if (!rec) return undefined
+  const out: Record<string, T> = {}
+  for (const [k, v] of Object.entries(rec)) if (keep(k)) out[k] = v
+  return Object.keys(out).length ? out : undefined
+}
+
+/** Drop the undefined keys a spread-merged exception picks up. */
+function cleanException(ex: RecurException): RecurException {
+  const out: RecurException = {}
+  for (const [k, v] of Object.entries(ex)) {
+    if (v !== undefined) (out as Record<string, unknown>)[k] = v
+  }
+  return out
+}
+
+/**
+ * Does moving one occurrence to another day mean anything for the whole series?
+ * Only for rules where the day of the week / month is part of the rule — a daily
+ * habit already fires every day, so shifting it would just move its start.
+ */
+function dayShiftMatters(rt: RecurringTask): boolean {
+  if (!rt.rule) return rt.freq === 'weekly'
+  return rt.rule.kind === 'weekly' || rt.rule.kind === 'biweekly' || rt.rule.kind === 'monthly'
+}
+
+const mod7 = (n: number) => ((n % 7) + 7) % 7
+
+/**
+ * The whole series shifted so the occurrence generated on `occurrence` lands
+ * where `patch` puts it — the "all events" arm of a scoped occurrence edit.
+ */
+function shiftedSeries(rt: RecurringTask, occurrence: string, patch: RecurException): RecurringTask {
+  const next: RecurringTask = { ...rt }
+  if (patch.date && patch.date !== occurrence && dayShiftMatters(rt)) {
+    const delta = daysBetween(occurrence, patch.date)
+    next.startDate = toISO(addDays(fromISO(rt.startDate), delta))
+    next.weekday = mod7(rt.weekday + delta)
+    if (rt.rule) {
+      const rule = { ...rt.rule }
+      if (rule.weekdays?.length) rule.weekdays = rule.weekdays.map((d) => mod7(d + delta))
+      if (rule.anchor) rule.anchor = toISO(addDays(fromISO(rule.anchor), delta))
+      if (rule.kind === 'monthly') {
+        rule.day = Math.min(31, Math.max(1, (rule.day ?? fromISO(rt.startDate).getDate()) + delta))
+      }
+      next.rule = rule
+    }
+  }
+  if (patch.startMin !== undefined) next.startMin = patch.startMin
+  if (patch.endMin !== undefined) next.endMin = patch.endMin
+  if (patch.dueMin !== undefined) next.dueMin = patch.dueMin
+  if (patch.dueDate) next.dueOffsetDays = daysBetween(patch.date ?? occurrence, patch.dueDate)
+  return next
+}
+
+/**
+ * "This and future": the old series stops the day before `occurrence` (keeping
+ * the history that belongs to it) and a clone carries the change forward from
+ * there, so nothing already ticked off is disturbed.
+ */
+function splitRecurring(
+  rt: RecurringTask, occurrence: string, patch: RecurException, series?: Partial<RecurringTask>,
+): [RecurringTask, RecurringTask] {
+  const before: RecurringTask = {
+    ...rt,
+    until: occurrence,
+    completions: rt.completions.filter((d) => d < occurrence),
+    partial: pickByDate(rt.partial, (d) => d < occurrence),
+    exceptions: pickByDate(rt.exceptions, (d) => d < occurrence),
+  }
+  const startDate = patch.date ?? occurrence
+  const shifted = shiftedSeries(rt, occurrence, patch)
+  const after: RecurringTask = {
+    ...shifted,
+    ...series,
+    id: uid(),
+    startDate,
+    until: rt.until,
+    completions: rt.completions.filter((d) => d >= occurrence),
+    partial: pickByDate(rt.partial, (d) => d >= occurrence),
+    exceptions: pickByDate(rt.exceptions, (d) => d >= occurrence && d !== occurrence),
+  }
+  // A fortnightly clone pins its own parity, so the split week stays "on".
+  if (after.rule?.kind === 'biweekly') after.rule = { ...after.rule, anchor: startDate }
+  return [before, after]
+}
+
+// ---------- Actions ----------
+
+export type Action =
+  | { type: 'addEvent'; event: CalEvent }
+  | { type: 'updateEvent'; event: CalEvent }
+  | { type: 'deleteEvent'; id: ID }
+  /**
+   * Scoped edit of one occurrence of a (possibly repeating) event — the drag &
+   * drop counterpart of EventModal's save(). One action so a whole drag is a
+   * single undo step even when it splits the series (see scopedEventEdit).
+   */
+  | { type: 'moveEventOccurrence'; id: ID; occurrence: string; scope: EditScope; patch: Partial<CalEvent> }
+  | { type: 'addTask'; task: Task }
+  | { type: 'updateTask'; task: Task }
+  | { type: 'deleteTask'; id: ID }
+  | { type: 'toggleTask'; id: ID }
+  | { type: 'cycleYpt'; id: ID } // YPT mode: not started → half done → done → …
+  | { type: 'dismissGhost'; id: ID; index: number } // hide one reschedule ghost
+  | { type: 'toggleTaskSubmitted'; id: ID } // handed in — independent of done
+  | { type: 'toggleCollapse'; id: ID }
+  | { type: 'addTaskSection'; projectId: ID; name: string }
+  | { type: 'renameTaskSection'; id: ID; name: string }
+  | { type: 'toggleSectionAssignments'; id: ID } // section holds graded work
+  | { type: 'toggleSectionCollapse'; id: ID } // fold the section shut (header stays)
+  | { type: 'deleteTaskSection'; id: ID }
+  | { type: 'reorderTaskSection'; id: ID; beforeId: ID | null }
+  // Drag & drop of a whole section into another project (or, with the same
+  // projectId, a plain reorder). beforeId null appends to the destination.
+  // Its tasks and recurring tasks follow, keeping their sectionId.
+  | { type: 'moveTaskSection'; id: ID; projectId: ID; beforeId: ID | null }
+  // Drag & drop of a task inside its list, or into another project/section.
+  // Omitted projectId/sectionId keep the task where it is (a pure reorder);
+  // beforeId null appends to the end of the target list.
+  | { type: 'moveTask'; id: ID; projectId?: ID | null; sectionId?: ID | null; beforeId: ID | null }
+  | { type: 'addRecurring'; rt: RecurringTask }
+  | { type: 'updateRecurring'; rt: RecurringTask }
+  | { type: 'deleteRecurring'; id: ID }
+  | { type: 'toggleRecurring'; id: ID; date: string }
+  /** timesPerDay: how many of the day's slots are ticked off (see recurringTimes). */
+  | { type: 'setRecurringCount'; id: ID; date: string; count: number }
+  /**
+   * Scoped edit of ONE occurrence of a recurring task — the counterpart of
+   * moveEventOccurrence. 'one' writes a per-occurrence exception, 'all' shifts
+   * the series, 'future' splits it. `series` carries whole-series field changes
+   * (title, rule, …) for the 'all'/'future' arms; 'one' ignores it.
+   */
+  | {
+      type: 'editRecurringOccurrence'
+      id: ID
+      occurrence: string
+      scope: EditScope
+      patch: RecurException
+      series?: Partial<RecurringTask>
+    }
+  | { type: 'addBirthday'; birthday: Birthday }
+  | { type: 'updateBirthday'; birthday: Birthday }
+  | { type: 'deleteBirthday'; id: ID }
+  | { type: 'addClass'; name: string; color: string; folderId?: ID | null }
+  | { type: 'updateClass'; cls: ClassInfo }
+  | { type: 'deleteClass'; id: ID; keepProject: boolean }
+  | { type: 'toggleCalendar'; id: ID } // class id, custom calendar id, or 'personal'
+  | { type: 'addCalendar'; name: string; color: string }
+  | { type: 'updateCalendar'; cal: CustomCalendar }
+  | { type: 'deleteCalendar'; id: ID }
+  | { type: 'toggleDayOff'; date: string }
+  | { type: 'toggleTasksOnCalendar' }
+  | { type: 'setTheme'; theme: 'light' | 'dark' }
+  | { type: 'setWeekStart'; weekStart: 0 | 1 | 6 }
+  | { type: 'setThemeConfig'; config: AppState['themeConfig'] }
+  | { type: 'setIcsUrl'; url: string } // bind / unbind the live feed ('' = unbound)
+  | { type: 'applySync'; parsed: ParsedIcsEvent[] }
+  | { type: 'importEvents'; events: CalEvent[]; source?: string } // static .ics import, one atomic step
+  | { type: 'resolveRemoved'; notifId: ID; keep: boolean }
+  | { type: 'applyEdited'; notifId: ID; keys: string[] }
+  | { type: 'dismissNotification'; id: ID }
+  | { type: 'addPaletteColor'; color: string }
+  | { type: 'removePaletteColor'; color: string }
+  | { type: 'addBinderSection'; classId: ID; name: string }
+  | { type: 'renameBinderSection'; id: ID; name: string }
+  | { type: 'deleteBinderSection'; id: ID }
+  | { type: 'addBinderUpload'; upload: BinderUpload }
+  | { type: 'updateBinderUpload'; upload: BinderUpload }
+  | { type: 'deleteBinderUpload'; id: ID }
+  | { type: 'addBinderPost'; post: BinderPost }
+  | { type: 'updateBinderPost'; post: BinderPost }
+  | { type: 'deleteBinderPost'; id: ID }
+  | { type: 'startStudySession'; session: StudySession } // refused if one is already running
+  | { type: 'endStudySession'; id: ID; endMin: number } // materialises pomodoro breaks
+  | { type: 'updateStudySession'; session: StudySession } // class/tasks/reflection/breaks, during or after
+  | { type: 'deleteStudySession'; id: ID }
+  | { type: 'startBreak'; id: ID; durMin: number } // normal mode: start a break now
+  | { type: 'endBreakNow'; id: ID } // normal mode: cut the current break short
+  | { type: 'addGradeRow'; classId: ID; name?: string }
+  | { type: 'updateGradeRow'; row: GradeRow }
+  | { type: 'deleteGradeRow'; id: ID }
+  // Sets (replaces) the review count for one (date, deck) pair; 0 removes it.
+  | { type: 'logAnki'; date: string; classId: ID | null; count: number }
+  | { type: 'addFolder'; name: string }
+  | { type: 'renameFolder'; id: ID; name: string }
+  | { type: 'deleteFolder'; id: ID } // classes inside become unfoldered
+  | { type: 'toggleFolderCollapse'; id: ID }
+  | { type: 'reorderFolder'; id: ID; beforeId: ID | null }
+  | { type: 'moveClass'; id: ID; folderId: ID | null; beforeClassId?: ID } // reorder and/or refolder
+  | { type: 'toggleClassPin'; id: ID; scope: 'binder' | 'folder' }
+  | { type: 'toggleTaskPin'; id: ID }
+  | { type: 'setNlQuickAdd'; on: boolean }
+  | { type: 'setTaskCheckStyle'; style: 'checkbox' | 'ypt' }
+  // Re-enabling ghosts also un-dismisses every ghost (see the ⓘ in ViewSettings).
+  | { type: 'setShowGhosts'; on: boolean }
+  | { type: 'setStudyGoal'; minutes: number | null } // daily study-time goal (minutes)
+  | { type: 'replaceState'; state: AppState } // backup import
+
+function reducer(state: AppState, a: Action): AppState {
+  switch (a.type) {
+    case 'addEvent':
+      return { ...state, events: [...state.events, a.event] }
+    case 'updateEvent':
+      return { ...state, events: state.events.map((e) => (e.id === a.event.id ? a.event : e)) }
+    case 'deleteEvent': {
+      // Tombstone synced events so the next sync doesn't resurrect them.
+      const doomed = state.events.find((e) => e.id === a.id)
+      return {
+        ...state,
+        events: state.events.filter((e) => e.id !== a.id),
+        deletedUids: doomed?.icsUid ? [...state.deletedUids, doomed.icsUid] : state.deletedUids,
+        notifications: state.notifications.filter((n) => n.eventId !== a.id),
+        binderUploads: state.binderUploads.map((u) =>
+          u.attach?.kind === 'event' && u.attach.id === a.id ? { ...u, attach: undefined } : u,
+        ),
+        studySessions: state.studySessions.map((s) =>
+          s.eventIds.includes(a.id) ? { ...s, eventIds: s.eventIds.filter((e) => e !== a.id) } : s,
+        ),
+      }
+    }
+
+    /**
+     * Same semantics as EventModal's scoped save, in one step: 'all' (and
+     * "this and future" from the series start) patches the event; 'one'
+     * detaches the occurrence; 'future' ends the series and starts a new one.
+     */
+    case 'moveEventOccurrence': {
+      const ev = state.events.find((e) => e.id === a.id)
+      if (!ev) return state
+      if (!splitsSeries(ev, a.occurrence, a.scope)) {
+        return { ...state, events: state.events.map((e) => (e.id === a.id ? { ...e, ...a.patch } : e)) }
+      }
+      const detached: CalEvent = {
+        ...ev, ...a.patch,
+        id: uid(),
+        icsUid: undefined, origin: undefined, syncMissing: undefined,
+        exDates: undefined, until: undefined,
+        repeat: a.scope === 'one' ? 'none' : ev.repeat,
+      }
+      const trimmed: CalEvent = a.scope === 'one'
+        ? { ...ev, exDates: [...(ev.exDates ?? []), a.occurrence] }
+        : { ...ev, until: a.occurrence }
+      return {
+        ...state,
+        events: [...state.events.map((e) => (e.id === a.id ? trimmed : e)), detached],
+      }
+    }
+
+    case 'addTask':
+      return { ...state, tasks: [...state.tasks, a.task] }
+    case 'updateTask': {
+      const prev = state.tasks.find((t) => t.id === a.task.id)
+      const task = prev ? withRescheduleGhost(prev, a.task) : a.task
+      return { ...state, tasks: state.tasks.map((t) => (t.id === task.id ? task : t)) }
+    }
+    case 'deleteTask':
+      return {
+        ...state,
+        tasks: state.tasks.filter((t) => t.id !== a.id),
+        binderUploads: state.binderUploads.map((u) =>
+          u.attach?.kind === 'task' && u.attach.id === a.id ? { ...u, attach: undefined } : u,
+        ),
+        studySessions: state.studySessions.map((s) =>
+          s.taskIds.includes(a.id) ? { ...s, taskIds: s.taskIds.filter((t) => t !== a.id) } : s,
+        ),
+        gradeRows: state.gradeRows.map((r) =>
+          r.taskIds.includes(a.id) ? { ...r, taskIds: r.taskIds.filter((t) => t !== a.id) } : r,
+        ),
+      }
+    case 'toggleTask':
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => {
+          if (t.id !== a.id) return t
+          const done = !t.done
+          // Completing a task auto-unpins it — it doesn't need to stay at the
+          // top — and stamps the moment, which orders the section Archives.
+          return done
+            ? { ...t, done, pinned: undefined, completedAt: new Date().toISOString() }
+            : { ...t, done, completedAt: undefined }
+        }),
+      }
+    /**
+     * YPT mode: the glyph cycles not started → half done → done → not started.
+     * Landing on 2 is the same completion event a tick is (done + stamp +
+     * auto-unpin); stepping off it re-opens the task.
+     */
+    case 'cycleYpt':
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => {
+          if (t.id !== a.id) return t
+          const next = (((displayYptState(t) + 1) % 3) as YptState)
+          return next === 2
+            ? { ...t, yptState: next, done: true, pinned: undefined, completedAt: new Date().toISOString() }
+            : { ...t, yptState: next, done: false, completedAt: undefined }
+        }),
+      }
+    case 'dismissGhost': {
+      const t = state.tasks.find((x) => x.id === a.id)
+      const g = t?.ghosts?.[a.index]
+      if (!g || g.dismissed) return state
+      return {
+        ...state,
+        tasks: state.tasks.map((x) =>
+          x.id === a.id
+            ? { ...x, ghosts: x.ghosts!.map((gg, i) => (i === a.index ? { ...gg, dismissed: true } : gg)) }
+            : x,
+        ),
+      }
+    }
+    case 'toggleTaskSubmitted':
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => (t.id === a.id ? { ...t, submitted: !t.submitted || undefined } : t)),
+      }
+
+    case 'toggleCollapse':
+      return { ...state, projects: state.projects.map((p) => (p.id === a.id ? { ...p, collapsed: !p.collapsed } : p)) }
+
+    case 'addTaskSection': {
+      const order = state.taskSections.filter((s) => s.projectId === a.projectId).length
+      return {
+        ...state,
+        taskSections: [...state.taskSections, { id: uid(), projectId: a.projectId, name: a.name.trim() || 'New section', order }],
+      }
+    }
+    case 'renameTaskSection':
+      return {
+        ...state,
+        taskSections: state.taskSections.map((s) => (s.id === a.id ? { ...s, name: a.name } : s)),
+      }
+    case 'toggleSectionAssignments':
+      return {
+        ...state,
+        taskSections: state.taskSections.map((s) =>
+          s.id === a.id ? { ...s, assignments: !s.assignments || undefined } : s,
+        ),
+      }
+    case 'toggleSectionCollapse':
+      return {
+        ...state,
+        taskSections: state.taskSections.map((s) =>
+          s.id === a.id ? { ...s, collapsed: !s.collapsed || undefined } : s,
+        ),
+      }
+    case 'deleteTaskSection': {
+      const doomed = state.taskSections.find((s) => s.id === a.id)
+      if (!doomed) return state
+      // Tasks move to the project's fallback (Misc for classes — created on
+      // demand if missing; main/null for calendar projects).
+      const project = state.projects.find((p) => p.id === doomed.projectId)
+      let taskSections = state.taskSections.filter((s) => s.id !== a.id)
+      let fallbackId: ID | null = null
+      if (project?.classId) {
+        let misc = taskSections.find((s) => s.projectId === project.id && s.name === CLASS_FALLBACK_SECTION)
+        if (!misc) {
+          const order = taskSections.filter((s) => s.projectId === project.id).length
+          misc = { id: uid(), projectId: project.id, name: CLASS_FALLBACK_SECTION, order }
+          taskSections = [...taskSections, misc]
+        }
+        fallbackId = misc.id
+      }
+      return {
+        ...state,
+        taskSections,
+        tasks: state.tasks.map((t) => (t.sectionId === a.id ? { ...t, sectionId: fallbackId } : t)),
+        recurring: state.recurring.map((r) => (r.sectionId === a.id ? { ...r, sectionId: fallbackId } : r)),
+      }
+    }
+    case 'reorderTaskSection': {
+      const moving = state.taskSections.find((s) => s.id === a.id)
+      if (!moving || a.id === a.beforeId) return state
+      const same = state.taskSections
+        .filter((s) => s.projectId === moving.projectId && s.id !== a.id)
+        .sort((x, y) => x.order - y.order)
+      const at = a.beforeId ? same.findIndex((s) => s.id === a.beforeId) : same.length
+      const idx = at < 0 ? same.length : at
+      const seq = [...same.slice(0, idx), moving, ...same.slice(idx)]
+      const reordered = new Map(seq.map((s, i) => [s.id, i] as const))
+      // Dropping a section back where it already sits changes nothing — bail so
+      // it never lands in the undo history.
+      if (seq.every((s) => s.order === reordered.get(s.id))) return state
+      return {
+        ...state,
+        taskSections: state.taskSections.map((s) =>
+          s.projectId === moving.projectId ? { ...s, order: reordered.get(s.id) ?? s.order } : s,
+        ),
+      }
+    }
+    case 'moveTaskSection': {
+      // A whole section dragged into another project: it is just a bin of
+      // tasks, so its tasks and recurring tasks are rewired to the destination
+      // project (keeping their sectionId). Colour/tag derive from projectId, so
+      // they follow on their own. Order is renumbered in BOTH projects.
+      const moving = state.taskSections.find((s) => s.id === a.id)
+      if (!moving || a.id === a.beforeId) return state
+      if (!state.projects.some((p) => p.id === a.projectId)) return state
+      const from = moving.projectId
+      const moved: TaskSection = { ...moving, projectId: a.projectId }
+      const dest = state.taskSections
+        .filter((s) => s.projectId === a.projectId && s.id !== a.id)
+        .sort((x, y) => x.order - y.order)
+      const at = a.beforeId ? dest.findIndex((s) => s.id === a.beforeId) : dest.length
+      const idx = at < 0 ? dest.length : at
+      const seq = [...dest.slice(0, idx), moved, ...dest.slice(idx)]
+      const destOrder = new Map(seq.map((s, i) => [s.id, i] as const))
+      const sameProject = from === a.projectId
+      if (sameProject && seq.every((s) => s.order === destOrder.get(s.id))) return state
+      const srcOrder = new Map(
+        (sameProject
+          ? []
+          : state.taskSections
+            .filter((s) => s.projectId === from && s.id !== a.id)
+            .sort((x, y) => x.order - y.order)
+        ).map((s, i) => [s.id, i] as const),
+      )
+      return {
+        ...state,
+        taskSections: state.taskSections.map((s) => {
+          if (s.id === a.id) return { ...moved, order: destOrder.get(a.id) ?? 0 }
+          if (s.projectId === a.projectId) {
+            const order = destOrder.get(s.id)
+            return order === undefined ? s : { ...s, order }
+          }
+          if (s.projectId === from) {
+            const order = srcOrder.get(s.id)
+            return order === undefined ? s : { ...s, order }
+          }
+          return s
+        }),
+        tasks: sameProject
+          ? state.tasks
+          : state.tasks.map((t) => (t.sectionId === a.id ? { ...t, projectId: a.projectId } : t)),
+        recurring: sameProject
+          ? state.recurring
+          : state.recurring.map((r) => (r.sectionId === a.id ? { ...r, projectId: a.projectId } : r)),
+      }
+    }
+    case 'moveTask': {
+      // Drag-and-drop inside one list (Unfiled, a project's main list, a
+      // section) and across them. Every task in the target list is renumbered,
+      // so from the first drag on `order` alone decides that list's order.
+      const moving = state.tasks.find((t) => t.id === a.id)
+      if (!moving || a.id === a.beforeId) return state
+      const projectId = a.projectId === undefined ? moving.projectId : a.projectId
+      const sectionId = a.sectionId === undefined ? moving.sectionId ?? null : a.sectionId
+      const moved: Task = { ...moving, projectId, sectionId }
+      const listed = sortTaskList(
+        state.tasks.filter((t) => t.projectId === projectId && (t.sectionId ?? null) === sectionId),
+      )
+      const same = listed.filter((t) => t.id !== a.id)
+      const at = a.beforeId ? same.findIndex((t) => t.id === a.beforeId) : same.length
+      const idx = at < 0 ? same.length : at
+      const seq = [...same.slice(0, idx), moved, ...same.slice(idx)]
+      const reordered = new Map(seq.map((t, i) => [t.id, i] as const))
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => {
+          if (t.id === a.id) return { ...moved, order: reordered.get(a.id) ?? 0 }
+          const order = reordered.get(t.id)
+          return order === undefined ? t : { ...t, order }
+        }),
+      }
+    }
+
+    case 'addRecurring':
+      return { ...state, recurring: [...state.recurring, a.rt] }
+    case 'updateRecurring':
+      return { ...state, recurring: state.recurring.map((r) => (r.id === a.rt.id ? a.rt : r)) }
+    case 'deleteRecurring':
+      return { ...state, recurring: state.recurring.filter((r) => r.id !== a.id) }
+    case 'toggleRecurring':
+      return {
+        ...state,
+        recurring: state.recurring.map((r) => {
+          if (r.id !== a.id) return r
+          const done = r.completions.includes(a.date)
+          return {
+            ...r,
+            completions: done ? r.completions.filter((d) => d !== a.date) : [...r.completions, a.date],
+            // A day ticked (or un-ticked) wholesale has no half-finished slots left.
+            partial: pickByDate(r.partial, (d) => d !== a.date),
+          }
+        }),
+      }
+
+    /**
+     * A day of a timesPerDay habit fills left to right: `count` slots done. A
+     * full day still lands in `completions`, so streaks, the habit strip and
+     * every legacy reader keep working unchanged.
+     */
+    case 'setRecurringCount': {
+      const rt = state.recurring.find((r) => r.id === a.id)
+      if (!rt) return state
+      const times = recurringTimes(rt)
+      const count = Math.max(0, Math.min(Math.round(a.count), times))
+      if (count === (rt.completions.includes(a.date) ? times : rt.partial?.[a.date] ?? 0)) return state
+      const completions = count >= times
+        ? [...rt.completions.filter((d) => d !== a.date), a.date]
+        : rt.completions.filter((d) => d !== a.date)
+      const rest = pickByDate(rt.partial, (d) => d !== a.date) ?? {}
+      const partial = count > 0 && count < times ? { ...rest, [a.date]: count } : rest
+      return {
+        ...state,
+        recurring: state.recurring.map((r) =>
+          r.id === a.id
+            ? { ...r, completions, partial: Object.keys(partial).length ? partial : undefined }
+            : r,
+        ),
+      }
+    }
+
+    case 'editRecurringOccurrence': {
+      const rt = state.recurring.find((r) => r.id === a.id)
+      if (!rt) return state
+      if (a.scope === 'one') {
+        const merged = cleanException({ ...rt.exceptions?.[a.occurrence], ...a.patch })
+        return {
+          ...state,
+          recurring: state.recurring.map((r) =>
+            r.id === a.id ? { ...r, exceptions: { ...r.exceptions, [a.occurrence]: merged } } : r,
+          ),
+        }
+      }
+      // "This and future" from the very first occurrence is editing everything.
+      if (a.scope === 'future' && a.occurrence > rt.startDate) {
+        const [before, after] = splitRecurring(rt, a.occurrence, a.patch, a.series)
+        return { ...state, recurring: [...state.recurring.map((r) => (r.id === a.id ? before : r)), after] }
+      }
+      const next: RecurringTask = { ...shiftedSeries(rt, a.occurrence, a.patch), ...a.series }
+      return { ...state, recurring: state.recurring.map((r) => (r.id === a.id ? next : r)) }
+    }
+
+    case 'addBirthday':
+      return { ...state, birthdays: [...state.birthdays, a.birthday] }
+    case 'updateBirthday':
+      return {
+        ...state,
+        birthdays: state.birthdays.map((b) => (b.id === a.birthday.id ? a.birthday : b)),
+      }
+    case 'deleteBirthday':
+      return { ...state, birthdays: state.birthdays.filter((b) => b.id !== a.id) }
+
+    case 'addClass': {
+      // Adding a class auto-creates its project, default task sections + binder sections.
+      const bundle = makeClassBundle(a.name, a.color)
+      if (a.folderId) bundle.cls.folderId = a.folderId
+      return {
+        ...state,
+        classes: [...state.classes, bundle.cls],
+        projects: [...state.projects, bundle.project],
+        taskSections: [...state.taskSections, ...bundle.taskSections],
+        binderSections: [...state.binderSections, ...bundle.sections],
+      }
+    }
+    case 'updateClass':
+      return {
+        ...state,
+        classes: state.classes.map((c) => (c.id === a.cls.id ? a.cls : c)),
+        // Project color/name mirrors the class.
+        projects: state.projects.map((p) =>
+          p.classId === a.cls.id ? { ...p, name: a.cls.name, color: a.cls.color } : p,
+        ),
+      }
+    case 'deleteClass': {
+      const proj = state.projects.find((p) => p.classId === a.id)
+      const cls = state.classes.find((c) => c.id === a.id)
+      let projects = state.projects
+      let taskSections = state.taskSections
+      let tasks = state.tasks
+      let recurring = state.recurring
+      if (proj && a.keepProject) {
+        // Move the project (and its sections) onto Personal, severing the class link.
+        projects = projects.map((p) =>
+          p.id === proj.id
+            ? { ...p, classId: null, calendarId: 'personal', name: cls?.name ?? p.name }
+            : p,
+        )
+      } else if (proj) {
+        // Drop the project + its sections; tasks become unfiled, recurring go.
+        projects = projects.filter((p) => p.id !== proj.id)
+        taskSections = taskSections.filter((s) => s.projectId !== proj.id)
+        tasks = tasks.map((t) => (t.projectId === proj.id ? { ...t, projectId: null, sectionId: null } : t))
+        recurring = recurring.filter((r) => r.projectId !== proj.id)
+      }
+      const goneUploads = new Set(state.binderUploads.filter((u) => u.classId === a.id).map((u) => u.id))
+      return {
+        ...state,
+        classes: state.classes.filter((c) => c.id !== a.id),
+        events: state.events.filter((e) => e.classId !== a.id),
+        projects, taskSections, tasks: detachUploads(tasks, goneUploads), recurring,
+        hiddenCalendars: state.hiddenCalendars.filter((h) => h !== a.id),
+        binderSections: state.binderSections.filter((s) => s.classId !== a.id),
+        binderUploads: state.binderUploads.filter((u) => u.classId !== a.id),
+        // The grade tracker is per class, so it goes with the class.
+        gradeRows: state.gradeRows.filter((r) => r.classId !== a.id),
+        binderPosts: state.binderPosts.filter((p) => p.classId !== a.id),
+        // Sessions survive the class; they just become unassigned (grey).
+        studySessions: state.studySessions.map((s) => (s.classId === a.id ? { ...s, classId: null } : s)),
+        // Flashcard counts fold into General so the daily totals are preserved.
+        ankiLogs: mergeAnkiIntoGeneral(state.ankiLogs, a.id),
+      }
+    }
+
+    case 'toggleCalendar':
+      return {
+        ...state,
+        hiddenCalendars: state.hiddenCalendars.includes(a.id)
+          ? state.hiddenCalendars.filter((h) => h !== a.id)
+          : [...state.hiddenCalendars, a.id],
+      }
+    case 'addCalendar': {
+      // Adding a calendar auto-creates its blank project (with no sections).
+      const cal: CustomCalendar = { id: uid(), name: a.name, color: a.color }
+      const project = makeCalendarProject(cal.id, cal.name, cal.color)
+      return {
+        ...state,
+        customCalendars: [...state.customCalendars, cal],
+        projects: [...state.projects, project],
+      }
+    }
+    case 'updateCalendar':
+      return {
+        ...state,
+        customCalendars: state.customCalendars.map((c) => (c.id === a.cal.id ? a.cal : c)),
+        projects: state.projects.map((p) =>
+          p.calendarId === a.cal.id ? { ...p, name: a.cal.name, color: a.cal.color } : p,
+        ),
+      }
+    case 'deleteCalendar': {
+      // Move all tasks & sections of this calendar's project onto Personal so
+      // nothing is lost. The sections keep their names/order (appended).
+      const doomedProj = state.projects.find((p) => p.calendarId === a.id)
+      const personalProj = state.projects.find((p) => p.calendarId === 'personal')
+      let taskSections = state.taskSections
+      let tasks = state.tasks
+      let recurring = state.recurring
+      let projects = state.projects
+      if (doomedProj) {
+        if (personalProj) {
+          const base = taskSections.filter((s) => s.projectId === personalProj.id).length
+          const remap = new Map<ID, ID>() // old section id -> new (rehomed) section id
+          const moved: TaskSection[] = []
+          taskSections
+            .filter((s) => s.projectId === doomedProj.id)
+            .forEach((s, i) => {
+              const ns: TaskSection = { id: s.id, projectId: personalProj.id, name: s.name, order: base + i }
+              moved.push(ns)
+              remap.set(s.id, ns.id)
+            })
+          taskSections = [...taskSections.filter((s) => s.projectId !== doomedProj.id), ...moved]
+          tasks = tasks.map((t) =>
+            t.projectId === doomedProj.id
+              ? { ...t, projectId: personalProj.id, sectionId: remap.get(t.sectionId ?? '') ?? null }
+              : t,
+          )
+          recurring = recurring.map((r) =>
+            r.projectId === doomedProj.id
+              ? { ...r, projectId: personalProj.id, sectionId: remap.get(r.sectionId ?? '') ?? null }
+              : r,
+          )
+          projects = projects.filter((p) => p.id !== doomedProj.id)
+        } else {
+          // Should never happen (blankState/seed always include Personal).
+          taskSections = taskSections.filter((s) => s.projectId !== doomedProj.id)
+          tasks = tasks.map((t) => (t.projectId === doomedProj.id ? { ...t, projectId: null, sectionId: null } : t))
+          recurring = recurring.filter((r) => r.projectId !== doomedProj.id)
+          projects = projects.filter((p) => p.id !== doomedProj.id)
+        }
+      }
+      return {
+        ...state,
+        customCalendars: state.customCalendars.filter((c) => c.id !== a.id),
+        events: state.events.map((e) => (e.calendarId === a.id ? { ...e, calendarId: null } : e)),
+        projects, taskSections, tasks, recurring,
+        hiddenCalendars: state.hiddenCalendars.filter((h) => h !== a.id),
+      }
+    }
+    case 'toggleDayOff':
+      return {
+        ...state,
+        daysOff: state.daysOff.includes(a.date)
+          ? state.daysOff.filter((d) => d !== a.date)
+          : [...state.daysOff, a.date],
+      }
+    case 'toggleTasksOnCalendar':
+      return { ...state, showTasksOnCalendar: !state.showTasksOnCalendar }
+    case 'setTheme':
+      return { ...state, theme: a.theme }
+    case 'setWeekStart':
+      return { ...state, weekStart: a.weekStart }
+    case 'setThemeConfig':
+      // A fixed mode applies immediately; 'auto' resolution is an effect's job.
+      return {
+        ...state,
+        themeConfig: a.config,
+        theme: a.config.mode === 'auto' ? state.theme : a.config.mode,
+      }
+    case 'setIcsUrl':
+      return state.icsUrl === a.url ? state : { ...state, icsUrl: a.url }
+
+    /**
+     * Static import from an .ics file: plain events, no icsUid/origin, so the
+     * live sync never touches them. One action = one undo step for the lot.
+     */
+    case 'importEvents': {
+      if (!a.events.length) return state
+      const n = a.events.length
+      return {
+        ...state,
+        events: [...state.events, ...a.events],
+        notifications: [...state.notifications, {
+          id: uid(), at: new Date().toISOString(), kind: 'imported',
+          title: `Imported ${n} event${n === 1 ? '' : 's'}${a.source ? ` from ${a.source}` : ''}`,
+        }],
+      }
+    }
+
+    case 'applySync': {
+      const now = new Date().toISOString()
+      const parsed = a.parsed.filter((p) => !state.deletedUids.includes(p.uid))
+      const byUid = new Map(state.events.filter((e) => e.icsUid).map((e) => [e.icsUid!, e]))
+      const firstSync = state.lastSync === null && byUid.size === 0
+
+      let events = [...state.events]
+      let classes = [...state.classes]
+      let projects = [...state.projects]
+      let taskSections = [...state.taskSections]
+      let binderSections = [...state.binderSections]
+      let notifications = [...state.notifications]
+      const patchEvent = (id: ID, patch: Partial<CalEvent>) => {
+        events = events.map((e) => (e.id === id ? { ...e, ...patch } : e))
+      }
+
+      // Match feed events to a class by hidden module code, creating classes on demand.
+      const ensureClassId = (title: string): ID | null => {
+        const code = moduleCodeFrom(title)
+        if (!code) return null
+        const existing = classes.find((c) => c.code === code)
+        if (existing) return existing.id
+        const used = new Set(classes.map((c) => c.color))
+        const color = state.palette.find((c) => !used.has(c)) ?? state.palette[classes.length % state.palette.length] ?? '#7faee8'
+        const bundle = makeClassBundle(code, color, code)
+        classes = [...classes, bundle.cls]
+        projects = [...projects, bundle.project]
+        taskSections = [...taskSections, ...bundle.taskSections]
+        binderSections = [...binderSections, ...bundle.sections]
+        return bundle.cls.id
+      }
+
+      const seen = new Set<string>()
+      let addedCount = 0
+      for (const p of parsed) {
+        seen.add(p.uid)
+        const existing = byUid.get(p.uid)
+        const next = snapshotOf(p)
+        if (!existing) {
+          const ev: CalEvent = {
+            id: uid(), title: p.title, classId: ensureClassId(p.title),
+            date: p.date, allDay: p.allDay, startMin: p.startMin, endMin: p.endMin,
+            repeat: 'none', location: p.location || undefined, notes: p.description || undefined,
+            icsUid: p.uid, origin: next,
+          }
+          events = [...events, ev]
+          addedCount++
+          if (!firstSync) {
+            notifications = [...notifications, {
+              id: uid(), at: now, kind: 'added', title: p.title,
+              body: `${fmtWhen(next)}${p.location ? ' · ' + p.location : ''}`, eventId: ev.id,
+            }]
+          }
+        } else {
+          const origin = existing.origin ?? next
+          const diffs = diffSnapshot(origin, next)
+          // Always advance the hidden snapshot; the user's own values stay put
+          // until they accept individual changes from the notification.
+          patchEvent(existing.id, { origin: next, syncMissing: false })
+          if (diffs.length) {
+            notifications = [
+              ...notifications.filter((n) => !(n.kind === 'edited' && n.eventId === existing.id)),
+              { id: uid(), at: now, kind: 'edited', title: existing.title, eventId: existing.id, diffs },
+            ]
+          }
+        }
+      }
+
+      for (const [icsUid, ev] of byUid) {
+        if (!seen.has(icsUid) && !ev.syncMissing) {
+          patchEvent(ev.id, { syncMissing: true })
+          notifications = [...notifications, {
+            id: uid(), at: now, kind: 'removed', title: ev.title,
+            body: ev.origin ? fmtWhen(ev.origin) : undefined, eventId: ev.id,
+          }]
+        }
+      }
+
+      if (firstSync && addedCount > 0) {
+        notifications = [...notifications, {
+          id: uid(), at: now, kind: 'imported',
+          title: `Imported ${addedCount} event${addedCount === 1 ? '' : 's'} from your live calendar`,
+        }]
+      }
+
+      return { ...state, events, classes, projects, taskSections, binderSections, notifications, lastSync: now }
+    }
+
+    case 'resolveRemoved': {
+      const notif = state.notifications.find((n) => n.id === a.notifId)
+      if (!notif) return state
+      const rest = state.notifications.filter((n) => n.id !== a.notifId)
+      if (a.keep || !notif.eventId) return { ...state, notifications: rest }
+      const ev = state.events.find((e) => e.id === notif.eventId)
+      return {
+        ...state,
+        notifications: rest,
+        events: state.events.filter((e) => e.id !== notif.eventId),
+        deletedUids: ev?.icsUid ? [...state.deletedUids, ev.icsUid] : state.deletedUids,
+      }
+    }
+
+    case 'applyEdited': {
+      const notif = state.notifications.find((n) => n.id === a.notifId)
+      if (!notif) return state
+      const patch: Partial<CalEvent> = {}
+      for (const d of notif.diffs ?? []) {
+        if (a.keys.includes(d.key)) Object.assign(patch, d.patch)
+      }
+      return {
+        ...state,
+        events: state.events.map((e) => (e.id === notif.eventId ? { ...e, ...patch } : e)),
+        notifications: state.notifications.filter((n) => n.id !== a.notifId),
+      }
+    }
+
+    case 'dismissNotification':
+      return { ...state, notifications: state.notifications.filter((n) => n.id !== a.id) }
+
+    case 'addPaletteColor':
+      return state.palette.includes(a.color) ? state : { ...state, palette: [...state.palette, a.color] }
+    case 'removePaletteColor':
+      return { ...state, palette: state.palette.filter((c) => c !== a.color) }
+
+    case 'addBinderSection':
+      return {
+        ...state,
+        binderSections: [...state.binderSections, { id: uid(), classId: a.classId, name: a.name }],
+      }
+    case 'renameBinderSection':
+      return {
+        ...state,
+        binderSections: state.binderSections.map((s) => (s.id === a.id ? { ...s, name: a.name } : s)),
+      }
+    case 'deleteBinderSection': {
+      const doomed = state.binderSections.find((s) => s.id === a.id)
+      if (!doomed) return state
+      // Uploads move to the class's first remaining section (UI blocks
+      // deleting the last section of a class).
+      const fallback = state.binderSections.find((s) => s.classId === doomed.classId && s.id !== a.id)
+      if (!fallback) return state
+      return {
+        ...state,
+        binderSections: state.binderSections.filter((s) => s.id !== a.id),
+        binderUploads: state.binderUploads.map((u) =>
+          u.sectionId === a.id ? { ...u, sectionId: fallback.id } : u,
+        ),
+      }
+    }
+    case 'addBinderUpload':
+      return { ...state, binderUploads: [...state.binderUploads, a.upload] }
+    case 'updateBinderUpload':
+      return { ...state, binderUploads: state.binderUploads.map((u) => (u.id === a.upload.id ? a.upload : u)) }
+    case 'deleteBinderUpload':
+      return {
+        ...state,
+        binderUploads: state.binderUploads.filter((u) => u.id !== a.id),
+        tasks: detachUploads(state.tasks, new Set([a.id])),
+      }
+    case 'addBinderPost':
+      return { ...state, binderPosts: [...state.binderPosts, a.post] }
+    case 'updateBinderPost':
+      return { ...state, binderPosts: state.binderPosts.map((p) => (p.id === a.post.id ? a.post : p)) }
+    case 'deleteBinderPost':
+      return { ...state, binderPosts: state.binderPosts.filter((p) => p.id !== a.id) }
+
+    case 'startStudySession':
+      // Only one session may be running at a time.
+      if (state.studySessions.some((s) => s.endMin === null)) return state
+      return { ...state, studySessions: [...state.studySessions, a.session] }
+    case 'endStudySession': {
+      const s = state.studySessions.find((x) => x.id === a.id)
+      if (!s || s.endMin !== null) return state
+      const ended: StudySession = {
+        ...s,
+        endMin: Math.min(Math.max(a.endMin, s.startMin), 24 * 60),
+      }
+      // Freeze the pomodoro rhythm into the record so it never drifts again.
+      return {
+        ...state,
+        studySessions: state.studySessions.map((x) =>
+          x.id === a.id ? { ...ended, breaks: derivedBreaks(ended, ended.endMin!) } : x,
+        ),
+      }
+    }
+    case 'updateStudySession':
+      return {
+        ...state,
+        studySessions: state.studySessions.map((s) => (s.id === a.session.id ? a.session : s)),
+      }
+    case 'deleteStudySession':
+      return { ...state, studySessions: state.studySessions.filter((s) => s.id !== a.id) }
+    case 'startBreak': {
+      const now = nowMinutes()
+      return {
+        ...state,
+        studySessions: state.studySessions.map((s) =>
+          s.id === a.id && s.endMin === null
+            ? { ...s, breaks: [...s.breaks, { startMin: now, durMin: a.durMin }] }
+            : s,
+        ),
+      }
+    }
+    case 'endBreakNow': {
+      const now = nowMinutes()
+      return {
+        ...state,
+        studySessions: state.studySessions.map((s) => {
+          if (s.id !== a.id) return s
+          const breaks = s.breaks
+            .map((b) =>
+              now >= b.startMin && now < b.startMin + b.durMin ? { ...b, durMin: now - b.startMin } : b,
+            )
+            .filter((b) => b.durMin > 0)
+          return { ...s, breaks }
+        }),
+      }
+    }
+
+    case 'addGradeRow':
+      return {
+        ...state,
+        gradeRows: [
+          ...state.gradeRows,
+          { id: uid(), classId: a.classId, name: a.name?.trim() || 'New component', taskIds: [] },
+        ],
+      }
+    case 'updateGradeRow':
+      return state.gradeRows.some((r) => r.id === a.row.id)
+        ? { ...state, gradeRows: state.gradeRows.map((r) => (r.id === a.row.id ? a.row : r)) }
+        : state
+    case 'deleteGradeRow':
+      return state.gradeRows.some((r) => r.id === a.id)
+        ? { ...state, gradeRows: state.gradeRows.filter((r) => r.id !== a.id) }
+        : state
+
+    /**
+     * One (date, deck) pair holds one number, so logging is also how the user
+     * corrects a day after the fact (retype it, or set 0 to wipe the entry).
+     */
+    case 'logAnki': {
+      const count = Math.max(0, Math.round(a.count))
+      const classId = a.classId ?? null
+      const at = state.ankiLogs.findIndex((l) => l.date === a.date && (l.classId ?? null) === classId)
+      if (at < 0) {
+        return count === 0 ? state : { ...state, ankiLogs: [...state.ankiLogs, { date: a.date, classId, count }] }
+      }
+      if (state.ankiLogs[at].count === count) return state
+      return {
+        ...state,
+        ankiLogs: count === 0
+          ? state.ankiLogs.filter((_, i) => i !== at)
+          : state.ankiLogs.map((l, i) => (i === at ? { ...l, count } : l)),
+      }
+    }
+
+    case 'addFolder':
+      return { ...state, folders: [...state.folders, { id: uid(), name: a.name, collapsed: false }] }
+    case 'renameFolder':
+      return { ...state, folders: state.folders.map((f) => (f.id === a.id ? { ...f, name: a.name } : f)) }
+    case 'deleteFolder':
+      return {
+        ...state,
+        folders: state.folders.filter((f) => f.id !== a.id),
+        classes: state.classes.map((c) => (c.folderId === a.id ? { ...c, folderId: null, pinnedFolder: undefined } : c)),
+      }
+    case 'toggleFolderCollapse':
+      return { ...state, folders: state.folders.map((f) => (f.id === a.id ? { ...f, collapsed: !f.collapsed } : f)) }
+    case 'reorderFolder': {
+      const moving = state.folders.find((f) => f.id === a.id)
+      if (!moving || a.id === a.beforeId) return state
+      const rest = state.folders.filter((f) => f.id !== a.id)
+      const at = a.beforeId ? rest.findIndex((f) => f.id === a.beforeId) : rest.length
+      return { ...state, folders: [...rest.slice(0, at < 0 ? rest.length : at), moving, ...rest.slice(at < 0 ? rest.length : at)] }
+    }
+    case 'moveClass': {
+      const moving = state.classes.find((c) => c.id === a.id)
+      if (!moving || a.id === a.beforeClassId) return state
+      const moved = { ...moving, folderId: a.folderId }
+      const rest = state.classes.filter((c) => c.id !== a.id)
+      const at = a.beforeClassId ? rest.findIndex((c) => c.id === a.beforeClassId) : -1
+      const idx = at < 0 ? rest.length : at
+      return { ...state, classes: [...rest.slice(0, idx), moved, ...rest.slice(idx)] }
+    }
+    case 'toggleClassPin':
+      return {
+        ...state,
+        classes: state.classes.map((c) =>
+          c.id === a.id
+            ? a.scope === 'binder'
+              ? { ...c, pinnedBinder: !c.pinnedBinder || undefined }
+              : { ...c, pinnedFolder: !c.pinnedFolder || undefined }
+            : c,
+        ),
+      }
+
+    case 'toggleTaskPin':
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => (t.id === a.id ? { ...t, pinned: !t.pinned || undefined } : t)),
+      }
+    case 'setNlQuickAdd':
+      return state.nlQuickAdd === a.on ? state : { ...state, nlQuickAdd: a.on || undefined }
+    case 'setTaskCheckStyle':
+      return (state.taskCheckStyle ?? 'checkbox') === a.style ? state : { ...state, taskCheckStyle: a.style }
+    case 'setShowGhosts': {
+      if ((state.showGhosts ?? true) === a.on) return state
+      // Switching ghosts back on brings the dismissed ones back with them:
+      // the toggle is the master switch, the × is a per-ghost snooze.
+      const tasks = a.on
+        ? state.tasks.map((t) =>
+          t.ghosts?.some((g) => g.dismissed)
+            ? { ...t, ghosts: t.ghosts.map((g) => (g.dismissed ? { ...g, dismissed: undefined } : g)) }
+            : t)
+        : state.tasks
+      return { ...state, showGhosts: a.on, tasks }
+    }
+    case 'setStudyGoal':
+      return state.studyGoalMin === a.minutes ? state : { ...state, studyGoalMin: a.minutes }
+
+    case 'replaceState':
+      return a.state
+  }
+}
+
+function fmtWhen(s: { date: string; allDay: boolean; startMin: number }): string {
+  return s.allDay ? `${fmtFriendly(s.date)} · all day` : `${fmtFriendly(s.date)} · ${fmtTime(s.startMin)}`
+}
+
+// ---------- Undo / redo history ----------
+
+/** Dispatched by the keyboard shortcuts and the TopBar arrows. */
+export type HistoryAction = { type: 'undo' } | { type: 'redo' }
+export type AnyAction = Action | HistoryAction
+
+/**
+ * The wrapper state around the app reducer. Only `present` is ever persisted —
+ * `past`/`future` are session memory and start empty around the loaded state.
+ * `lastType`/`lastAt` power coalescing and live here (never in AppState) so the
+ * bookkeeping stays pure under React's StrictMode double-invoke.
+ */
+interface History {
+  past: AppState[]
+  present: AppState
+  future: AppState[]
+  lastType: Action['type'] | null
+  lastAt: number
+}
+
+/** How many undo steps we keep; the oldest is dropped beyond this. */
+const HISTORY_LIMIT = 100
+/** Same action type again within this window folds into the previous entry. */
+const COALESCE_MS = 1000
+
+/**
+ * Applied without recording a history entry:
+ *  - setTheme: cosmetic, undoing it would be a surprise.
+ */
+const SKIP_HISTORY = new Set<Action['type']>([
+  'setTheme', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
+  'setTaskCheckStyle', 'setShowGhosts',
+])
+
+/**
+ * Actions that wipe past+future once they actually change something:
+ *  - replaceState: wholesale replacement (backup import, "delete all data").
+ *    Undoing past it would confuse, and could resurrect personal data the user
+ *    deliberately cleared.
+ *  - applySync: the live feed is the source of truth for synced events, and the
+ *    sync fires automatically on app open — undoing across it would silently
+ *    throw away what the school just published.
+ * A sync the reducer refuses (returns the same state) never gets this far: the
+ * no-op guard below leaves history untouched.
+ */
+const CLEAR_HISTORY = new Set<Action['type']>(['replaceState', 'applySync'])
+
+/**
+ * Fields that survive an undo/redo untouched. The theme is skipped by history
+ * (see SKIP_HISTORY) but still lives inside AppState, so a restored snapshot
+ * would otherwise drag an old theme back with it.
+ */
+function keepUnversioned(restored: AppState, current: AppState): AppState {
+  if (
+    restored.theme === current.theme &&
+    restored.weekStart === current.weekStart &&
+    restored.themeConfig === current.themeConfig &&
+    restored.taskCheckStyle === current.taskCheckStyle &&
+    restored.showGhosts === current.showGhosts
+  ) return restored
+  return {
+    ...restored,
+    theme: current.theme, weekStart: current.weekStart, themeConfig: current.themeConfig,
+    taskCheckStyle: current.taskCheckStyle, showGhosts: current.showGhosts,
+  }
+}
+
+function historyReducer(h: History, action: AnyAction): History {
+  if (action.type === 'undo') {
+    if (!h.past.length) return h
+    const present = keepUnversioned(h.past[h.past.length - 1], h.present)
+    return {
+      past: h.past.slice(0, -1),
+      present,
+      future: [h.present, ...h.future],
+      lastType: null, // never coalesce onto a restored entry
+      lastAt: 0,
+    }
+  }
+  if (action.type === 'redo') {
+    if (!h.future.length) return h
+    return {
+      past: [...h.past, h.present],
+      present: keepUnversioned(h.future[0], h.present),
+      future: h.future.slice(1),
+      lastType: null,
+      lastAt: 0,
+    }
+  }
+
+  const a: Action = action
+  const next = reducer(h.present, a)
+  if (next === h.present) return h // no-op: don't record, don't re-render
+
+  if (CLEAR_HISTORY.has(a.type)) {
+    return { past: [], present: next, future: [], lastType: null, lastAt: 0 }
+  }
+  if (SKIP_HISTORY.has(a.type)) {
+    return { ...h, present: next }
+  }
+
+  const now = Date.now()
+  // Typing bursts (updateClass / updateBinderPost / renameFolder / …) collapse
+  // into the entry they started, so one undo reverts the whole burst.
+  if (h.lastType === a.type && h.past.length > 0 && now - h.lastAt < COALESCE_MS) {
+    return { ...h, present: next, future: [], lastAt: now }
+  }
+
+  const past = h.past.length >= HISTORY_LIMIT
+    ? [...h.past.slice(h.past.length - HISTORY_LIMIT + 1), h.present]
+    : [...h.past, h.present]
+  return { past, present: next, future: [], lastType: a.type, lastAt: now }
+}
+
+/** True when the keydown happened in a text field (leave native undo alone). */
+function isTextTarget(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null
+  if (!el || !el.tagName) return false
+  const tag = el.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true
+}
+
+// ---------- Context ----------
+
+interface StoreValue {
+  state: AppState
+  dispatch: React.Dispatch<AnyAction>
+  canUndo: boolean
+  canRedo: boolean
+}
+
+const StoreCtx = createContext<StoreValue | null>(null)
+
+/**
+ * Demo installs auto-refresh to the latest example data: if the stored state
+ * isn't user-owned (never blanked, never imported) and predates the current
+ * SEED_VERSION, discard it and reseed. Bump SEED_VERSION whenever seed()
+ * changes so this delivers the new demo data on next load. User-owned data
+ * (blankState or an imported backup) is never touched.
+ */
+function loadOrSeed(): AppState {
+  const stored = loadState()
+  if (stored && !stored.userOwned && (stored.seedVersion ?? 0) < SEED_VERSION) return seed()
+  return stored ?? seed()
+}
+
+export function StoreProvider({ children }: { children: React.ReactNode }) {
+  const [hist, dispatch] = useReducer(historyReducer, undefined, (): History => ({
+    past: [], present: migrate(loadOrSeed()), future: [], lastType: null, lastAt: 0,
+  }))
+  const state = hist.present
+  useEffect(() => saveState(state), [state])
+  // Make sure the example binder uploads have real (openable) file blobs.
+  useEffect(() => {
+    void ensureSeedFiles(state)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    document.documentElement.dataset.theme = state.theme
+  }, [state.theme])
+
+  // Auto theme: resolve light/dark from the current time vs. lightStart/darkStart
+  // whenever mode is 'auto'. Re-checked every 60s and whenever the config changes.
+  // Fixed modes ('light'/'dark') are resolved by the reducer on setThemeConfig — nothing to do here.
+  useEffect(() => {
+    if (state.themeConfig.mode !== 'auto') return
+    const toMin = (hm: string) => {
+      const [h, m] = hm.split(':').map(Number)
+      return h * 60 + m
+    }
+    const check = () => {
+      const nowMin = nowMinutes()
+      const lightMin = toMin(state.themeConfig.lightStart)
+      const darkMin = toMin(state.themeConfig.darkStart)
+      // Light window is [lightStart, darkStart); it can wrap past midnight.
+      const inLightWindow = lightMin <= darkMin
+        ? nowMin >= lightMin && nowMin < darkMin
+        : nowMin >= lightMin || nowMin < darkMin
+      const resolved: 'light' | 'dark' = inLightWindow ? 'light' : 'dark'
+      if (resolved !== state.theme) dispatch({ type: 'setTheme', theme: resolved })
+    }
+    check()
+    const t = setInterval(check, 60_000)
+    return () => clearInterval(t)
+  }, [state.themeConfig, state.theme])
+
+  // Global undo/redo: Ctrl/Cmd+Z, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey !== e.metaKey // exactly one of ctrl/cmd
+      if (!mod || e.altKey) return
+      const key = e.key.toLowerCase()
+      if (key !== 'z' && key !== 'y') return
+      if (isTextTarget(e.target)) return // let text fields keep native undo
+      if (key === 'y' && e.shiftKey) return
+      dispatch({ type: key === 'y' || e.shiftKey ? 'redo' : 'undo' })
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const value = useMemo<StoreValue>(
+    () => ({ state, dispatch, canUndo: hist.past.length > 0, canRedo: hist.future.length > 0 }),
+    [state, hist.past.length, hist.future.length],
+  )
+  return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
+}
+
+export function useStore() {
+  const ctx = useContext(StoreCtx)
+  if (!ctx) throw new Error('useStore outside provider')
+  return ctx
+}
+
+// ---------- Derived helpers ----------
+
+export function classById(state: AppState, id: ID | null): ClassInfo | null {
+  return id ? state.classes.find((c) => c.id === id) ?? null : null
+}
+
+export function projectById(state: AppState, id: ID | null): Project | null {
+  return id ? state.projects.find((p) => p.id === id) ?? null : null
+}
+
+/** Color for a task: its project's class color, else the project's calendar color, else neutral. */
+export function taskColor(state: AppState, projectId: ID | null): string {
+  const p = projectById(state, projectId)
+  if (!p) return '#9aa0a6'
+  const c = classById(state, p.classId)
+  if (c) return c.color
+  if (p.calendarId && p.calendarId !== 'personal') {
+    const cal = state.customCalendars.find((cc) => cc.id === p.calendarId)
+    if (cal) return cal.color
+  }
+  return p.color
+}
+
+/**
+ * Display order of one task list (Unfiled, a project's main list, a section).
+ * Manual `order` wins as soon as the user has dragged anything in that list;
+ * until then the old dated-first-then-undated sort applies. Tasks added after a
+ * drag have no order yet and sit at the end.
+ */
+export function sortTaskList(list: Task[]): Task[] {
+  if (list.some((t) => t.order != null)) {
+    return [...list].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))
+  }
+  const dated = list.filter((t) => t.date != null).sort((a, b) => (a.date! < b.date! ? -1 : 1))
+  return [...dated, ...list.filter((t) => t.date == null)]
+}
+
+/**
+ * Archive order for one list's completed tasks: most recently finished first.
+ * Tasks completed before `completedAt` existed carry no stamp and sit last, in
+ * their normal list order.
+ */
+export function sortArchived(list: Task[]): Task[] {
+  const stamped = list.filter((t) => t.completedAt).sort((a, b) => (a.completedAt! < b.completedAt! ? 1 : -1))
+  return [...stamped, ...list.filter((t) => !t.completedAt)]
+}
+
+/** Name of the folder a class sits in (for the faint hint next to class names). */
+export function folderNameOf(state: AppState, cls: ClassInfo): string | null {
+  if (!cls.folderId) return null
+  return state.folders.find((f) => f.id === cls.folderId)?.name ?? null
+}
+
+export interface ClassGroup {
+  folder: ClassFolder | null // null = unfoldered classes (rendered first)
+  classes: ClassInfo[]
+}
+
+/**
+ * Classes grouped for display: unfoldered first (array order), then each
+ * folder in folder order. With `binderPins`, folder-pinned classes float to
+ * the top of their folder (calendar sidebar ignores pins).
+ */
+export function groupedClasses(state: AppState, binderPins = false): ClassGroup[] {
+  const inFolder = (fid: ID | null) => {
+    const list = state.classes.filter((c) => (c.folderId ?? null) === fid)
+    if (!binderPins) return list
+    return [...list.filter((c) => c.pinnedFolder), ...list.filter((c) => !c.pinnedFolder)]
+  }
+  return [
+    { folder: null, classes: inFolder(null) },
+    ...state.folders.map((f) => ({ folder: f, classes: inFolder(f.id) })),
+  ].filter((g) => g.folder !== null || g.classes.length > 0)
+}
+
+/**
+ * Classes as ColorSelect option blocks, grouped exactly the way the calendar
+ * sidebar shows them: unfoldered classes first with no heading, then one block
+ * per folder. `toValue` maps a class id onto the dropdown's option value.
+ */
+export function classColorGroups(
+  state: AppState,
+  toValue: (id: ID) => string = (id) => id,
+): ColorGroup[] {
+  return groupedClasses(state)
+    .filter((g) => g.classes.length > 0)
+    .map((g) => ({
+      heading: g.folder?.name,
+      options: g.classes.map((c) => ({ value: toValue(c.id), label: c.name, color: c.color })),
+    }))
+}
+
+/** Small label shown above a task on the calendar: its class name, else its project name. */
+export function taskLabel(state: AppState, projectId: ID | null): string | null {
+  const p = projectById(state, projectId)
+  if (!p) return null
+  const calId = taskCalendarId(state, projectId)
+  const cls = calId !== 'personal' ? classById(state, calId) : null
+  return cls ? cls.name : p.name
+}
+
+/**
+ * The calendar id a task belongs to for visibility filtering: its project's
+ * classId (a class), else the project's calendarId ('personal' or a custom
+ * calendar id). Projects are flat (one per class/calendar).
+ */
+export function taskCalendarId(state: AppState, projectId: ID | null): string {
+  const p = projectById(state, projectId)
+  if (!p) return 'personal'
+  if (p.classId) return p.classId
+  return p.calendarId ?? 'personal'
+}
+
+export function defaultFreq(): Freq {
+  return 'daily'
+}
