@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 16
+export const SEED_VERSION = 17
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -681,6 +681,45 @@ function seed(): AppState {
   // and today is left half-written (weather + breakfast) as an invitation.
   const logDay = (n: number) => toISO(addDays(today, -n))
   const dayLogs: Record<string, DayLog> = {
+    // Sparser entries across the earlier semester, so the Journal tab's
+    // month grouping and search have history to chew on.
+    [logDay(52)]: {
+      weather: ['sun'],
+      meals: { b: 'Bagel from the freshers stall', d: 'Flat dinner — someone made tacos' },
+      mood: 4,
+      journal: 'First proper week. Bought a plant for the desk and named him Newton. Everything still smells like cardboard boxes.',
+    },
+    [logDay(49)]: { weather: ['sun', 'wind'], meals: { l: 'Meal deal on the quad' }, mood: 4 },
+    [logDay(45)]: {
+      weather: ['rain'],
+      meals: { b: 'Porridge', l: 'Canteen lasagne', d: 'Soup' },
+      mood: 3,
+      journal: 'First chem lab. Broke exactly one beaker, which I am told is under average.',
+    },
+    [logDay(42)]: { weather: ['cloud'], meals: { d: 'Ramen night with Maya' }, mood: 4 },
+    [logDay(38)]: {
+      weather: ['suncloud'],
+      meals: { b: 'Eggs', l: 'Falafel wrap', d: 'Pasta bake' },
+      mood: 3,
+      journal: 'Reading week starts tomorrow. Grand plans, a colour-coded schedule, and absolutely no faith in either.',
+    },
+    [logDay(35)]: { weather: ['rain', 'wind'], meals: { l: 'Cereal. For lunch. Reading week.' }, mood: 2 },
+    [logDay(31)]: { weather: ['cloud'], meals: { b: 'Toast', d: 'Curry with the flat' }, mood: 3 },
+    [logDay(27)]: {
+      weather: ['sun'],
+      meals: { b: 'Yoghurt and granola', l: 'Sandwich by the lake', d: 'Risotto, only slightly gluey' },
+      mood: 5,
+      journal: 'Ate lunch by the lake and the ducks accepted me as one of their own. Genome diagrams finally make sense. A good day.',
+    },
+    [logDay(24)]: { weather: ['storm'], meals: { d: 'Emergency pizza' }, mood: 2 },
+    [logDay(20)]: {
+      weather: ['snow'],
+      meals: { b: 'Hot chocolate and toast', l: 'Canteen stew', d: 'Leftover stew' },
+      mood: 4,
+      journal: 'SNOW. In August, somehow, per the weather gods of this demo. Campus shut for the afternoon and nobody complained.',
+    },
+    [logDay(16)]: { weather: ['suncloud', 'wind'], meals: { l: 'Burrito with the lab group' }, mood: 3 },
+    [logDay(13)]: { weather: ['cloud', 'rain'], meals: { b: 'Porridge', d: 'Fried rice' }, mood: 3 },
     [logDay(9)]: {
       weather: ['rain'],
       meals: { b: 'Toast and peanut butter', l: 'Leftover pasta at my desk', d: 'Rice and black beans' },
