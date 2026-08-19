@@ -9,6 +9,9 @@ export interface ColorOption {
   muted?: boolean
 }
 
+/** Kept in step with `.cs-pop { min-width }` in styles.css. */
+const CS_MIN_W = 160
+
 /** A block of options under an optional heading (a class folder, "My calendars"…). */
 export interface ColorGroup {
   heading?: string
@@ -45,9 +48,13 @@ export default function ColorSelect({ value, groups, onChange, placeholder, titl
     const r = btnRef.current?.getBoundingClientRect()
     if (r) {
       const below = window.innerHeight - r.bottom
+      // The list is at least .cs-pop's min-width, which on a phone can be wider
+      // than the button it hangs off: keep whichever is bigger on screen.
+      const w = Math.max(r.width, CS_MIN_W)
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8))
       setPos(below < 260 && r.top > below
-        ? { bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width }
-        : { top: r.bottom + 4, left: r.left, width: r.width })
+        ? { bottom: window.innerHeight - r.top + 4, left, width: r.width }
+        : { top: r.bottom + 4, left, width: r.width })
     }
     setOpen((o) => !o)
   }

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Page, View } from '../App'
+import { createPortal } from 'react-dom'
+import type { Drawer, Page, View } from '../App'
 import { useUI } from '../App'
 import { useStore } from '../store'
 import type { AppState } from '../types'
 import { addDays, fromISO, MONTHS, startOfWeek, toISO, todayISO } from '../utils/date'
+import { useClampedPos } from '../utils/popover'
 import InfoIcon from './InfoIcon'
 import NotificationCenter from './NotificationCenter'
 import TimeSelect from './TimeSelect'
@@ -15,7 +17,92 @@ interface Props {
   setView: (v: View) => void
   anchor: string
   setAnchor: (a: string) => void
+  /** Drawer layout is on. False on desktop, where none of it renders at all. */
+  narrow: boolean
+  drawer: Drawer
+  setDrawer: (d: Drawer) => void
 }
+
+/** ☰ — opens the calendars drawer. */
+function BurgerGlyph() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2 4h12M2 8h12M2 12h12"
+        fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A ticked checklist — opens the tasks drawer. */
+function TasksGlyph() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M1.6 4.5 3 5.9 5.7 3.1 M1.6 11.1 3 12.5 5.7 9.7"
+        fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.2 4.7h6.2M8.2 11.3h6.2"
+        fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * The narrow-screen stand-in for the three "+ Event / + Task / + Log study"
+ * buttons: one ＋ that drops a small menu. Portalled onto <body> so the top
+ * bar can keep `overflow` on its scrolling page tabs without clipping it.
+ */
+function AddMenu({ anchor }: { anchor: string }) {
+  const ui = useUI()
+  const [open, setOpen] = useState(false)
+  const [at, setAt] = useState({ x: 0, y: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+  const pos = useClampedPos(popRef, at.x, at.y)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const pick = (fn: () => void) => () => { setOpen(false); fn() }
+
+  return (
+    <div className="tb-group tb-add-mob">
+      <button ref={btnRef} className="tb-add tb-add-plus" aria-label="Add" aria-expanded={open}
+        onClick={() => {
+          const r = btnRef.current?.getBoundingClientRect()
+          // Right-aligned under the button; useClampedPos pulls it back on if
+          // that would put an edge off-screen.
+          if (r) setAt({ x: r.right - ADD_MENU_W, y: r.bottom + 6 })
+          setOpen((o) => !o)
+        }}>
+        ＋
+      </button>
+      {open && createPortal(
+        <div className="add-menu" ref={popRef} style={{ left: pos.x, top: pos.y }} role="menu">
+          <button type="button" onClick={pick(() => ui.openEvent({ date: anchor }))}>Event</button>
+          <button type="button" onClick={pick(() => ui.openTask({ date: todayISO() }))}>Task</button>
+          <button type="button" onClick={pick(() => ui.openLogStudy({ date: anchor }))}>Log study</button>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+/** Kept in step with `.add-menu { width }` in the mobile CSS block. */
+const ADD_MENU_W = 176
 
 function rangeLabel(view: View, anchor: string, weekStart: AppState['weekStart']): string {
   const d = fromISO(anchor)
@@ -30,9 +117,13 @@ function rangeLabel(view: View, anchor: string, weekStart: AppState['weekStart']
     : `${sm} ${start.getDate()} – ${em} ${end.getDate()}, ${end.getFullYear()}`
 }
 
-export default function TopBar({ page, setPage, view, setView, anchor, setAnchor }: Props) {
+export default function TopBar({
+  page, setPage, view, setView, anchor, setAnchor, narrow, drawer, setDrawer,
+}: Props) {
   const { state, dispatch, canUndo, canRedo } = useStore()
   const ui = useUI()
+  const toggleDrawer = (which: Exclude<Drawer, null>) =>
+    setDrawer(drawer === which ? null : which)
 
   const step = (dir: 1 | -1) => {
     const d = fromISO(anchor)
@@ -41,8 +132,19 @@ export default function TopBar({ page, setPage, view, setView, anchor, setAnchor
   }
 
   return (
-    <div className="topbar">
-      <div className="brand"><span className="logo">✓</span>planned</div>
+    // `tb-cal` says this header carries a date-navigation cluster. On a narrow
+    // screen that cluster gets a row of its own, and the class is what tells
+    // the CSS to force the line break. Nothing targets it on desktop.
+    <div className={`topbar${page === 'calendar' ? ' tb-cal' : ''}`}>
+      {/* Drawer toggles: narrow screens only, one per side. */}
+      {narrow && page === 'calendar' && (
+        <button className="drawer-btn db-left" title="Calendars" aria-label="Calendars"
+          aria-expanded={drawer === 'left'} onClick={() => toggleDrawer('left')}>
+          <BurgerGlyph />
+        </button>
+      )}
+
+      <div className="brand"><span className="logo">✓</span><span className="brand-word">planned</span></div>
 
       <div className="page-tabs">
         <button className={page === 'calendar' ? 'active' : ''} onClick={() => setPage('calendar')}>Calendar</button>
@@ -69,12 +171,17 @@ export default function TopBar({ page, setPage, view, setView, anchor, setAnchor
 
       <div className="spacer" />
 
-      {/* Creation actions live in their own box, apart from the utility icons. */}
-      <div className="tb-group" role="group" aria-label="Add">
+      {/* Creation actions live in their own box, apart from the utility icons.
+          Narrow screens swap the three for the single ＋ menu below. */}
+      <div className="tb-group tb-adds" role="group" aria-label="Add">
         <button className="tb-add" onClick={() => ui.openEvent({ date: anchor })}>+ Event</button>
         <button className="tb-add" onClick={() => ui.openTask({ date: todayISO() })}>+ Task</button>
-        <button className="tb-add" onClick={() => ui.openLogStudy({ date: anchor })}>+ Log study</button>
+        {/* The trailing word is dropped at tablet widths, leaving "+ Log". */}
+        <button className="tb-add tb-add-log" onClick={() => ui.openLogStudy({ date: anchor })}>
+          + Log<span className="tb-add-word"> study</span>
+        </button>
       </div>
+      {narrow && <AddMenu anchor={anchor} />}
       <div className="tb-group tb-tools" role="group" aria-label="Tools">
         <button className="btn icon" title="Search (⌘K)" aria-label="Search" onClick={() => ui.openSearch()}>⌕</button>
         <button
@@ -102,8 +209,15 @@ export default function TopBar({ page, setPage, view, setView, anchor, setAnchor
           </svg>
         </button>
         <NotificationCenter />
-        <ViewSettings />
+        <ViewSettings narrow={narrow} />
       </div>
+
+      {narrow && (page === 'calendar' || page === 'timer') && (
+        <button className="drawer-btn db-right" title="Tasks" aria-label="Tasks"
+          aria-expanded={drawer === 'tasks'} onClick={() => toggleDrawer('tasks')}>
+          <TasksGlyph />
+        </button>
+      )}
     </div>
   )
 }
@@ -136,8 +250,8 @@ const HEMISPHERE_OPTIONS: { value: 'N' | 'S'; label: string }[] = [
 ]
 
 /** ⚙ popover for view-level prefs: week start day + theme. Mirrors NotificationCenter's open/close-on-outside-click pattern. */
-function ViewSettings() {
-  const { state, dispatch } = useStore()
+function ViewSettings({ narrow }: { narrow: boolean }) {
+  const { state, dispatch, canUndo, canRedo } = useStore()
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   // The place name is free text, so it commits on blur / Enter rather than
@@ -166,6 +280,20 @@ function ViewSettings() {
 
       {open && (
         <div className="settings-panel">
+          {/* Undo/redo lose their top-bar buttons on a narrow screen; this is
+              where they go, rather than off the edge of a cramped header. */}
+          {narrow && (
+            <div className="settings-section">
+              <div className="proj-section-label">Editing</div>
+              <div className="pill-row">
+                <button type="button" className="pill" disabled={!canUndo}
+                  onClick={() => dispatch({ type: 'undo' })}>↶ Undo</button>
+                <button type="button" className="pill" disabled={!canRedo}
+                  onClick={() => dispatch({ type: 'redo' })}>↷ Redo</button>
+              </div>
+            </div>
+          )}
+
           <div className="settings-section">
             <div className="proj-section-label">Week starts on</div>
             <div className="pill-row">
@@ -198,7 +326,7 @@ function ViewSettings() {
           <div className="settings-section">
             <div className="proj-section-label">
               Reschedule ghosts
-              <InfoIcon text="When a scheduled task moves to another day, the slot it left keeps a faint ⇢ marker so you can see what slipped. Dismiss single ghosts with their ×; switching this back on brings every dismissed ghost back." />
+              <InfoIcon text="When a scheduled task moves to another day, the slot it left keeps a faint → marker so you can see what slipped. Dismiss single ghosts with their ×; switching this back on brings every dismissed ghost back." />
             </div>
             <div className="pill-row">
               {GHOST_OPTIONS.map((o) => (

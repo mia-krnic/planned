@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { EditScope } from '../../utils/occur'
 import { DUE_EOD_MIN } from '../../types'
 import { fmtFriendly, fmtTime } from '../../utils/date'
+import { useClampedPos } from '../../utils/popover'
 import InfoIcon from '../InfoIcon'
 
 interface ShellProps {
@@ -20,6 +21,8 @@ interface ShellProps {
  */
 function DragPopover({ x, y, onCancel, children }: ShellProps) {
   const boxRef = useRef<HTMLDivElement>(null)
+  // Drawn centred on the drop point, so a drop near an edge needs pulling back.
+  const pos = useClampedPos(boxRef, x, y, true)
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -39,7 +42,7 @@ function DragPopover({ x, y, onCancel, children }: ShellProps) {
   }, [onCancel])
 
   return createPortal(
-    <div className="drag-pop" ref={boxRef} style={{ left: x, top: y }}>{children}</div>,
+    <div className="drag-pop" ref={boxRef} style={{ left: pos.x, top: pos.y }}>{children}</div>,
     document.body,
   )
 }

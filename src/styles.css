@@ -646,7 +646,7 @@ button { font: inherit; color: inherit; }
 }
 .task-row:hover { background: var(--bg-inset); }
 .task-row .body { flex: 1; min-width: 0; }
-.task-row .cb { margin-top: 2px; }
+.task-row .cb { margin-top: 0.5px; }
 
 .task-row .tag {
   display: inline-block;
@@ -730,8 +730,11 @@ button { font: inherit; color: inherit; }
   text-transform: uppercase;
 }
 .task-section-head .task-section-name {
-  flex: 1;
-  min-width: 0;
+  /* Shrink-only with a readable floor: the name hugs its tag (no floating tag
+     across a wide row) and in a tight sidebar the TAG gives way first, so the
+     section title never collapses to a single letter. */
+  flex: 0 1 auto;
+  min-width: 56px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4392,7 +4395,11 @@ button { font: inherit; color: inherit; }
 
 /* Section headers: the grey ASSIGNMENTS tag + its hover-only ⓘ. */
 .task-section-head .sec-tag {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -4457,6 +4464,8 @@ button { font: inherit; color: inherit; }
 /* done/total for the section, matching .proj-head .count. */
 .task-section-head .sec-count {
   flex: 0 0 auto;
+  /* The name no longer flex-grows, so the count claims the leftover space. */
+  margin-left: auto;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0;
@@ -4890,7 +4899,7 @@ button { font: inherit; color: inherit; }
 .ypt-box.ypt-2 { opacity: 0.75; }
 /* Mirrors the .cb nudges: list rows and the all-day chips sit top-aligned. */
 .task-row .ypt-box,
-.chip.chip-task .ypt-box { margin-top: 2px; }
+.chip.chip-task .ypt-box { margin-top: 0.5px; }
 .study-task .ypt-box { width: 11px; height: 11px; font-size: 11px; }
 
 /* --- Reschedule ghosts --------------------------------------------------- */
@@ -5105,10 +5114,12 @@ button { font: inherit; color: inherit; }
 }
 .dl-moon { margin-left: auto; padding-left: 2px; display: flex; flex: 0 0 auto; }
 
-/* Seven toggles have to survive a 7-column week on a 1440px screen, so they
-   share the row evenly and cap out rather than demanding a fixed width. */
+/* Seven toggles have to survive a 7-column week on a 1440px screen: they may
+   SHRINK below 16px but never grow past it, so at any wider width every row
+   (weather, meals, mood) starts from the same left rhythm instead of the
+   weather icons spreading out on their own. */
 .dl-wx {
-  flex: 1 1 0;
+  flex: 0 1 16px;
   border: 0;
   background: transparent;
   color: var(--text-faint);
@@ -5159,13 +5170,14 @@ button { font: inherit; color: inherit; }
 
 .dl-mood { display: flex; align-items: center; }
 .dl-face {
-  flex: 0 1 auto;
+  /* Same 16px rhythm as the weather toggles so the two icon rows line up. */
+  flex: 0 1 16px;
   border: 0;
   background: transparent;
   color: var(--text-faint);
   opacity: 0.55;
   padding: 0;
-  width: 17px;
+  width: 16px;
   min-width: 0;
   height: 17px;
   border-radius: 4px;
@@ -5543,3 +5555,541 @@ button { font: inherit; color: inherit; }
 .settings-loc-row .pill-row { flex: 0 0 auto; }
 
 /* end ---------- Daily log & journal ---------- */
+
+/* ---------- Mobile ---------- */
+/* Everything below adapts the app to narrow screens. The desktop layout is not
+   negotiable, so every visual rule lives inside a max-width media query; the
+   only rules outside one describe elements that exist ONLY on a narrow screen
+   (the drawer toggles, the drawer scrim, the ＋ menu) plus one `display:
+   contents` wrapper, which generates no box and so changes nothing.
+
+   Three bands:
+     ≤1024  compact desktop / tablet landscape — same layout, tighter
+     ≤768   drawers: both side panels go off-canvas, the top bar folds in two
+     ≤480   phone — the last things that still don't fit give way            */
+
+/* ===== Inert scaffolding (never renders on desktop) ====================== */
+
+/* The week grid's three lanes need a common ancestor to scroll sideways as one
+   piece. Off the mobile week this box does not exist as far as layout is
+   concerned, so .calendar-area lays its children out exactly as before. */
+.wg-wrap { display: contents; }
+
+/* Behind an open drawer. Mounted only while a drawer is open, which App only
+   allows below MOBILE_BP. `touch-action: none` is what stops a swipe on the
+   scrim scrolling the page underneath it. */
+.mob-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--scrim);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
+
+/* The two top-bar drawer toggles. */
+.drawer-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+.drawer-btn[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The ＋ menu that stands in for the three add buttons. */
+.tb-add-plus {
+  font-size: 17px;
+  line-height: 1;
+  padding: 4px 12px;
+  min-height: 30px;
+}
+.add-menu {
+  position: fixed;
+  z-index: 6000;
+  width: 176px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+}
+.add-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  padding: 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.add-menu button:hover,
+.add-menu button:active { background: var(--bg-inset); }
+
+/* ===== ≤1024 — compact desktop / tablet landscape ======================= */
+@media (max-width: 1024px) {
+  .topbar { gap: 8px; padding: 10px 12px; }
+  .page-tabs button { padding: 5px 10px; }
+  .tb-add { padding: 5px 9px; }
+  /* "+ Log study" → "+ Log": the noun is guessable, the row isn't. */
+  .tb-add-word { display: none; }
+  .range-label { min-width: 130px; font-size: 15px; }
+
+  .sidebar-left { width: 208px; padding: 11px; gap: 11px; }
+  .tasks-panel { width: 276px; }
+  .tp-scroll { padding: 11px 11px 40px; }
+  .binder-nav { width: 178px; }
+
+  .gutter, .hour-gutter { width: 44px; }
+
+  .insights-page { padding-left: 16px; padding-right: 16px; }
+  .binder-page { padding: 18px 18px 48px; }
+  .journal-page { padding: 18px 16px 48px; }
+  .study-page { padding: 22px 16px 52px; }
+}
+
+/* ===== ≤768 — drawer layout ============================================= */
+@media (max-width: 768px) {
+  /* Browser chrome on phones changes height as you scroll; dvh tracks it. */
+  html, body, #root { height: 100dvh; }
+
+  /* ---- Off-canvas side panels ---------------------------------------- */
+  /* Both leave the flex flow entirely, so the centre view gets the full width
+     whether or not a drawer is open. `visibility` (transitioned, so it only
+     flips once the slide has finished) keeps a shut drawer out of the tab
+     order. The Tasks PAGE keeps its full-width panel — hence :not(.full). */
+  .sidebar-left,
+  .tasks-panel:not(.full) {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 81;
+    width: min(320px, 86vw);
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0.22s;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .sidebar-left { left: 0; transform: translateX(-102%); border-right: 1px solid var(--border); }
+  .tasks-panel:not(.full) { right: 0; transform: translateX(102%); border-left: 1px solid var(--border); }
+
+  .app.drawer-left .sidebar-left,
+  .app.drawer-tasks .tasks-panel:not(.full) {
+    transform: none;
+    visibility: visible;
+    box-shadow: var(--shadow);
+  }
+
+  /* The timer page's own show/hide handle is redundant next to the drawer. */
+  .timer-tasks-handle { display: none; }
+
+  /* ---- Top bar: two rows ---------------------------------------------- */
+  /* Row 1 is navigation + actions, row 2 the calendar's date controls. The
+     break between them is the ::after pseudo-element, a full-width flex item
+     with no height, present only while the calendar page is showing. */
+  .topbar {
+    flex-wrap: wrap;
+    gap: 5px 7px;
+    padding: 8px 10px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+  }
+  .topbar.tb-cal::after { content: ''; order: 4; flex: 0 0 100%; height: 0; }
+  .topbar > .spacer { display: none; }
+
+  .topbar > .db-left { order: 0; }
+  .topbar > .brand { order: 1; margin-right: 0; }
+  .brand-word { display: none; }
+
+  /* Six tabs never fit: they scroll sideways instead of wrapping. */
+  .topbar > .page-tabs {
+    order: 2;
+    flex: 1 1 60px;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .topbar > .page-tabs::-webkit-scrollbar { display: none; }
+  .page-tabs button { flex: 0 0 auto; white-space: nowrap; padding: 7px 11px; }
+
+  .topbar > .tb-add-mob,
+  .topbar > .tb-tools,
+  .topbar > .db-right { order: 3; }
+  /* The three named add buttons give way to the ＋ menu. */
+  .topbar > .tb-adds { display: none; }
+  /* Undo/redo move into the ⚙ panel (see ViewSettings); search, the bell and
+     ⚙ stay in the bar — the bell because its unread badge is the whole point
+     of it, and it is one tap either way. */
+  .tb-tools .history-btn { display: none; }
+  .tb-group { padding: 2px; }
+  .tb-group .btn.icon { min-width: 34px; min-height: 32px; padding: 6px 9px; }
+
+  /* Row 2 — Today, ‹ ›, the range and the view picker. */
+  .topbar > .btn,
+  .topbar > .range-label,
+  .topbar > .view-select { order: 5; }
+  .topbar > .range-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar > .btn { min-height: 34px; }
+  .topbar > .btn.icon { min-width: 34px; }
+  .topbar > .view-select { min-height: 34px; padding: 6px 6px; }
+
+  /* The ⚙ panel now carries undo/redo and can outgrow a phone screen. */
+  .settings-panel { max-height: calc(100dvh - 92px); overflow-y: auto; }
+  .settings-panel .pill:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 420px hung off a bell that sits ~40px from the right edge would put its
+     left edge off-screen. Anchored to the viewport as a bottom sheet instead,
+     which also sidesteps the top bar's changing height. */
+  .notif-panel {
+    position: fixed;
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+    max-height: 70dvh;
+  }
+
+  /* ---- Calendar: the week as one sideways-scrolling sheet -------------- */
+  /* Seven columns squeezed into 375px are unreadable, so the week keeps a
+     usable column width and scrolls instead. All three lanes have to move
+     together, which is why the wrapper — and not each lane — is the
+     scrollport; the gutters stay stuck to the left edge of it, and the day
+     headers to the top. Day view (one column) is untouched: it fits. */
+  .wg-wrap.wg-week {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior-x: contain;
+  }
+  .wg-week .grid-header,
+  .wg-week .allday-lane,
+  .wg-week .grid-scroll,
+  .wg-week .grid-body,
+  .wg-week .journal-lane { width: max-content; min-width: 100%; }
+  /* These three own scrollports of their own on desktop; here they must not,
+     or their sticky gutters would anchor to the wrong box. */
+  .wg-week .grid-header { position: sticky; top: 0; z-index: 20; overflow: visible; }
+  .wg-week .allday-lane { overflow: visible; }
+  .wg-week .grid-scroll { overflow: visible; flex: 0 0 auto; }
+
+  .wg-week .day-head,
+  .wg-week .allday-cell,
+  .wg-week .day-col,
+  .wg-week .journal-cell { flex: 0 0 46vw; }
+
+  .wg-week .grid-header .gutter,
+  .wg-week .allday-lane .gutter,
+  .wg-week .journal-lane .gutter {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--bg-raised);
+    border-right: 1px solid var(--border);
+  }
+  .wg-week .hour-gutter {
+    position: sticky;
+    left: 0;
+    /* Over the now-line (10) and the study stripes (6), which would otherwise
+       slide out from under the hour labels. */
+    z-index: 12;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+  }
+
+  .gutter, .hour-gutter { width: 42px; }
+  .hour-label { right: 5px; font-size: 10px; }
+  .urgent-banners { padding: 6px 8px 0; }
+
+  /* Vertical drags belong to the page, not to a block: nothing on the grid
+     may swallow a scroll. The week additionally has to pan sideways. */
+  .day-col, .allday-cell { touch-action: pan-y; }
+  .wg-week .day-col, .wg-week .allday-cell { touch-action: pan-x pan-y; }
+  /* The resize grip is hover-only and claims `touch-action: none`, which on a
+     phone is a 7px band that eats scrolls for no gain. */
+  .drag-resize { touch-action: pan-x pan-y; }
+
+  /* Day headers keep the daily log, drawn a size down. */
+  .day-head .dow { font-size: 10px; }
+  .day-head .dnum { font-size: 14px; }
+  .day-head .dayoff-btn { visibility: visible; opacity: 0.5; }
+  .daylog-header { margin-top: 4px; padding: 3px 2px 0; }
+  .dl-wx, .dl-face { flex-basis: 14px; max-width: 14px; width: 14px; height: 14px; }
+  .dl-wx svg { max-width: 12px; }
+  .dl-meals { gap: 0; }
+  .lane-toggle { font-size: 9px; padding-right: 4px; }
+
+  /* Month view */
+  .month-cell { padding: 3px; }
+  .month-cell .num { font-size: 11px; padding: 1px 5px; }
+  .month-dows div { font-size: 10px; padding: 4px 0; }
+  .month-cell .chip { font-size: 10.5px; padding: 1px 4px; }
+  .month-cell .more { font-size: 9.5px; }
+
+  /* ---- Modals become full-screen sheets ------------------------------- */
+  /* Everything the shared Modal shell puts up. The timer's two-step end
+     confirm is a 320px question, not a form — it stays a centred box. */
+  .scrim:not(.st-end-scrim) {
+    align-items: stretch;
+    justify-content: stretch;
+    height: 100dvh;
+  }
+  .scrim:not(.st-end-scrim) > .modal {
+    --sheet-pad: 14px;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    padding: var(--sheet-pad);
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* The title turns into the sheet's header bar and stays put while the body
+     scrolls, so there is always something to orient by. */
+  .scrim:not(.st-end-scrim) > .modal > h2 {
+    position: sticky;
+    top: calc(-1 * var(--sheet-pad));
+    z-index: 3;
+    margin: calc(-1 * var(--sheet-pad)) calc(-1 * var(--sheet-pad)) 12px;
+    padding: calc(12px + env(safe-area-inset-top)) var(--sheet-pad) 10px;
+    background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    font-size: 17px;
+  }
+  /* …and the footer sticks to the bottom, so Save is reachable without
+     scrolling to the end of a long form. Only the shell's own action row —
+     the ones nested inside .ext-confirm are part of the body. */
+  .scrim:not(.st-end-scrim) > .modal > .modal-actions {
+    position: sticky;
+    bottom: calc(-28px - env(safe-area-inset-bottom));
+    z-index: 2;
+    margin: 16px calc(-1 * var(--sheet-pad)) calc(-28px - env(safe-area-inset-bottom));
+    padding: 10px var(--sheet-pad) calc(10px + env(safe-area-inset-bottom));
+    background: var(--bg-raised);
+    border-top: 1px solid var(--border);
+  }
+
+  /* Viewport-pinned popovers: their anchor point is clamped in JS (see
+     utils/popover.ts); this keeps the boxes themselves inside the screen. */
+  .cs-pop, .qt-pop, .drag-pop, .slot-chooser, .info-tip, .add-menu, .picker-pop {
+    max-width: calc(100vw - 16px);
+  }
+  .cs-pop { max-height: 60vh; }
+
+  /* Global search */
+  .search-scrim { padding-top: 6vh; }
+  .search-panel { width: min(640px, 94vw); max-height: 82vh; }
+
+  /* ---- Pages ---------------------------------------------------------- */
+  /* Tasks, full page */
+  .tp-head { padding: 10px 12px; gap: 6px; }
+  .tp-head h2 { font-size: 14px; min-width: 0; overflow: hidden; }
+  .tp-scroll { padding: 10px 12px 44px; }
+  .tasks-panel.full .tp-scroll { max-width: none; }
+  .proj-body { padding: 2px 4px 8px 6px; }
+
+  /* Journal — the three-column day row already stacks at ≤900. */
+  .journal-page { padding: 14px 12px 48px; }
+  .jp-head { gap: 10px; }
+  .jp-tools { width: 100%; }
+  .jp-search { flex: 1; }
+  .jp-search input { width: 100%; min-width: 0; }
+  .jp-rows { padding-left: 4px; }
+  .jp-row { padding: 9px 10px; }
+  /* The log controls get the roomier treatment here, so they can breathe. */
+  .jp-row .daylog-journal { max-width: 320px; }
+
+  /* Insights — the charts are already fluid (width:100%, viewBox kept); this
+     is padding, and the sticky header's offset following it. */
+  .insights-page { padding: 16px 12px 40px; }
+  .ins2-head { top: -16px; margin-top: -16px; padding: 16px 0 10px; }
+  .ins2-controls { margin-left: 0; width: 100%; }
+  .ins2-card { padding: 12px 12px 14px; }
+  .ins2-title h1 { font-size: 19px; }
+
+  /* Binder — the class rail becomes a strip along the top. */
+  .binder-layout { flex-direction: column; }
+  .binder-nav,
+  .binder-nav.collapsed {
+    width: auto;
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .binder-nav::-webkit-scrollbar { display: none; }
+  .binder-nav > * { flex: 0 0 auto; }
+  .binder-nav .binder-nav-row,
+  .binder-nav.collapsed .binder-nav-row { width: auto; white-space: nowrap; padding: 6px 10px; }
+  .binder-nav .binder-nav-group { display: flex; flex-direction: row; gap: 4px; }
+  .binder-nav .pin-box { display: flex; align-items: center; gap: 6px; margin: 0; padding: 4px 8px; }
+  .binder-nav .pin-box-body { display: flex; flex-direction: row; gap: 4px; margin: 0; }
+  /* Collapsing a horizontal strip means nothing. */
+  .binder-nav-toggle { display: none; }
+
+  .binder-page { padding: 14px 12px 48px; }
+  .binder-index { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .binder-meta { grid-template-columns: 1fr 1fr; padding: 11px; }
+  .binder-head { flex-wrap: wrap; gap: 8px; }
+  .binder-title { font-size: 19px; }
+  .stream-composer { flex-direction: column; align-items: stretch; }
+
+  /* Timer */
+  .study-page { padding: 16px 12px 48px; }
+  .study-card { padding: 16px; border-radius: 13px; }
+  .st-clock { font-size: 44px; }
+  .st-actions { gap: 6px; }
+
+  /* ---- Touch ergonomics ------------------------------------------------ */
+  /* No hover means no hover-revealed controls: everything that used to appear
+     on hover is simply there. The corner pins are the one nuance — they are
+     shown dimmed when off and solid when on, so a card can be pinned as well
+     as unpinned by touch (hover-only, they could only ever be unpinned). */
+  .cal-row .edit-btn,
+  .proj-head .hover-btn,
+  .task-section-head .hover-btn,
+  .task-section-head .sec-info,
+  .binder-section-head .hover-btn,
+  .upload-card .upload-actions .hover-btn,
+  .task-row .pin-btn,
+  .grade-row .grade-del { visibility: visible; }
+  .corner-pin { visibility: visible; opacity: 0.45; }
+  .corner-pin.on { opacity: 1; }
+  .drag-block > .drag-resize::after { opacity: 0.35; }
+
+  /* Roomier targets in the list-shaped parts of the app. */
+  .btn { padding: 7px 12px; }
+  .btn.icon { padding: 7px 10px; }
+  .cal-row, .binder-nav-row { padding-top: 6px; padding-bottom: 6px; }
+  .task-row { padding-top: 7px; padding-bottom: 7px; }
+  .tp-tabs button { padding: 6px 12px; }
+  .mm-cell { min-height: 26px; }
+  .head-icon, .edit-btn, .hover-btn, .pin-btn { min-width: 26px; min-height: 24px; }
+  .task-row .cb, .check-line .cb, .st-item .cb { width: 17px; height: 17px; }
+
+  /* iOS zooms the page whenever a focused field is under 16px. Every field
+     you actually compose in is bumped to 16px to stop that. The exceptions
+     are the daily log's meal fields, which sit seven-across in a day header
+     and have nowhere to grow — they keep 10px and the zoom that comes with
+     it, which pinch-back undoes. */
+  .field input[type='text'],
+  .field input[type='date'],
+  .field input[type='time'],
+  .field input[type='number'],
+  .field select,
+  .field textarea,
+  .quick-add input,
+  .settings-loc-input,
+  .jp-search input,
+  .stream-composer textarea,
+  .post-edit,
+  .dl-journal-input,
+  .jp-right .dl-journal-input,
+  .qt-search,
+  .cs-btn { font-size: 16px; }
+  .search-input { font-size: 16px; }
+  .field textarea { min-height: 76px; }
+}
+
+/* ===== ≤480 — phone ===================================================== */
+@media (max-width: 480px) {
+  /* The word mark goes: the row needs the width more than the branding. */
+  .topbar > .brand { display: none; }
+  .topbar { gap: 5px 6px; padding-left: 8px; padding-right: 8px; }
+  .page-tabs { padding: 2px; }
+  .page-tabs button { padding: 7px 9px; font-size: 13px; }
+  .topbar > .btn.primary { padding: 7px 9px; font-size: 13px; }
+  .topbar > .range-label { font-size: 13px; }
+  /* Every pixel taken off the fixed controls is a pixel of tab strip gained;
+     the strip scrolls either way, but two visible tabs beat one. */
+  .topbar > .db-left,
+  .topbar > .db-right { min-width: 32px; padding: 0 6px; }
+  .tb-group .btn.icon { min-width: 30px; padding: 6px 7px; }
+  .tb-add-plus { padding: 4px 10px; }
+
+  /* A month cell this small can't hold a labelled chip, so each item becomes
+     a dot in its own colour — the colour is the only thing that still reads
+     at this size. The dot is the chip's 3px left border widened to 6px over a
+     zero-width box, which keeps the class colour solid instead of the 20%
+     wash the chip body carries. */
+  /* Inline flow rather than the flex column, so the dots wrap into rows on
+     their own while the date keeps its pill-shaped intrinsic width. */
+  .month-cell {
+    display: block;
+    padding: 2px 3px;
+    line-height: 1.1;
+  }
+  .month-cell .num { display: block; width: fit-content; margin-bottom: 2px; }
+  .month-cell .chip {
+    display: inline-block;
+    vertical-align: middle;
+    width: 0;
+    height: 6px;
+    margin: 0 3px 2px 0;
+    padding: 0;
+    border-radius: 50%;
+    /* The exam chip's ring would show as a smudge at this size. */
+    border-top-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 0;
+    border-left-width: 6px;
+    /* Beats the 20%-alpha wash set inline on the chip body — nothing else can. */
+    background: none !important;
+    overflow: hidden;
+  }
+  .month-cell .chip > * { display: none; }
+  .month-cell .more { display: block; font-size: 9px; padding-left: 2px; }
+
+  /* One card per row: two of them leave no room for the corner pins. */
+  .binder-index { grid-template-columns: 1fr; }
+  .binder-meta { grid-template-columns: 1fr; }
+  .backup-row { grid-template-columns: 1fr; }
+
+  /* Wider day columns — 46vw is too tight for a title once the phone is this
+     narrow, and three-and-a-bit visible days still beat seven unreadable ones. */
+  .wg-week .day-head,
+  .wg-week .allday-cell,
+  .wg-week .day-col,
+  .wg-week .journal-cell { flex-basis: 60vw; }
+
+  .st-clock { font-size: 38px; }
+  .ins2-title h1 { font-size: 18px; }
+  .jp-title h1 { font-size: 18px; }
+}
+/* end ---------- Mobile ---------- */

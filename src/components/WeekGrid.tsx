@@ -14,6 +14,7 @@ import {
   addDays, daysBetween, fmtDayHeader, fmtHourLabel, fmtTime, fromISO, isSameDay, nowMinutes, startOfWeek, toISO,
 } from '../utils/date'
 import { clampMin, columnAtX, MIN_BLOCK_MIN, minutesAtY, pastThreshold, snapMin } from '../utils/drag'
+import { useClampedPos } from '../utils/popover'
 import {
   occurrenceAt, recurringCount, recurringTimes, type EditScope, type RecurOccurrence,
 } from '../utils/occur'
@@ -135,6 +136,7 @@ export default function WeekGrid({ anchor, days }: Props) {
   const ui = useUI()
   const now = useNow()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   const start = days === 7 ? startOfWeek(fromISO(anchor), state.weekStart) : fromISO(anchor)
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i))
@@ -144,7 +146,12 @@ export default function WeekGrid({ anchor, days }: Props) {
   const journalShut = state.collapseJournal ?? false
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: SCROLL_TO_HOUR * HOUR_H })
+    // Normally .grid-scroll is the scroller. On a narrow screen the week is one
+    // sideways-scrolling sheet instead (.wg-week), and then the wrapper owns
+    // both axes — it is the only one of the two with anything to scroll.
+    const wrap = wrapRef.current
+    const el = wrap && wrap.scrollHeight > wrap.clientHeight ? wrap : scrollRef.current
+    el?.scrollTo({ top: SCROLL_TO_HOUR * HOUR_H })
   }, [])
 
   /* ---------- Drag & drop: move + resize on the time grid ---------- */
@@ -361,7 +368,7 @@ export default function WeekGrid({ anchor, days }: Props) {
       }}
       title={`Moved away from ${ghost.startMin != null ? fmtTime(ghost.startMin) : 'all-day'} — ${t.title}`}
       onClick={(e) => { e.stopPropagation(); ui.openTask({ task: t }) }}>
-      <span className="tg-arrow">⇢</span>
+      <span className="tg-arrow">→</span>
       <span className="tg-title">{t.title}</span>
       <button className="tg-x" title="Dismiss this ghost"
         onClick={(e) => { e.stopPropagation(); dispatch({ type: 'dismissGhost', id: t.id, index }) }}>×</button>
@@ -377,6 +384,10 @@ export default function WeekGrid({ anchor, days }: Props) {
     | { iso: string; startMin: number; endMin?: number; x: number; y: number }
     | null
   >(null)
+  // The chooser is centred on the click (translateX(-50%)); near a screen edge
+  // that would hang it off, so the point is pulled back in once it is measured.
+  const slotRef = useRef<HTMLDivElement>(null)
+  const slotPos = useClampedPos(slotRef, slotChooser?.x ?? 0, slotChooser?.y ?? 0, true)
   const clickSlot = (iso: string) => (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
     const rect = e.currentTarget.getBoundingClientRect()
@@ -477,6 +488,11 @@ export default function WeekGrid({ anchor, days }: Props) {
 
   return (
     <>
+      {/* `display: contents` everywhere except the narrow multi-day week, where
+          it turns into the single scrollport that carries the whole grid — the
+          three lanes below have to scroll sideways as one piece or the day
+          columns fall out of step with their headers. */}
+      <div className={`wg-wrap${days > 1 ? ' wg-week' : ''}`} ref={wrapRef}>
       {/* Day headers */}
       <div className="grid-header">
         <div className="gutter" />
@@ -609,7 +625,7 @@ export default function WeekGrid({ anchor, days }: Props) {
                         </span>
                       )}
                       <span className={`label ${done ? 'done-strike' : ''}`} style={{ color: titleTint(color) }}>
-                        {rt.title} ↻{occ.moved ? ' ⇢' : ''}
+                        {rt.title} ↻{occ.moved ? ' →' : ''}
                       </span>
                     </span>
                   </div>
@@ -747,7 +763,7 @@ export default function WeekGrid({ anchor, days }: Props) {
                         <div className="task-main">
                           {recurCheck(occ)}
                           <span className={`t ${done ? 'done-strike' : ''}`} style={{ color: titleTint(color) }}>
-                            {occ.rt.title} ↻{occ.moved ? ' ⇢' : ''}
+                            {occ.rt.title} ↻{occ.moved ? ' →' : ''}
                           </span>
                         </div>
                         {hasBlock && height > 48 && <div className="sub">{fmtTime(b.startMin)} – {fmtTime(b.endMin)}</div>}
@@ -1035,6 +1051,7 @@ export default function WeekGrid({ anchor, days }: Props) {
           })}
         </div>
       </div>
+      </div>
 
       {/* Portalled onto <body>, like the InfoIcon tip: inside the grid the
           popover shared a stacking context with the day columns, so the day-off
@@ -1042,7 +1059,8 @@ export default function WeekGrid({ anchor, days }: Props) {
       {slotChooser && createPortal(
         <div
           className="slot-chooser"
-          style={{ left: slotChooser.x, top: slotChooser.y }}
+          ref={slotRef}
+          style={{ left: slotPos.x, top: slotPos.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button type="button" onClick={() => {

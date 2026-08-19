@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { uid, useStore } from '../../store'
 import type { Birthday } from '../../types'
 import { MONTHS } from '../../utils/date'
+import { useClampedPos } from '../../utils/popover'
 import InfoIcon from '../InfoIcon'
 
 /**
@@ -144,6 +145,8 @@ interface Props {
 export default function BirthdayPopover({ x, y, init, browse, onClose }: Props) {
   const { state, dispatch } = useStore()
   const boxRef = useRef<HTMLDivElement>(null)
+  // Shares .drag-pop's centred placement, so it needs the same edge clamp.
+  const pos = useClampedPos(boxRef, x, y, true)
   const [editing, setEditing] = useState<Birthday | null>(init ?? null)
   const [listing, setListing] = useState(!!browse && !init)
 
@@ -169,7 +172,7 @@ export default function BirthdayPopover({ x, y, init, browse, onClose }: Props) 
   }, [onClose])
 
   return createPortal(
-    <div className="drag-pop bday-pop" ref={boxRef} style={{ left: x, top: y }}>
+    <div className="drag-pop bday-pop" ref={boxRef} style={{ left: pos.x, top: pos.y }}>
       {listing ? (
         <BirthdayList list={state.birthdays}
           onPick={(b) => { setEditing(b); setListing(false) }}

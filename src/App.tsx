@@ -26,6 +26,25 @@ import type { ParsedIcsEvent } from './utils/ics'
 export type Page = 'calendar' | 'tasks' | 'timer' | 'binder' | 'insights' | 'journal'
 export type View = 'day' | 'week' | 'month'
 
+/** Below this width the two side panels stop being columns and become drawers.
+ *  The same number is the `max-width` the mobile CSS block keys off. */
+export const MOBILE_BP = 768
+/** Which off-canvas panel is open. Always `null` on a desktop-width screen. */
+export type Drawer = 'left' | 'tasks' | null
+
+/** True while the window is narrow enough for the drawer layout. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.innerWidth <= MOBILE_BP)
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BP}px)`)
+    const onChange = () => setNarrow(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return narrow
+}
+
 /** `startMin`/`endMin` prefill a NEW event's times — a drag-created block passes both. */
 export interface EventModalInit { event?: CalEvent; date?: string; startMin?: number; endMin?: number; allDay?: boolean }
 /** Likewise for a new task: `startMin` sets its time, `endMin` its expected-time block. */
@@ -65,7 +84,10 @@ export const useUI = () => useContext(UICtx)
 
 export default function App() {
   const [page, setPage] = useState<Page>('calendar')
-  const [view, setView] = useState<View>('week')
+  // A seven-column week is unreadable on a phone, so a narrow first load opens
+  // on the day view instead. Only the initial choice is made here — switching
+  // to week afterwards (and scrolling it sideways) is the user's call.
+  const [view, setView] = useState<View>(() => (window.innerWidth <= MOBILE_BP ? 'day' : 'week'))
   const [anchor, setAnchor] = useState<string>(todayISO())
 
   const [eventModal, setEventModal] = useState<EventModalInit | null>(null)
@@ -80,6 +102,35 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   // Tasks sidebar on the timer page — handy while timing, collapsible when it's in the way.
   const [timerTasks, setTimerTasks] = useState(true)
+
+  // ---- Mobile drawers -------------------------------------------------
+  // Inert on desktop: `narrow` is false there, so no toggle renders, `drawer`
+  // can never leave `null`, and the shell's class list stays exactly "app".
+  const narrow = useNarrow()
+  const [drawer, setDrawer] = useState<Drawer>(null)
+
+  // Widening the window puts both panels back in the layout — a drawer left
+  // open behind that would float over the page it already belongs to.
+  useEffect(() => {
+    if (!narrow) setDrawer(null)
+  }, [narrow])
+
+  // Leaving the page a drawer belongs to closes it.
+  useEffect(() => setDrawer(null), [page])
+
+  // Escape closes; the body lock stops the page behind the scrim scrolling.
+  useEffect(() => {
+    if (!drawer) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawer(null)
+    }
+    window.addEventListener('keydown', onKey)
+    document.body.classList.add('drawer-lock')
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.classList.remove('drawer-lock')
+    }
+  }, [drawer])
 
   const ui: UIApi = {
     openEvent: setEventModal,
@@ -114,11 +165,12 @@ export default function App() {
 
   return (
     <UICtx.Provider value={ui}>
-      <div className="app">
+      <div className={`app${drawer ? ` drawer-open drawer-${drawer}` : ''}`}>
         <TopBar
           page={page} setPage={setPage}
           view={view} setView={setView}
           anchor={anchor} setAnchor={setAnchor}
+          narrow={narrow} drawer={drawer} setDrawer={setDrawer}
         />
         <div className="main">
           {page === 'calendar' ? (
@@ -146,7 +198,9 @@ export default function App() {
                 <span className="tth-arrow">{timerTasks ? '›' : '‹'}</span>
                 {!timerTasks && <span className="tth-label">Tasks</span>}
               </button>
-              {timerTasks && <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />}
+              {/* Narrow: the panel is a drawer, so the handle that hides it is
+                  gone and the panel is always mounted for the topbar toggle. */}
+              {(timerTasks || narrow) && <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />}
             </>
           ) : page === 'insights' ? (
             <InsightsPage />
@@ -156,6 +210,11 @@ export default function App() {
             <BinderPage />
           )}
         </div>
+
+        {/* Only ever mounted on a narrow screen — see the drawer effects above. */}
+        {drawer && (
+          <div className="mob-scrim" aria-hidden="true" onClick={() => setDrawer(null)} />
+        )}
 
         {eventModal && <EventModal init={eventModal} onClose={() => setEventModal(null)} />}
         {taskModal && <TaskModal init={taskModal} onClose={() => setTaskModal(null)} />}

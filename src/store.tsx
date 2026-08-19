@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 17
+export const SEED_VERSION = 18
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -102,13 +102,47 @@ async function ensureSeedFiles(state: AppState): Promise<void> {
   }
 }
 
+/**
+ * Starter content for the Personal calendar's project: the basic human
+ * necessities a brand-new (or freshly wiped) install begins with. Ordinary
+ * sections and recurring tasks — rename or delete any of them like your own.
+ */
+function defaultPersonalStarter(projectId: ID): { sections: TaskSection[]; recurring: RecurringTask[] } {
+  const startDate = toISO(new Date())
+  const sec = (name: string, order: number): TaskSection => ({ id: uid(), projectId, name, order })
+  const nutrition = sec('Nutrition', 0)
+  const selfCare = sec('Self-care', 1)
+  const fitness = sec('Fitness', 2)
+  const mindfulness = sec('Mindfulness', 3)
+  const habit = (
+    title: string, sectionId: ID, freq: Freq, streak: boolean, rule?: RecurringTask['rule'],
+  ): RecurringTask => ({
+    id: uid(), title, projectId, sectionId, freq, weekday: 1, startDate, streak, completions: [], ...(rule ? { rule } : {}),
+  })
+  return {
+    sections: [nutrition, selfCare, fitness, mindfulness],
+    recurring: [
+      habit('Drink water', nutrition.id, 'daily', true, { kind: 'timesPerDay', times: 3 }),
+      habit('Eat a real breakfast', nutrition.id, 'daily', false),
+      habit('Shower', selfCare.id, 'daily', false),
+      habit('Brush teeth', selfCare.id, 'daily', false, { kind: 'timesPerDay', times: 2 }),
+      habit('Move for 30 minutes', fitness.id, 'weekly', true, { kind: 'weekly', weekdays: [1, 3, 5] }),
+      habit('An hour off the phone', mindfulness.id, 'daily', false),
+      habit('Read 10 pages', mindfulness.id, 'daily', false),
+      habit('Up before 8am', mindfulness.id, 'weekdays', false),
+    ],
+  }
+}
+
 /** Empty state for "Delete all data" — a blank slate rather than the example data. */
 export function blankState(theme: 'light' | 'dark'): AppState {
-  // A blank slate still keeps the built-in Personal calendar's (empty) project.
+  // A blank slate still keeps the built-in Personal calendar's project, and it
+  // starts with the basic-necessities starter kit (all editable/deletable).
   const personal = makeCalendarProject('personal', 'Personal', PERSONAL_COLOR)
+  const starter = defaultPersonalStarter(personal.id)
   return {
     classes: [], folders: [], customCalendars: [], events: [],
-    projects: [personal], taskSections: [], tasks: [], recurring: [], birthdays: [],
+    projects: [personal], taskSections: starter.sections, tasks: [], recurring: starter.recurring, birthdays: [],
     studySessions: [], gradeRows: [], ankiLogs: [], dayLogs: {},
     hiddenCalendars: [], daysOff: [], showTasksOnCalendar: true,
     weekStart: 0, theme, themeConfig: { mode: theme, lightStart: '07:00', darkStart: '19:00' },
@@ -251,6 +285,11 @@ function seed(): AppState {
     { id: 'sec-personal-errands', projectId: 'p-personal', name: 'Errands', order: 0 },
     { id: 'sec-personal-health', projectId: 'p-personal', name: 'Health & Fitness', order: 1 },
     { id: 'sec-personal-apartment', projectId: 'p-personal', name: 'Apartment Move', order: 2 },
+    // The starter kit every install ships with (see defaultPersonalStarter —
+    // the demo's Health & Fitness section already covers water + exercise).
+    { id: 'sec-personal-nutrition', projectId: 'p-personal', name: 'Nutrition', order: 3 },
+    { id: 'sec-personal-selfcare', projectId: 'p-personal', name: 'Self-care', order: 4 },
+    { id: 'sec-personal-mind', projectId: 'p-personal', name: 'Mindfulness', order: 5 },
     // Film Society calendar section — the recurring screening prep list.
     { id: 'sec-society-screening', projectId: 'p-society', name: 'Screening night', order: 0 },
   ]
@@ -295,7 +334,7 @@ function seed(): AppState {
       notes: 'Same structure as the titration one — method, results table, error discussion.',
     },
     // Rescheduled: planned for Sunday morning, moved to Wednesday — the
-    // abandoned Sunday slot keeps a translucent ghost (⇢) on the week grid.
+    // abandoned Sunday slot keeps a translucent ghost (→) on the week grid.
     {
       id: 't-labprep', title: 'Lab prep reading', projectId: 'p-c-chem', sectionId: 'sec-p-c-chem-studies',
       date: iso(3), startMin: 12 * 60 + 30, endMin: 13 * 60 + 15, done: false,
@@ -436,6 +475,37 @@ function seed(): AppState {
       startDate: habitStart, streak: true,
       completions: [-4, -3, -2, -1].map((n) => toISO(addDays(today, n))),
       partial: { [todayIso]: 2 },
+    },
+    // The basic-necessities starter kit (same set a wiped install begins with;
+    // water + exercise are already covered by the two habits above).
+    {
+      id: uid(), title: 'Eat a real breakfast', projectId: 'p-personal', sectionId: 'sec-personal-nutrition',
+      freq: 'daily', weekday: 1, startDate: habitStart, streak: false, completions: [],
+    },
+    {
+      id: uid(), title: 'Shower', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
+      freq: 'daily', weekday: 1, startDate: habitStart, streak: false,
+      completions: [-2, -1, 0].map((n) => toISO(addDays(today, n))),
+    },
+    {
+      id: uid(), title: 'Brush teeth', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
+      freq: 'daily', weekday: 1, rule: { kind: 'timesPerDay', times: 2 },
+      startDate: habitStart, streak: false,
+      completions: [-2, -1].map((n) => toISO(addDays(today, n))),
+      partial: { [todayIso]: 1 },
+    },
+    {
+      id: uid(), title: 'An hour off the phone', projectId: 'p-personal', sectionId: 'sec-personal-mind',
+      freq: 'daily', weekday: 1, startDate: habitStart, streak: false, completions: [],
+    },
+    {
+      id: uid(), title: 'Read 10 pages', projectId: 'p-personal', sectionId: 'sec-personal-mind',
+      freq: 'daily', weekday: 1, startDate: habitStart, streak: false,
+      completions: [-1].map((n) => toISO(addDays(today, n))),
+    },
+    {
+      id: uid(), title: 'Up before 8am', projectId: 'p-personal', sectionId: 'sec-personal-mind',
+      freq: 'weekdays', weekday: 1, startDate: habitStart, streak: false, completions: [],
     },
   ]
 
