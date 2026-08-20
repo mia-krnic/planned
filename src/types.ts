@@ -463,6 +463,8 @@ export type WeatherKind = 'sun' | 'suncloud' | 'cloud' | 'rain' | 'storm' | 'sno
  * holds days the user actually wrote something on.
  */
 export interface DayLog {
+  /** Glasses of water crossed off today, 0–8 (0 stored as absent). */
+  water?: number
   meals?: { b?: string; l?: string; d?: string }
   weather?: WeatherKind[]
   mood?: 1 | 2 | 3 | 4 | 5

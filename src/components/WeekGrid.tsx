@@ -614,19 +614,14 @@ export default function WeekGrid({ anchor, days }: Props) {
                 const label = taskLabel(state, rt.projectId)
                 const done = recurringCount(rt, occ.key) >= recurringTimes(rt)
                 return (
-                  <div key={`${rt.id}-${occ.key}`} className="chip chip-task chip-bare"
+                  // One tight line per habit — the tint already says whose it
+                  // is, so no calendar/class tag (title carries it instead).
+                  <div key={`${rt.id}-${occ.key}`} className="chip chip-task chip-bare chip-recur"
+                    title={label ? `${label} · ${rt.title}` : rt.title}
                     onClick={() => ui.openRecurring({ rt, occurrence: occ.key })}>
                     {recurCheck(occ)}
-                    <span className="chip-col">
-                      {label && (
-                        <span className="task-tag"
-                          style={{ background: hexToRgba(color, 0.28), color: titleTint(color) }}>
-                          {label}
-                        </span>
-                      )}
-                      <span className={`label ${done ? 'done-strike' : ''}`} style={{ color: titleTint(color) }}>
-                        {rt.title} ↻{occ.moved ? ' →' : ''}
-                      </span>
+                    <span className={`label ${done ? 'done-strike' : ''}`} style={{ color: titleTint(color) }}>
+                      {rt.title} ↻{occ.moved ? ' →' : ''}
                     </span>
                   </div>
                 )

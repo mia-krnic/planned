@@ -6093,3 +6093,42 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   .jp-title h1 { font-size: 18px; }
 }
 /* end ---------- Mobile ---------- */
+
+/* ---------- Water row & compact habit chips ---------- */
+/* Eight glasses between the meals and the mood faces, same 16px rhythm. */
+.dl-water { display: flex; align-items: center; }
+.dl-drop {
+  flex: 0 1 16px;
+  width: 16px;
+  min-width: 0;
+  height: 15px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0.6;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.dl-drop:hover { opacity: 1; background: var(--bg-inset); }
+.dl-drop.on { color: var(--accent); opacity: 1; }
+
+/* Recurring habits in the all-day lane: one tight line each, no tag. */
+.chip.chip-recur {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px 1px;
+}
+.chip.chip-recur .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+.chip.chip-recur .rt-slots { display: inline-flex; gap: 1px; flex: none; }
+/* ---------- end Water row & compact habit chips ---------- */

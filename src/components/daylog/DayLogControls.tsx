@@ -111,6 +111,43 @@ export function MealRows({ date }: { date: string }) {
   )
 }
 
+/* ---------- Water ---------- */
+
+export const WATER_MAX = 8
+
+/**
+ * Eight glasses to cross off through the day. Clicking the n-th glass fills
+ * everything up to it; clicking the last crossed one un-drinks it, so the
+ * count moves one glass at a time in either direction. Synced through the
+ * day's log like every other row, so the Journal tab edits the same number.
+ */
+export function WaterRow({ date }: { date: string }) {
+  const [log, patch] = useDayLog(date)
+  const count = log?.water ?? 0
+  return (
+    <div className="dl-water" role="group" aria-label="Glasses of water">
+      {Array.from({ length: WATER_MAX }, (_, i) => {
+        const on = i < count
+        return (
+          <button key={i} type="button" className={`dl-drop ${on ? 'on' : ''}`}
+            title={`Water · ${on ? i + 1 : i + 1} of ${WATER_MAX}`}
+            aria-pressed={on}
+            onClick={() => patch({ water: i < count ? i : i + 1 })}>
+            <svg width="10" height="12" viewBox="0 0 16 19" aria-hidden="true">
+              {/* A tumbler, three quarters full. */}
+              <path d="M3.2 1.8 L4.6 16 a1.3 1.3 0 0 0 1.3 1.2 h4.2 a1.3 1.3 0 0 0 1.3 -1.2 L12.8 1.8"
+                fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              <path d="M4.6 6.2 L5.5 15.5 h5 L11.4 6.2 Z"
+                fill="currentColor" opacity={on ? 1 : 0.4} />
+              {on && <line x1="1.6" y1="17.4" x2="14.4" y2="1.6" stroke="var(--bg-raised)" strokeWidth="2" />}
+            </svg>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ---------- Mood ---------- */
 
 export function MoodRow({ date }: { date: string }) {
@@ -143,6 +180,7 @@ export function DayLogBlock({ date, variant = 'header' }: { date: string; varian
     <div className={`daylog daylog-${variant}`}>
       <WeatherRow date={date} />
       <MealRows date={date} />
+      <WaterRow date={date} />
       <MoodRow date={date} />
     </div>
   )

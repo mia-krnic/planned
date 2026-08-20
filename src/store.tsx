@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 18
+export const SEED_VERSION = 19
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -110,26 +110,21 @@ async function ensureSeedFiles(state: AppState): Promise<void> {
 function defaultPersonalStarter(projectId: ID): { sections: TaskSection[]; recurring: RecurringTask[] } {
   const startDate = toISO(new Date())
   const sec = (name: string, order: number): TaskSection => ({ id: uid(), projectId, name, order })
-  const nutrition = sec('Nutrition', 0)
-  const selfCare = sec('Self-care', 1)
-  const fitness = sec('Fitness', 2)
-  const mindfulness = sec('Mindfulness', 3)
+  const selfCare = sec('Self-care', 0)
+  const fitness = sec('Fitness', 1)
   const habit = (
-    title: string, sectionId: ID, freq: Freq, streak: boolean, rule?: RecurringTask['rule'],
+    title: string, sectionId: ID, streak: boolean, rule?: RecurringTask['rule'],
   ): RecurringTask => ({
-    id: uid(), title, projectId, sectionId, freq, weekday: 1, startDate, streak, completions: [], ...(rule ? { rule } : {}),
+    id: uid(), title, projectId, sectionId, freq: 'daily', weekday: 1, startDate, streak, completions: [], ...(rule ? { rule } : {}),
   })
+  // Water isn't a task: the daily log has its own row of eight glasses.
   return {
-    sections: [nutrition, selfCare, fitness, mindfulness],
+    sections: [selfCare, fitness],
     recurring: [
-      habit('Drink water', nutrition.id, 'daily', true, { kind: 'timesPerDay', times: 3 }),
-      habit('Eat a real breakfast', nutrition.id, 'daily', false),
-      habit('Shower', selfCare.id, 'daily', false),
-      habit('Brush teeth', selfCare.id, 'daily', false, { kind: 'timesPerDay', times: 2 }),
-      habit('Move for 30 minutes', fitness.id, 'weekly', true, { kind: 'weekly', weekdays: [1, 3, 5] }),
-      habit('An hour off the phone', mindfulness.id, 'daily', false),
-      habit('Read 10 pages', mindfulness.id, 'daily', false),
-      habit('Up before 8am', mindfulness.id, 'weekdays', false),
+      habit('Shower', selfCare.id, false),
+      habit('Brush teeth', selfCare.id, false, { kind: 'timesPerDay', times: 2 }),
+      habit('Quick clean of the space', selfCare.id, false),
+      habit('Move for 30 minutes', fitness.id, true),
     ],
   }
 }
@@ -287,9 +282,7 @@ function seed(): AppState {
     { id: 'sec-personal-apartment', projectId: 'p-personal', name: 'Apartment Move', order: 2 },
     // The starter kit every install ships with (see defaultPersonalStarter —
     // the demo's Health & Fitness section already covers water + exercise).
-    { id: 'sec-personal-nutrition', projectId: 'p-personal', name: 'Nutrition', order: 3 },
-    { id: 'sec-personal-selfcare', projectId: 'p-personal', name: 'Self-care', order: 4 },
-    { id: 'sec-personal-mind', projectId: 'p-personal', name: 'Mindfulness', order: 5 },
+    { id: 'sec-personal-selfcare', projectId: 'p-personal', name: 'Self-care', order: 3 },
     // Film Society calendar section — the recurring screening prep list.
     { id: 'sec-society-screening', projectId: 'p-society', name: 'Screening night', order: 0 },
   ]
@@ -466,22 +459,9 @@ function seed(): AppState {
       dueOffsetDays: 2, dueMin: 17 * 60,
       exceptions: { [iso(3)]: { date: iso(4), startMin: 11 * 60, endMin: 12 * 60 + 30 } },
     },
-    // Several times a day: three slots, two ticked off today (the third is the
-    // one still open), a few fully-done days behind it.
-    {
-      id: 'r-water', title: 'Drink water', projectId: 'p-personal', sectionId: 'sec-personal-health',
-      freq: 'daily', weekday: 1,
-      rule: { kind: 'timesPerDay', times: 3 },
-      startDate: habitStart, streak: true,
-      completions: [-4, -3, -2, -1].map((n) => toISO(addDays(today, n))),
-      partial: { [todayIso]: 2 },
-    },
     // The basic-necessities starter kit (same set a wiped install begins with;
-    // water + exercise are already covered by the two habits above).
-    {
-      id: uid(), title: 'Eat a real breakfast', projectId: 'p-personal', sectionId: 'sec-personal-nutrition',
-      freq: 'daily', weekday: 1, startDate: habitStart, streak: false, completions: [],
-    },
+    // exercise is covered by Gym above, water by the daily log's glasses row).
+    // Brush teeth doubles as the several-times-a-day rule demo.
     {
       id: uid(), title: 'Shower', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
       freq: 'daily', weekday: 1, startDate: habitStart, streak: false,
@@ -495,17 +475,9 @@ function seed(): AppState {
       partial: { [todayIso]: 1 },
     },
     {
-      id: uid(), title: 'An hour off the phone', projectId: 'p-personal', sectionId: 'sec-personal-mind',
-      freq: 'daily', weekday: 1, startDate: habitStart, streak: false, completions: [],
-    },
-    {
-      id: uid(), title: 'Read 10 pages', projectId: 'p-personal', sectionId: 'sec-personal-mind',
+      id: uid(), title: 'Quick clean of the space', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
       freq: 'daily', weekday: 1, startDate: habitStart, streak: false,
       completions: [-1].map((n) => toISO(addDays(today, n))),
-    },
-    {
-      id: uid(), title: 'Up before 8am', projectId: 'p-personal', sectionId: 'sec-personal-mind',
-      freq: 'weekdays', weekday: 1, startDate: habitStart, streak: false, completions: [],
     },
   ]
 
@@ -797,6 +769,7 @@ function seed(): AppState {
     },
     [logDay(8)]: {
       weather: ['cloud', 'rain'],
+      water: 6,
       meals: { b: 'Porridge with a banana', l: 'Cheese sandwich in the library', d: 'Instant noodles with an egg in it' },
       mood: 2,
       journal: 'Rain all day and still three chapters to go before the midterm. Ate lunch at my desk again, which I keep promising not to do. Library at nine tomorrow, no negotiating with myself about it.',
@@ -808,12 +781,14 @@ function seed(): AppState {
     },
     [logDay(6)]: {
       weather: ['sun', 'wind'],
+      water: 8,
       meals: { b: 'Scrambled eggs', l: 'Chicken wrap with Priya', d: 'Pasta and pesto' },
       mood: 3,
       journal: 'Past papers under exam timing, which was humbling. Section C really is the same every year, so at least I know where the hours should go.',
     },
     [logDay(5)]: {
       weather: ['storm', 'rain'],
+      water: 4,
       meals: { b: 'Porridge', l: 'Rice bowl, ate it too fast', d: 'Toast — could not face cooking' },
       mood: 2,
       journal: 'Thunder all evening and the library wifi kept dropping out. Three hours on related rates and I can finally see the pattern, which is the one good thing about today.',
@@ -825,23 +800,27 @@ function seed(): AppState {
     },
     [logDay(3)]: {
       weather: ['sun'],
+      water: 7,
       meals: { b: 'Eggs on toast', l: 'Sandwich at the lab bench', d: 'Pizza with the flat' },
       mood: 4,
       journal: 'Midterm done. No idea how it went and I am refusing to think about it until the marks are up. Pizza with the flat afterwards — first proper evening off in two weeks.',
     },
     [logDay(2)]: {
       weather: ['sun', 'suncloud'],
+      water: 8,
       meals: { b: 'Porridge with honey', l: 'Leftover pizza', d: 'Chilli, made a big batch' },
       mood: 5,
       journal: 'Slept nine hours and it changed my entire personality. Cooked something real, did the reading before the seminar instead of during it. This is the version of me I would like to keep.',
     },
     [logDay(1)]: {
       weather: ['cloud', 'wind'],
+      water: 5,
       meals: { b: 'Toast and jam', l: 'Soup and bread', d: 'Chilli again, still good' },
       mood: 4,
     },
     [todayIso]: {
       weather: ['suncloud'],
+      water: 3,
       meals: { b: 'Coffee and a croissant from the place by Murray' },
     },
   }
@@ -1006,6 +985,7 @@ function cleanDayLog(log: DayLog): DayLog | null {
   const weather = log.weather?.filter((w, i, all) => all.indexOf(w) === i)
   if (weather?.length) out.weather = weather
   if (log.mood) out.mood = log.mood
+  if (typeof log.water === 'number' && log.water > 0) out.water = Math.min(8, Math.round(log.water))
   const journal = log.journal?.trim()
   if (journal) out.journal = journal
   return Object.keys(out).length ? out : null
@@ -1018,7 +998,7 @@ function sameDayLog(a: DayLog | undefined, b: DayLog | null): boolean {
   const aw = a.weather ?? []
   const bw = b.weather ?? []
   return am.b === bm.b && am.l === bm.l && am.d === bm.d
-    && a.mood === b.mood && a.journal === b.journal
+    && a.mood === b.mood && a.water === b.water && a.journal === b.journal
     && aw.length === bw.length && aw.every((w, i) => w === bw[i])
 }
 
