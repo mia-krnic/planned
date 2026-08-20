@@ -134,9 +134,10 @@ export function WaterRow({ date }: { date: string }) {
             aria-pressed={on}
             onClick={() => patch({ water: i < count ? i : i + 1 })}>
             <svg width="10" height="12" viewBox="0 0 16 19" aria-hidden="true">
+              {/* Drunk glasses stay the same grey outline — just crossed off. */}
               <path d="M8 1.8 C8 1.8 3.2 8.4 3.2 11.8 a4.8 4.8 0 0 0 9.6 0 C12.8 8.4 8 1.8 8 1.8 Z"
-                fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" />
-              {on && <line x1="1.6" y1="17.4" x2="14.4" y2="1.6" stroke="var(--bg-raised)" strokeWidth="2" />}
+                fill="none" stroke="currentColor" strokeWidth="1.5" />
+              {on && <line x1="1.6" y1="17.4" x2="14.4" y2="1.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />}
             </svg>
           </button>
         )
