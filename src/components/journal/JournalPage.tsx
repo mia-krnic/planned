@@ -431,7 +431,9 @@ function SleepColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: n
       <svg ref={svgRef} className="jp-sleepsvg" width={COL_W} height={h}
         viewBox={`0 0 ${COL_W} ${h}`} role="img" aria-label="Hours slept">
         {/* A quiet eight-hour mark to read the dots against. */}
-        <line className="jp-sleep-grid" x1={xOf(8 * 60)} y1={0} x2={xOf(8 * 60)} y2={h} />
+        <line className="jp-sleep-grid" x1={xOf(8 * 60)} y1={14} x2={xOf(8 * 60)} y2={h} />
+        <text className="jp-col-label" x={COL_PAD} y={9}>☾ sleep</text>
+        <text className="jp-col-mark" x={xOf(8 * 60)} y={22} textAnchor="middle">8h</text>
         {runs.map((pts, i) => (
           <polyline key={i} className="jp-sleep-line" points={pts.join(' ')} />
         ))}
@@ -534,6 +536,16 @@ function WeightColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: 
     <div className="jp-sleepcol jp-weightcol" style={{ height: h }}>
       <svg ref={svgRef} className="jp-sleepsvg" width={WEIGHT_COL_W} height={h}
         viewBox={`0 0 ${WEIGHT_COL_W} ${h}`} role="img" aria-label="Morning weight">
+        <text className="jp-col-label" x={COL_PAD} y={9}>⚖ kg</text>
+        {Number.isFinite(mn) && (
+          <>
+            {/* The month's own span, so the drift has numbers to hang off. */}
+            <line className="jp-sleep-grid" x1={xOf(lo)} y1={14} x2={xOf(lo)} y2={h} />
+            <line className="jp-sleep-grid" x1={xOf(hi)} y1={14} x2={xOf(hi)} y2={h} />
+            <text className="jp-col-mark" x={xOf(lo)} y={22} textAnchor="middle">{lo}</text>
+            <text className="jp-col-mark" x={xOf(hi)} y={22} textAnchor="middle">{hi}</text>
+          </>
+        )}
         {runs.map((pts, i) => (
           <polyline key={i} className="jp-sleep-line jp-weight-line" points={pts.join(' ')} />
         ))}

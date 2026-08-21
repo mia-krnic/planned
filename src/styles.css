@@ -6964,7 +6964,11 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 .home-clock-sep {
   margin: 0 4px;
   color: var(--text-faint);
-  font-weight: 100;
+  font-weight: 300;
+  /* A colon sits on the baseline, so at display size its dots hang low
+     against full-height digits — lift it to the digits' optical centre. */
+  display: inline-block;
+  transform: translateY(-0.055em);
 }
 
 /* ---- Mantra ---- */
@@ -7740,3 +7744,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 .jp-weight-dot { fill: #e8b06c; }
 @media (max-width: 900px) { .jp-weightcol { display: none; } }
 /* ---------- end Journal weight column ---------- */
+
+/* ---------- Journal graph labels ---------- */
+.jp-col-label { font-size: 8.5px; font-weight: 700; letter-spacing: 0.4px; fill: var(--text-faint); text-transform: uppercase; }
+.jp-col-mark { font-size: 8px; fill: var(--text-faint); opacity: 0.85; }
+/* ---------- end Journal graph labels ---------- */
