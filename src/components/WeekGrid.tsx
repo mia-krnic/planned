@@ -147,6 +147,7 @@ export default function WeekGrid({ anchor, days }: Props) {
   const allDayShut = state.collapseAllDay ?? false
   const journalShut = state.collapseJournal ?? false
   const habitsShut = state.collapseHabits ?? false
+  const dayLogShut = state.collapseDayLog ?? false
 
   useEffect(() => {
     // Normally .grid-scroll is the scroller. On a narrow screen the week is one
@@ -498,7 +499,15 @@ export default function WeekGrid({ anchor, days }: Props) {
       <div className={`wg-wrap${days > 1 ? ' wg-week' : ''}`} ref={wrapRef}>
       {/* Day headers */}
       <div className="grid-header">
-        <div className="gutter" />
+        {/* The corner cell doubles as the daily-log fold, same caret language
+            as the three lanes below it. */}
+        <button type="button" className="gutter lane-toggle dl-fold"
+          title={dayLogShut ? 'Show the daily log' : 'Hide the daily log'}
+          aria-expanded={!dayLogShut}
+          onClick={() => dispatch({ type: 'setCollapseDayLog', on: !dayLogShut })}>
+          <span className={`caret ${dayLogShut ? '' : 'open'}`}>▶</span>
+          <span className="lt-word">log</span>
+        </button>
         {dates.map((d) => {
           const h = fmtDayHeader(d)
           const iso = toISO(d)
@@ -531,8 +540,8 @@ export default function WeekGrid({ anchor, days }: Props) {
               </button>
               {/* The day's log — weather, meals, mood — at the foot of the
                   header cell. Week and day views only: the month grid's cells
-                  have no room for it. */}
-              <DayLogBlock date={iso} />
+                  have no room for it. Foldable, like the lanes. */}
+              {!dayLogShut && <DayLogBlock date={iso} />}
             </div>
           )
         })}

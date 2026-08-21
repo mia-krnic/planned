@@ -533,6 +533,7 @@ export interface AppState {
   habitGoals: HabitGoal[] // gantt habit-tracker goals (see HabitGoal)
   habitTicks: Record<string, ID[]> // ISO date -> goal ids ticked that day
   collapseHabits?: boolean // fold the habit grids away (month + week views)
+  collapseDayLog?: boolean // fold the day-header daily-log block away (week/day views)
   hiddenCalendars: ID[] // class ids (or 'personal') hidden from the calendar
   daysOff: string[] // ISO dates marked as days off (greyed columns + outlined date)
   showTasksOnCalendar: boolean

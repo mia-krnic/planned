@@ -1549,6 +1549,7 @@ export type Action =
   | { type: 'deleteHabitGoal'; id: ID } // also clears its ticks
   | { type: 'toggleHabitTick'; goalId: ID; date: string }
   | { type: 'setCollapseHabits'; on: boolean }
+  | { type: 'setCollapseDayLog'; on: boolean }
   // Home library: favourites, user-written quotes/mantras, per-date applied picks.
   | { type: 'toggleHomeFav'; kind: 'wallpapers' | 'quotes' | 'mantras'; key: string }
   | { type: 'addCustomQuote'; text: string; author?: string }
@@ -2527,6 +2528,8 @@ function reducer(state: AppState, a: Action): AppState {
       return (state.collapseJournal ?? false) === a.on ? state : { ...state, collapseJournal: a.on || undefined }
     case 'setCollapseHabits':
       return (state.collapseHabits ?? false) === a.on ? state : { ...state, collapseHabits: a.on || undefined }
+    case 'setCollapseDayLog':
+      return (state.collapseDayLog ?? false) === a.on ? state : { ...state, collapseDayLog: a.on || undefined }
 
     case 'toggleHomeFav': {
       const cur = state.homeFavs?.[a.kind] ?? []
@@ -2627,7 +2630,7 @@ const COALESCE_MS = 1000
  */
 const SKIP_HISTORY = new Set<Action['type']>([
   'setTheme', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
-  'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal', 'setCollapseHabits',
+  'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal', 'setCollapseHabits', 'setCollapseDayLog',
 ])
 
 /**
