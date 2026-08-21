@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useUI } from '../App'
 import { exportBackup, importBackup } from '../api/backup'
 import { clearFiles } from '../api/files'
-import { blankState, groupedClasses, migrate, useStore } from '../store'
+import { blankState, exampleState, groupedClasses, migrate, useStore } from '../store'
 import type { Birthday, ClassFolder, ClassInfo } from '../types'
 import { BIRTHDAY_CAL_ID } from '../types'
 import { PERSONAL_COLOR } from '../utils/color'
@@ -330,6 +330,15 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           }}
         />
 
+        <button
+          className="backup-btn"
+          title="Replace everything with the example data"
+          onClick={() => {
+            if (!window.confirm('Load the example data? Everything currently here is replaced — export a backup first if you might want it back.')) return
+            void clearFiles()
+            dispatch({ type: 'replaceState', state: exampleState() })
+          }}
+        ><span className="backup-glyph">↻</span>Example data</button>
         <button
           className="backup-btn backup-danger"
           title="Delete all data"

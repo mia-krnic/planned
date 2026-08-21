@@ -2640,6 +2640,17 @@ const StoreCtx = createContext<StoreValue | null>(null)
  * changes so this delivers the new demo data on next load. User-owned data
  * (blankState or an imported backup) is never touched.
  */
+/**
+ * A fresh copy of the example data, for the Backup section's "Example data"
+ * button — the escape hatch once a browser's state is user-owned and version
+ * bumps no longer auto-refresh it. Also re-ensures the demo file blobs.
+ */
+export function exampleState(): AppState {
+  const s = migrate(seed())
+  void ensureSeedFiles(s)
+  return s
+}
+
 function loadOrSeed(): AppState {
   const stored = loadState()
   if (stored && !stored.userOwned && (stored.seedVersion ?? 0) < SEED_VERSION) return seed()

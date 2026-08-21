@@ -7161,3 +7161,21 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* end ---------- Home ---------- */
+
+/* ---------- Home wallpapers ---------- */
+/* The day's photo sits over the gradient and under the content; a slow load
+   or a missing file simply leaves the gradient showing. */
+.home-photo {
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.home-photo.loaded { opacity: 1; }
+/* Text scrims work a little harder over photography than over the gradient. */
+.home-photo.loaded ~ .home-centre .home-clock,
+.home-photo.loaded ~ .home-centre .home-mantra { text-shadow: 0 1px 18px rgba(0, 0, 0, 0.45); }
+.home-photo.loaded ~ .home-centre,
+.home-photo.loaded ~ .home-corner,
+.home-photo.loaded ~ .home-quote { --home-scrim-boost: 1; }
+/* ---------- end Home wallpapers ---------- */

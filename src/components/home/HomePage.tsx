@@ -6,6 +6,7 @@ import { earliestUserDate } from '../../utils/daylog'
 import { derivedBreaks, fmtDuration, sessionDuration, sessionsOnDay } from '../../utils/study'
 import { fetchArchive, fetchForecast, geocode, WX_SYNC_KEY, type GeoPoint, type TodayWeather } from '../../utils/weather'
 import { quotePairForDate } from '../../data/quotes'
+import { wallpaperForDate } from '../../data/wallpapers'
 import InfoIcon from '../InfoIcon'
 import { useDayLog } from '../daylog/DayLogControls'
 import { WeatherGlyph } from '../daylog/glyphs'
@@ -301,7 +302,19 @@ export default function HomePage() {
   const { state } = useStore()
   const today = todayISO()
   const quote = quotePairForDate(today)
+  const wallpaper = wallpaperForDate(today)
   const wx = useWeather()
+
+  // The photo fades in only once decoded, so a slow load shows the gradient
+  // rather than a top-down trickle. BASE_URL keeps the path right on Pages.
+  const [bgUrl, setBgUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const url = `${import.meta.env.BASE_URL}wallpapers/${wallpaper.file}`
+    const img = new Image()
+    img.onload = () => setBgUrl(url)
+    img.src = url
+    return () => { img.onload = null }
+  }, [wallpaper.file])
 
   // The focus ring's only heartbeat: half a minute is plenty for a figure shown
   // to the minute, and cheap enough to leave running on the landing page. The
@@ -314,9 +327,11 @@ export default function HomePage() {
 
   return (
     <div className="home-page">
-      {/* Its own layer so a wallpaper can replace the gradient later without
-          anything above it moving. The text sits on scrims for the same reason. */}
+      {/* The gradient layer stays underneath; the day's photo fades in over it
+          once decoded. The text sits on scrims, so busy photos stay readable. */}
       <div className="home-bg" aria-hidden="true" />
+      <div className={`home-bg home-photo${bgUrl ? ' loaded' : ''}`} aria-hidden="true"
+        style={bgUrl ? { backgroundImage: `url("${bgUrl}")` } : undefined} />
 
       <div className="home-corner">
         <FocusRing state={state} nowMin={nowMin} />
