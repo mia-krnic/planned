@@ -6368,9 +6368,9 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 .jp-rowsblock .jp-rows { flex: 1 1 auto; min-width: 0; }
 
 .jp-sleepcol {
-  flex: 0 0 46px;
+  flex: 0 0 84px;
   position: relative;
-  width: 46px;
+  width: 84px;
 }
 .jp-sleepsvg {
   display: block;
@@ -6941,7 +6941,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  /* Clock and mantra sit close as one unit; the goal keeps its distance. */
+  gap: 2px;
   text-align: center;
   max-width: 640px;
   padding: 36px 44px 40px;
@@ -6982,6 +6983,7 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---- The day's goal ---- */
 
 .home-goal {
+  margin-top: 22px;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -7038,18 +7040,24 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   top: 20px;
   right: 24px;
   display: flex;
-  align-items: center;
-  gap: 20px;
+  align-items: flex-start;
+  gap: 26px;
   padding: 10px 14px;
   border-radius: 16px;
   background: color-mix(in srgb, var(--bg-raised) 62%, transparent);
 }
 
+/* Two matching stat columns: glyph on top, figure beneath, caption last. */
 .home-focus {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
 }
+.home-focus-label { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.home-focus-num { font-size: 15px; font-weight: 600; }
+.home-focus-word { font-size: 11px; opacity: 0.8; display: inline-flex; align-items: center; gap: 3px; }
+.home-focus-sep { display: none; }
 .home-ring-bg { stroke: color-mix(in srgb, var(--border-strong) 70%, transparent); }
 .home-ring-fg {
   stroke: var(--accent);
@@ -7080,8 +7088,9 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 
 .home-wx {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   font-size: 13px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -7682,3 +7691,21 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   background: var(--border-strong);
 }
 /* ---------- end Top-bar declutter ---------- */
+
+/* ---------- Weight in the sleep row ---------- */
+.dl-sleep { display: flex; gap: 6px; }
+.dl-sleep-half { display: flex; align-items: center; gap: 3px; flex: 1 1 0; min-width: 0; }
+.dl-sleep-half.dl-weight { flex: 0 1 44px; }
+/* ---------- end Weight in the sleep row ---------- */
+
+/* ---------- Page-tab icons ---------- */
+.page-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+.page-tabs .tab-glyph { flex: none; opacity: 0.75; }
+.page-tabs button.active .tab-glyph { opacity: 1; }
+/* ---------- end Page-tab icons ---------- */
+
+/* ---------- Corner stat columns ---------- */
+.home-wx-icon { height: 68px; display: flex; align-items: center; justify-content: center; }
+.home-wx-temp { font-size: 15px; font-weight: 600; }
+.home-wx-place { font-size: 11px; opacity: 0.8; }
+/* ---------- end Corner stat columns ---------- */

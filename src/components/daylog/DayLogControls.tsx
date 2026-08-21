@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useStore } from '../../store'
 import type { DayLog, WeatherKind } from '../../types'
-import { fmtSleep, parseSleep } from '../../utils/daylog'
+import { fmtSleep, fmtWeight, parseSleep, parseWeight } from '../../utils/daylog'
 import MoonIcon from './MoonIcon'
 import {
   MEAL_GLYPH, MEAL_KEYS, MEAL_LABEL, MOOD_LEVELS, MOOD_LABEL, MoodFace, ShowerGlyph, SleepMoonGlyph,
@@ -259,15 +259,77 @@ export function SleepRow({ date }: { date: string }) {
   }
 
   return (
-    <label className="dl-meal dl-sleep" title="Hours slept last night">
-      <span className="dl-meal-icon" aria-hidden="true"><SleepMoonGlyph size={12} /></span>
+    <div className="dl-meal dl-sleep">
+      <label className="dl-sleep-half" title="Hours slept last night">
+        <span className="dl-meal-icon" aria-hidden="true"><SleepMoonGlyph size={12} /></span>
+        <input
+          type="text"
+          className="dl-meal-input dl-sleep-input"
+          inputMode="decimal"
+          placeholder="7:30"
+          value={draft}
+          aria-label="Hours slept last night"
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => { focused.current = true }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') { reverting.current = true; e.currentTarget.blur() }
+          }}
+        />
+      </label>
+      <WeightHalf date={date} />
+    </div>
+  )
+}
+
+/** A tiny bathroom scale. */
+function ScaleGlyph({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="2" y="2" width="12" height="12" rx="2.6"
+        fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5.4 7.2 a3 3 0 0 1 5.2 0 M8 6.4 l1.3 -1.6"
+        fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Morning weight, sharing the sleep row: kilograms, 30–150, one decimal.
+ * Cleared by emptying the field; unreadable text snaps back.
+ */
+function WeightHalf({ date }: { date: string }) {
+  const [log, patch] = useDayLog(date)
+  const kg = log?.weightKg ?? 0
+  const shown = kg ? fmtWeight(kg) : ''
+  const [draft, setDraft] = useState(shown)
+  const focused = useRef(false)
+  const reverting = useRef(false)
+
+  useEffect(() => {
+    if (!focused.current) setDraft(shown)
+  }, [shown])
+
+  const commit = () => {
+    focused.current = false
+    if (reverting.current) { reverting.current = false; setDraft(shown); return }
+    const parsed = parseWeight(draft)
+    if (parsed === null) { setDraft(shown); return }
+    if (parsed !== kg) patch({ weightKg: parsed })
+    setDraft(parsed ? fmtWeight(parsed) : '')
+  }
+
+  return (
+    <label className="dl-sleep-half dl-weight" title="Weight this morning (kg)">
+      <span className="dl-meal-icon" aria-hidden="true"><ScaleGlyph size={12} /></span>
       <input
         type="text"
-        className="dl-meal-input dl-sleep-input"
+        className="dl-meal-input dl-weight-input"
         inputMode="decimal"
-        placeholder="7:30"
+        placeholder="kg"
         value={draft}
-        aria-label="Hours slept last night"
+        aria-label="Weight this morning in kilograms"
         onChange={(e) => setDraft(e.target.value)}
         onFocus={() => { focused.current = true }}
         onBlur={commit}

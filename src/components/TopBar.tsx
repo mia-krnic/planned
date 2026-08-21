@@ -23,6 +23,16 @@ interface Props {
   setDrawer: (d: Drawer) => void
 }
 
+/** One page-tab icon: a single stroked path at 13px. */
+function TabGlyph({ d }: { d: string }) {
+  return (
+    <svg className="tab-glyph" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.4"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /** ☰ — opens the calendars drawer. */
 function BurgerGlyph() {
   return (
@@ -166,13 +176,31 @@ export default function TopBar({
           </svg>
         </button>
         <span className="tab-sep" aria-hidden="true" />
-        <button className={page === 'calendar' ? 'active' : ''} onClick={() => setPage('calendar')}>Calendar</button>
-        <button className={page === 'tasks' ? 'active' : ''} onClick={() => setPage('tasks')}>Tasks</button>
-        <button className={page === 'timer' ? 'active' : ''} onClick={() => setPage('timer')}>Timer</button>
-        <button className={page === 'binder' ? 'active' : ''} onClick={() => setPage('binder')}>Binder</button>
+        <button className={page === 'calendar' ? 'active' : ''} onClick={() => setPage('calendar')}>
+          <TabGlyph d="M3 3.6 h10 a1 1 0 0 1 1 1 V13 a1 1 0 0 1 -1 1 H3 a1 1 0 0 1 -1 -1 V4.6 a1 1 0 0 1 1 -1 Z M2 6.8 h12 M5.4 2 v2.6 M10.6 2 v2.6" />
+          Calendar
+        </button>
+        <button className={page === 'tasks' ? 'active' : ''} onClick={() => setPage('tasks')}>
+          <TabGlyph d="M3.4 2.6 h9.2 a1 1 0 0 1 1 1 v8.8 a1 1 0 0 1 -1 1 H3.4 a1 1 0 0 1 -1 -1 V3.6 a1 1 0 0 1 1 -1 Z M5.2 8 l2 2 3.6 -4" />
+          Tasks
+        </button>
+        <button className={page === 'timer' ? 'active' : ''} onClick={() => setPage('timer')}>
+          <TabGlyph d="M8 14 a5.4 5.4 0 1 1 0 -10.8 a5.4 5.4 0 0 1 0 10.8 Z M8 5.6 V8.6 l2.2 1.3 M6.6 1.6 h2.8" />
+          Timer
+        </button>
+        <button className={page === 'binder' ? 'active' : ''} onClick={() => setPage('binder')}>
+          <TabGlyph d="M4.4 2 h8 a1 1 0 0 1 1 1 v10 a1 1 0 0 1 -1 1 h-8 a1.8 1.8 0 0 1 -1.8 -1.8 V3.8 A1.8 1.8 0 0 1 4.4 2 Z M4.4 2 v12 M2.6 11.4 h1.8" />
+          Binder
+        </button>
         <span className="tab-sep" aria-hidden="true" />
-        <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Insights</button>
-        <button className={page === 'journal' ? 'active' : ''} onClick={() => setPage('journal')}>Journal</button>
+        <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>
+          <TabGlyph d="M3.2 13.4 V9 M8 13.4 V5 M12.8 13.4 V7.4 M2 13.4 h12" />
+          Insights
+        </button>
+        <button className={page === 'journal' ? 'active' : ''} onClick={() => setPage('journal')}>
+          <TabGlyph d="M3.6 2.4 h8.8 a0.8 0.8 0 0 1 0.8 0.8 v9.6 a0.8 0.8 0 0 1 -0.8 0.8 H3.6 a0.8 0.8 0 0 1 -0.8 -0.8 V3.2 a0.8 0.8 0 0 1 0.8 -0.8 Z M5.4 5.4 h5.2 M5.4 8 h5.2 M5.4 10.6 h3" />
+          Journal
+        </button>
       </div>
 
       {page === 'calendar' && (

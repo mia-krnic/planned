@@ -471,6 +471,8 @@ export interface DayLog {
   teeth?: number
   /** Minutes slept the night into this day (the ☾ input under the log). */
   sleepMin?: number
+  /** Body weight that morning, kg (30–150, one decimal). */
+  weightKg?: number
   /** The day's one main goal (Home page) — a reminder, never a task. */
   goal?: string
   /** True while weather[0] came from the auto-fetcher; any user click clears it. */

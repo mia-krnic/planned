@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 21
+export const SEED_VERSION = 22
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -758,6 +758,7 @@ function seed(): AppState {
       meals: { b: 'Toast and peanut butter', l: 'Leftover pasta at my desk', d: 'Rice and black beans' },
       mood: 3,
       sleepMin: 6 * 60 + 40,
+      weightKg: 62.8,
       shower: true,
       teeth: 2,
     },
@@ -767,6 +768,7 @@ function seed(): AppState {
       meals: { b: 'Porridge with a banana', l: 'Cheese sandwich in the library', d: 'Instant noodles with an egg in it' },
       mood: 2,
       sleepMin: 6 * 60 + 20,
+      weightKg: 62.6,
       shower: true,
       teeth: 1,
       journal: 'Rain all day and still three chapters to go before the midterm. Ate lunch at my desk again, which I keep promising not to do. Library at nine tomorrow, no negotiating with myself about it.',
@@ -784,6 +786,7 @@ function seed(): AppState {
       meals: { b: 'Scrambled eggs', l: 'Chicken wrap with Priya', d: 'Pasta and pesto' },
       mood: 3,
       sleepMin: 6 * 60 + 30,
+      weightKg: 62.9,
       shower: true,
       teeth: 2,
       journal: 'Past papers under exam timing, which was humbling. Section C really is the same every year, so at least I know where the hours should go.',
@@ -794,6 +797,7 @@ function seed(): AppState {
       meals: { b: 'Porridge', l: 'Rice bowl, ate it too fast', d: 'Toast — could not face cooking' },
       mood: 2,
       sleepMin: 5 * 60 + 45,
+      weightKg: 62.4,
       teeth: 1,
       journal: 'Thunder all evening and the library wifi kept dropping out. Three hours on related rates and I can finally see the pattern, which is the one good thing about today.',
     },
@@ -802,6 +806,7 @@ function seed(): AppState {
       meals: { b: 'Yoghurt and a banana', l: 'Canteen curry', d: 'Roast veg and couscous' },
       mood: 3,
       sleepMin: 6 * 60 + 10,
+      weightKg: 62.3,
       shower: true,
       teeth: 2,
     },
@@ -811,6 +816,7 @@ function seed(): AppState {
       meals: { b: 'Eggs on toast', l: 'Sandwich at the lab bench', d: 'Pizza with the flat' },
       mood: 4,
       sleepMin: 5 * 60 + 50,
+      weightKg: 62.1,
       shower: true,
       teeth: 2,
       goal: 'Walk in after the midterm with nothing left undone',
@@ -822,6 +828,7 @@ function seed(): AppState {
       meals: { b: 'Porridge with honey', l: 'Leftover pizza', d: 'Chilli, made a big batch' },
       mood: 5,
       sleepMin: 9 * 60,
+      weightKg: 62.5,
       shower: true,
       teeth: 2,
       journal: 'Slept nine hours and it changed my entire personality. Cooked something real, did the reading before the seminar instead of during it. This is the version of me I would like to keep.',
@@ -832,6 +839,7 @@ function seed(): AppState {
       meals: { b: 'Toast and jam', l: 'Soup and bread', d: 'Chilli again, still good' },
       mood: 4,
       sleepMin: 8 * 60 + 10,
+      weightKg: 62.7,
       shower: true,
       teeth: 2,
       goal: 'Catch up on BIOL reading',
@@ -841,6 +849,7 @@ function seed(): AppState {
       water: 3,
       meals: { b: 'Coffee and a croissant from the place by Murray' },
       sleepMin: 7 * 60 + 35,
+      weightKg: 62.4,
       shower: true,
       teeth: 1,
       goal: 'Essay 2 draft before anything else',
@@ -1063,6 +1072,9 @@ function cleanDayLog(log: DayLog): DayLog | null {
   if (log.shower) out.shower = true
   if (typeof log.teeth === 'number' && log.teeth > 0) out.teeth = Math.min(2, Math.round(log.teeth))
   if (typeof log.sleepMin === 'number' && log.sleepMin > 0) out.sleepMin = Math.min(24 * 60, Math.round(log.sleepMin))
+  if (typeof log.weightKg === 'number' && log.weightKg >= 30 && log.weightKg <= 150) {
+    out.weightKg = Math.round(log.weightKg * 10) / 10
+  }
   const goal = log.goal?.trim()
   if (goal) out.goal = goal
   if (log.weatherAuto && (log.weather?.length ?? 0) > 0) out.weatherAuto = true
@@ -1080,7 +1092,7 @@ function sameDayLog(a: DayLog | undefined, b: DayLog | null): boolean {
   return am.b === bm.b && am.l === bm.l && am.d === bm.d
     && a.mood === b.mood && a.water === b.water && a.journal === b.journal
     && a.shower === b.shower && a.teeth === b.teeth && a.sleepMin === b.sleepMin
-    && a.goal === b.goal && a.weatherAuto === b.weatherAuto
+    && a.goal === b.goal && a.weatherAuto === b.weatherAuto && a.weightKg === b.weightKg
     && aw.length === bw.length && aw.every((w, i) => w === bw[i])
 }
 

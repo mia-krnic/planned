@@ -357,7 +357,7 @@ function MonthRows({ dates, today, q, todayRef }: {
 const SLEEP_SCALE_MIN = 12 * 60
 /** Dragging lands on quarter hours. */
 const SLEEP_SNAP = 15
-const COL_W = 46
+const COL_W = 84
 const COL_PAD = 8
 
 /**

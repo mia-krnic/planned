@@ -61,3 +61,18 @@ export function earliestUserDate(state: AppState): string | null {
   for (const r of state.recurring) take(r.startDate)
   return seen.length ? seen.reduce((a, b) => (b < a ? b : a)) : null
 }
+
+/** Kilograms in the loggable range, or null for anything unreadable. */
+export function parseWeight(raw: string): number | null {
+  const t = raw.trim().replace(',', '.').replace(/kg$/i, '').trim()
+  if (!t) return 0 // cleared
+  const n = Number(t)
+  if (!Number.isFinite(n)) return null
+  if (n < 30 || n > 150) return null
+  return Math.round(n * 10) / 10
+}
+
+/** "62.4" — trailing .0 dropped. */
+export function fmtWeight(kg: number): string {
+  return (Math.round(kg * 10) / 10).toString()
+}
