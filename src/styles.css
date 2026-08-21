@@ -6952,8 +6952,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---- Clock ---- */
 
 .home-clock {
-  font-size: 122px;
-  font-weight: 300;
+  font-size: 148px;
+  font-weight: 400;
   line-height: 1;
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
@@ -6973,8 +6973,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-size: 24px;
-  font-weight: 400;
+  font-size: 30px;
+  font-weight: 500;
   letter-spacing: 0.4px;
   color: var(--text-dim);
 }
