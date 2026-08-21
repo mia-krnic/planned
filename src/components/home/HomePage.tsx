@@ -408,12 +408,15 @@ function DropGlyph() {
 }
 
 /** A plate and a fork: the three meals, counted rather than named. */
-function PlateGlyph() {
+function CutleryGlyph() {
   return (
     <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="7" cy="8" r="5.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="7" cy="8" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.1" opacity="0.65" />
-      <path d="M14 2.4 V8.2 M14 8.2 V13.6" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      {/* Fork: three tines into a handle. */}
+      <path d="M4.6 1.8 V6 M2.9 1.8 V5.4 a1.7 1.7 0 0 0 1.7 1.7 V14.2 M6.3 1.8 V5.4 a1.7 1.7 0 0 1 -1.7 1.7"
+        fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Knife: blade curving into its handle. */}
+      <path d="M12.2 1.8 c-1.6 1.9 -1.9 4.6 -0.6 6.4 V14.2 M11.6 8.2 c0.9 -0.4 1.4 -1.2 1.5 -2.2"
+        fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -434,7 +437,7 @@ function WellnessWhisper({ state, date, onOpen }: { state: AppState; date: strin
         <DropGlyph /> {water}/{WATER_MAX}
       </span>
       <span className="home-well-item">
-        <PlateGlyph /> {meals}/{MEAL_KEYS.length}
+        <CutleryGlyph /> {meals}/{MEAL_KEYS.length}
       </span>
     </button>
   )

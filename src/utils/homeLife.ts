@@ -52,10 +52,11 @@ export function dayOfYear(iso: string): number {
   return Math.round((d.getTime() - jan1.getTime()) / 86400000) + 1
 }
 
-/** "Friday · 21 August · day 233" — the quiet line above the clock. */
+/** "Friday · August 21 · day 233" — month first, the way the rest of the app
+ * writes its dates (see the top bar's range label). */
 export function almanacLine(iso: string): string {
   const d = fromISO(iso)
-  return `${DAY_NAMES[d.getDay()]} · ${d.getDate()} ${MONTHS[d.getMonth()]} · day ${dayOfYear(iso)}`
+  return `${DAY_NAMES[d.getDay()]} · ${MONTHS[d.getMonth()]} ${d.getDate()} · day ${dayOfYear(iso)}`
 }
 
 /* ---------- Exams ---------- */
@@ -151,7 +152,7 @@ export function wellbeingWhisper(state: AppState, iso: string, focusedMin: numbe
 
   const slept = state.dayLogs[iso]?.sleepMin
   if (slept != null && slept > 0 && slept < SHORT_SLEEP_MIN) {
-    return `running on ${fmtSleep(slept)} — go gentle today`
+    return `running on ${fmtSleep(slept)} of sleep — go gentle today`
   }
 
   const exam = nextExam(state, iso, 1)

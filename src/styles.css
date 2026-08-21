@@ -8115,9 +8115,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   align-items: center;
   gap: 6px;
   margin-bottom: 10px;
-  font-size: 11.5px;
-  font-variant: small-caps;
-  letter-spacing: 0.7px;
+  /* Plain case, plain tracking: it should read like the app's other quiet
+     date lines, not introduce a typographic register of its own. */
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
   color: var(--text-faint);
 }
 
@@ -8142,11 +8143,14 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 
 /* ---- The lines the day writes under the goal ---- */
 
+/* Three tiers, not four lines: the facts sit tight as one block, the journal
+   question stands apart as a soft pill (an action, not another sentence), and
+   the night line drifts underneath, faintest of all. */
 .home-lines {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   margin-top: 16px;
   max-width: 100%;
   text-align: center;
@@ -8159,9 +8163,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 }
 
 .home-care {
-  font-size: 12.5px;
+  font-size: 12px;
   font-style: italic;
   color: var(--text-faint);
+  opacity: 0.85;
 }
 
 .home-cheer {
@@ -8176,9 +8181,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* Evening's added line: a question, so it is a button, but it keeps the weight
    of the whispers around it rather than looking like an action. */
 .home-evening {
-  padding: 2px 4px;
-  border: 0;
-  border-radius: 7px;
+  margin-top: 13px;
+  padding: 3.5px 13px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 999px;
   background: none;
   font: inherit;
   font-size: 12.5px;
