@@ -141,6 +141,12 @@ type Box = { current: HTMLElement | null }
 function useFrame(centreRef: Box, quoteRef: Box, pageRef: Box, layerRef: Box): Frame | null {
   const [frame, setFrame] = useState<Frame | null>(null)
 
+  // Deliberately no dependency array: the blocks this measures are not always
+  // in the first commit (a cold production load grows the page in pieces), and
+  // an effect that bails once on a missing ref must get another chance on the
+  // next render — the page re-renders with every clock tick, so it always
+  // comes. Re-running is safe because measure() only ever publishes a CHANGED
+  // frame: an identical measurement keeps the old object and causes nothing.
   useLayoutEffect(() => {
     const centre = centreRef.current
     const quote = quoteRef.current
@@ -152,11 +158,13 @@ function useFrame(centreRef: Box, quoteRef: Box, pageRef: Box, layerRef: Box): F
       const bandTop = centre.offsetTop + centre.offsetHeight
       const bandH = quote.offsetTop - bandTop
       if (bandH < MIN_BAND) { setFrame(null); return }
-      setFrame({
+      const next: Frame = {
         w: layer.clientWidth,
         h: bandH - BAND_MARGIN * 2,
         top: bandTop + BAND_MARGIN,
-      })
+      }
+      setFrame((prev) =>
+        prev && prev.w === next.w && prev.h === next.h && prev.top === next.top ? prev : next)
     }
 
     measure()
@@ -169,7 +177,7 @@ function useFrame(centreRef: Box, quoteRef: Box, pageRef: Box, layerRef: Box): F
     ro.observe(quote)
     ro.observe(page)
     return () => ro.disconnect()
-  }, [centreRef, quoteRef, pageRef, layerRef])
+  })
 
   return frame
 }
