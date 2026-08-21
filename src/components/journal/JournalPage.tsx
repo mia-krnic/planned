@@ -1,7 +1,11 @@
-import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import {
+  useLayoutEffect, useMemo, useRef, useState,
+  type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject,
+} from 'react'
 import { useStore } from '../../store'
-import type { AppState, DayLog } from '../../types'
-import { addDays, fromISO, MONTHS, startOfWeek, toISO, todayISO, WEEKDAYS } from '../../utils/date'
+import type { DayLog } from '../../types'
+import { earliestUserDate, fmtSleep } from '../../utils/daylog'
+import { addDays, fromISO, MONTHS, toISO, todayISO, WEEKDAYS } from '../../utils/date'
 import { DayLogBlock, JournalBox } from '../daylog/DayLogControls'
 import { MOOD_LABEL, MOOD_LEVELS, MoodFace, PencilGlyph } from '../daylog/glyphs'
 
@@ -11,14 +15,11 @@ import { MOOD_LABEL, MOOD_LEVELS, MoodFace, PencilGlyph } from '../daylog/glyphs
  * header uses (see DayLogControls), so editing here and editing there are the
  * same act — there is nothing to sync.
  *
- * Which days get a row: every day that has anything logged, plus the days of
- * the current week, so today is always ready to be written on. Empty months
- * still appear as a slim header, back through the earliest month below, so the
- * shape of the year is visible even where nothing was written.
+ * Which days get a row: EVERY day from the first day the user has any data on
+ * (see earliestUserDate) through today, never further. Blank days are rows too,
+ * carrying the same empty controls — a diary you can turn back to any page of,
+ * rather than a list of the days that happen to be filled in.
  */
-
-/** The grouping always reaches at least this far back. */
-const EARLIEST_MONTH = '2025-01'
 
 const monthKey = (iso: string) => iso.slice(0, 7)
 
@@ -86,10 +87,17 @@ function Highlight({ text, q }: { text: string; q: string }) {
   return <>{parts}</>
 }
 
-/** Days of the week `today` falls in, so the tab always offers today's row. */
-function currentWeekDates(today: string, weekStart: AppState['weekStart']): string[] {
-  const s = startOfWeek(fromISO(today), weekStart)
-  return Array.from({ length: 7 }, (_, i) => toISO(addDays(s, i)))
+/** Every day from `from` through `to`, inclusive and in order. */
+function daysThrough(from: string, to: string): string[] {
+  const out: string[] = []
+  let d = fromISO(from)
+  for (let guard = 0; guard < 20000; guard++) {
+    const iso = toISO(d)
+    out.push(iso)
+    if (iso >= to) break
+    d = addDays(d, 1)
+  }
+  return out
 }
 
 export default function JournalPage() {
@@ -109,22 +117,19 @@ export default function JournalPage() {
   const todayRef = useRef<HTMLDivElement>(null)
 
   const model = useMemo(() => {
-    const logged = Object.keys(state.dayLogs)
-    const dates = new Set([...logged, ...currentWeekDates(today, state.weekStart)])
-    const earliest = logged.length
-      ? [...logged].sort()[0].slice(0, 7)
-      : thisMonth
-    const first = earliest < EARLIEST_MONTH ? earliest : EARLIEST_MONTH
-    const last = [...dates].sort().slice(-1)[0] ?? today
+    // The diary runs from the user's first dated anything up to today — and
+    // stops there: tomorrow has not happened, so it gets no page.
+    const earliest = earliestUserDate(state)
+    const first = earliest && earliest < today ? earliest : today
     const byMonth = new Map<string, string[]>()
-    for (const iso of [...dates].sort().reverse()) {
+    for (const iso of daysThrough(first, today).reverse()) {
       const k = monthKey(iso)
       const list = byMonth.get(k)
       if (list) list.push(iso)
       else byMonth.set(k, [iso])
     }
-    return { months: monthsDescending(first, monthKey(last) > thisMonth ? monthKey(last) : thisMonth), byMonth }
-  }, [state.dayLogs, state.weekStart, today, thisMonth])
+    return { months: monthsDescending(monthKey(first), thisMonth), byMonth }
+  }, [state, today, thisMonth])
 
   // This month's moods, as a count per face.
   const moodCounts = useMemo(() => {
@@ -143,6 +148,11 @@ export default function JournalPage() {
     if (!searching) return all
     return all.filter((iso) => haystack(state.dayLogs[iso]).includes(q))
   }
+
+  // Every day now has a row, so a plain row count would only ever restate the
+  // length of the month. The badges count the days actually written on instead.
+  const loggedIn = (month: string): number =>
+    (model.byMonth.get(month) ?? []).reduce((n, iso) => n + (state.dayLogs[iso] ? 1 : 0), 0)
 
   const jumpToToday = () => {
     setQuery('')
@@ -221,6 +231,7 @@ export default function JournalPage() {
 
         {years.map(({ year, months }) => {
           const yearRows = months.reduce((n, m) => n + rowsOf(m).length, 0)
+          const yearLogged = months.reduce((n, m) => n + loggedIn(m), 0)
           // Searching ignores both collapse states, so a hit is never hidden —
           // without disturbing what the user had open underneath.
           const yearShut = shutYears[year] ?? year !== thisYear
@@ -232,7 +243,11 @@ export default function JournalPage() {
                 onClick={() => setShutYears((s) => ({ ...s, [year]: !yearShut }))}>
                 <span className={`caret ${yearOpen ? 'open' : ''}`}>▶</span>
                 <span className="jp-year-name">{year}</span>
-                <span className="jp-year-count">{yearRows} day{yearRows === 1 ? '' : 's'}</span>
+                <span className="jp-year-count">
+                  {searching
+                    ? <>{yearRows} day{yearRows === 1 ? '' : 's'}</>
+                    : <>{yearLogged} logged</>}
+                </span>
               </button>
 
               {yearOpen && months.map((m) => {
@@ -256,15 +271,10 @@ export default function JournalPage() {
                       onClick={() => setOpenMonths((s) => ({ ...s, [m]: !stored }))}>
                       <span className={`caret ${open ? 'open' : ''}`}>▶</span>
                       <span className="jp-month-name">{name}</span>
-                      <span className="jp-month-count">{rows.length}</span>
+                      <span className="jp-month-count">{searching ? rows.length : loggedIn(m)}</span>
                     </button>
                     {open && (
-                      <div className="jp-rows">
-                        {rows.map((iso) => (
-                          <DayRow key={iso} iso={iso} today={today} q={q}
-                            rowRef={iso === today ? todayRef : undefined} />
-                        ))}
-                      </div>
+                      <MonthRows dates={rows} today={today} q={q} todayRef={todayRef} />
                     )}
                   </div>
                 )
@@ -273,6 +283,180 @@ export default function JournalPage() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/* ---------- One month's rows, with the sleep graph beside them ---------- */
+
+/** Where one rendered row sits inside its month block, in pixels from its top. */
+interface Band { top: number; h: number }
+
+/**
+ * The rows of one open month, plus the sleep graph running down their left.
+ *
+ * The graph never assumes anything about how tall a row is: the rows are
+ * measured after every layout (and again whenever one of them resizes — the
+ * journal boxes grow as they are typed into), so the dots stay on their rows
+ * whatever else the month does.
+ */
+function MonthRows({ dates, today, q, todayRef }: {
+  dates: string[]
+  today: string
+  q: string
+  todayRef: RefObject<HTMLDivElement>
+}) {
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const [geom, setGeom] = useState<{ bands: Band[]; h: number }>({ bands: [], h: 0 })
+  // The dates array is rebuilt on every render; its content is what matters.
+  const key = dates.join('|')
+
+  useLayoutEffect(() => {
+    const el = rowsRef.current
+    if (!el) return
+    let raf = 0
+    const measure = () => {
+      raf = 0
+      const base = el.getBoundingClientRect()
+      const bands = (Array.from(el.children) as HTMLElement[]).map((k) => {
+        const r = k.getBoundingClientRect()
+        return { top: r.top - base.top, h: r.height }
+      })
+      // Bailing out when nothing moved keeps the observer from re-triggering
+      // itself through the state update.
+      setGeom((prev) => {
+        if (prev.h === base.height && prev.bands.length === bands.length
+          && prev.bands.every((b, i) => b.top === bands[i].top && b.h === bands[i].h)) return prev
+        return { bands, h: base.height }
+      })
+    }
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(measure) }
+    measure()
+    const ro = new ResizeObserver(schedule)
+    ro.observe(el)
+    for (const k of Array.from(el.children)) ro.observe(k)
+    return () => { ro.disconnect(); if (raf) cancelAnimationFrame(raf) }
+  }, [key])
+
+  return (
+    <div className="jp-rowsblock">
+      <SleepColumn dates={dates} bands={geom.bands} h={geom.h} />
+      <div className="jp-rows" ref={rowsRef}>
+        {dates.map((iso) => (
+          <DayRow key={iso} iso={iso} today={today} q={q}
+            rowRef={iso === today ? todayRef : undefined} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ---------- The sleep graph ---------- */
+
+/** The graph's full width in hours: a night longer than this pins to the edge. */
+const SLEEP_SCALE_MIN = 12 * 60
+/** Dragging lands on quarter hours. */
+const SLEEP_SNAP = 15
+const COL_W = 46
+const COL_PAD = 8
+
+/**
+ * A dot-to-dot of how much was slept, read downwards: one dot per rendered row,
+ * on that row's own line, further right the longer the night. Gaps in the data
+ * break the line rather than being drawn through.
+ *
+ * Any row's slot can be dragged sideways to set that night's length (a blank
+ * day's empty slot too — a click there puts a dot where it was clicked). The
+ * value is only written to the store when the pointer is released, so a drag
+ * across a month is one undo step, not fifty.
+ */
+function SleepColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: number }) {
+  const { state, dispatch } = useStore()
+  const [drag, setDrag] = useState<{ i: number; min: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  // Before the first measurement there is nothing to draw against.
+  if (bands.length !== dates.length || h <= 0) return <div className="jp-sleepcol" aria-hidden="true" />
+
+  const xOf = (min: number) =>
+    COL_PAD + (Math.min(min, SLEEP_SCALE_MIN) / SLEEP_SCALE_MIN) * (COL_W - 2 * COL_PAD)
+
+  /** Pointer position → a snapped number of minutes. */
+  const minAt = (clientX: number): number => {
+    const r = svgRef.current?.getBoundingClientRect()
+    if (!r || r.width <= 2 * COL_PAD) return 0
+    const t = (clientX - r.left - COL_PAD) / (r.width - 2 * COL_PAD)
+    const raw = t * SLEEP_SCALE_MIN
+    return Math.max(0, Math.min(SLEEP_SCALE_MIN, Math.round(raw / SLEEP_SNAP) * SLEEP_SNAP))
+  }
+
+  const minFor = (i: number): number =>
+    (drag && drag.i === i ? drag.min : state.dayLogs[dates[i]]?.sleepMin ?? 0)
+
+  const cyOf = (i: number) => bands[i].top + bands[i].h / 2
+
+  const down = (i: number) => (e: ReactPointerEvent<SVGRectElement>) => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ i, min: minAt(e.clientX) })
+  }
+  const move = (i: number) => (e: ReactPointerEvent<SVGRectElement>) => {
+    if (!drag || drag.i !== i) return
+    const min = minAt(e.clientX)
+    if (min !== drag.min) setDrag({ i, min })
+  }
+  const up = (i: number) => (e: ReactPointerEvent<SVGRectElement>) => {
+    if (!drag || drag.i !== i) return
+    // Capture may already have been dropped (a cancelled pointer); releasing an
+    // id that is no longer captured throws.
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    dispatch({ type: 'updateDayLog', date: dates[i], patch: { sleepMin: drag.min } })
+    setDrag(null)
+  }
+
+  // Runs of consecutive rows that have a value: the line is drawn per run, so a
+  // day with nothing logged leaves a break instead of a false straight line.
+  const runs: string[][] = []
+  let run: string[] = []
+  for (let i = 0; i < dates.length; i++) {
+    const m = minFor(i)
+    if (m > 0) run.push(`${xOf(m).toFixed(2)},${cyOf(i).toFixed(2)}`)
+    else { if (run.length > 1) runs.push(run); run = [] }
+  }
+  if (run.length > 1) runs.push(run)
+
+  return (
+    <div className="jp-sleepcol" style={{ height: h }}>
+      <svg ref={svgRef} className="jp-sleepsvg" width={COL_W} height={h}
+        viewBox={`0 0 ${COL_W} ${h}`} role="img" aria-label="Hours slept">
+        {/* A quiet eight-hour mark to read the dots against. */}
+        <line className="jp-sleep-grid" x1={xOf(8 * 60)} y1={0} x2={xOf(8 * 60)} y2={h} />
+        {runs.map((pts, i) => (
+          <polyline key={i} className="jp-sleep-line" points={pts.join(' ')} />
+        ))}
+        {dates.map((iso, i) => {
+          const m = minFor(i)
+          const dragging = drag?.i === i
+          return (
+            <g key={iso}>
+              {m > 0 && (
+                <circle className={`jp-sleep-dot ${dragging ? 'dragging' : ''}`}
+                  cx={xOf(m)} cy={cyOf(i)} r={dragging ? 3.4 : 2.4} />
+              )}
+              {dragging && (
+                <text className="jp-sleep-label" x={COL_W / 2} y={cyOf(i) - 8} textAnchor="middle">
+                  {fmtSleep(m)}
+                </text>
+              )}
+              <rect className="jp-sleep-hit" x={0} y={bands[i].top} width={COL_W} height={bands[i].h}
+                onPointerDown={down(i)} onPointerMove={move(i)}
+                onPointerUp={up(i)} onPointerCancel={up(i)}>
+                <title>{`${iso} · ${m > 0 ? `${fmtSleep(m)} slept` : 'no sleep logged'} — drag to set`}</title>
+              </rect>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }

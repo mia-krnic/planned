@@ -37,7 +37,7 @@ export default function RecurringModal({ init, onClose }: { init: RecurringModal
   const occ = rt && occurrence ? occurrenceAt(rt, occurrence) : null
 
   const opts = projectSectionOptions(state)
-  const [title, setTitle] = useState(rt?.title ?? '')
+  const [title, setTitle] = useState(rt?.title ?? init.title ?? '')
   const [target, setTarget] = useState<string>(() => {
     const pid = rt?.projectId ?? init.projectId ?? opts[0]?.projectId ?? ''
     const sid = rt?.sectionId ?? init.sectionId ?? null

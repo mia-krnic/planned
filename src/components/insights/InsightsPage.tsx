@@ -4,18 +4,32 @@ import { nowMinutes } from '../../utils/date'
 import BreakAnalytics from './BreakAnalytics'
 import CoreStats from './CoreStats'
 import HeatmapsCard from './HeatmapsCard'
+import JournallingCard from './JournallingCard'
+import MoodHeatmap from './MoodHeatmap'
+import SectionDivider from './SectionDivider'
+import SleepChart from './SleepChart'
 import SubjectBreakdown from './SubjectBreakdown'
 import TimelinePatterns from './TimelinePatterns'
+import WaterCard from './WaterCard'
+import WeatherCard from './WeatherCard'
 import WeeklyMomentum from './WeeklyMomentum'
+import { heatmapRangeFor } from './heatmapGrid'
 import { INTERVALS, buildIntervalData, intervalMeta, type IntervalKey, type Unit } from './insightsData'
 
 /**
- * Study-time analytics.
+ * Study-time and daily-log analytics.
  *
  * Two controls at the top drive the whole page: the interval (a rolling window
  * ending today) and the unit every duration below is printed in. Everything is
- * derived from state.studySessions on the fly — no stored aggregates, so the
- * numbers always match the source, and calendars never enter into it.
+ * derived from state.studySessions and state.dayLogs on the fly — no stored
+ * aggregates, so the numbers always match the source, and calendars never enter
+ * into it.
+ *
+ * The page reads as two halves, split by a labelled rule. Above "Journal
+ * insights" everything is about time at the desk; below it everything comes from
+ * the daily log — mood, sleep, water, journalling, weather. The second half
+ * takes its span from the same interval toggle, mapped through `heatmapRangeFor`
+ * so a one-day interval still draws a month's worth of cells rather than one.
  */
 
 const UNITS: { key: Unit; label: string }[] = [
@@ -31,6 +45,8 @@ export default function InsightsPage() {
 
   const data = useMemo(() => buildIntervalData(state, ival, nowMin), [state, ival, nowMin])
   const meta = intervalMeta(ival)
+  // Every journal card covers the same stretch the heatmaps do.
+  const jrange = heatmapRangeFor(ival)
 
   return (
     <div className="insights-page">
@@ -38,7 +54,7 @@ export default function InsightsPage() {
         <header className="ins2-head">
           <div className="ins2-title">
             <h1>Insights</h1>
-            <span className="ins2-sub">Study sessions · {meta.noun}</span>
+            <span className="ins2-sub">Study sessions &amp; daily log · {meta.noun}</span>
           </div>
           <div className="ins2-controls">
             <div className="ins2-seg" role="tablist" aria-label="Interval">
@@ -64,6 +80,7 @@ export default function InsightsPage() {
         {/* The grids lead: they are the one view of the whole span at a glance,
             and they take their range from the interval toggle right above. */}
         <HeatmapsCard ival={ival} unit={unit} />
+        <SectionDivider label="Productivity insights" note="Study sessions & time at the desk" />
         <CoreStats data={data} ival={ival} unit={unit} />
         <SubjectBreakdown state={state} data={data} ival={ival} unit={unit} />
         {/* Calendar-week card — only meaningful next to the 7-day interval. It sits
@@ -72,6 +89,14 @@ export default function InsightsPage() {
         {ival === 'week' && <WeeklyMomentum state={state} unit={unit} nowMin={nowMin} />}
         <TimelinePatterns state={state} data={data} ival={ival} unit={unit} />
         <BreakAnalytics data={data} ival={ival} unit={unit} />
+
+        {/* Second half: everything below comes from the daily log, not the timer. */}
+        <SectionDivider label="Journal insights" note="From your daily log" />
+        <MoodHeatmap ival={ival} range={jrange} />
+        <SleepChart ival={ival} range={jrange} />
+        <WaterCard ival={ival} range={jrange} />
+        <JournallingCard ival={ival} range={jrange} />
+        <WeatherCard ival={ival} range={jrange} />
       </div>
     </div>
   )

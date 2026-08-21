@@ -5,8 +5,11 @@ import TopBar from './components/TopBar'
 import SidebarLeft from './components/SidebarLeft'
 import WeekGrid from './components/WeekGrid'
 import MonthGrid from './components/MonthGrid'
+import HabitGantt from './components/HabitGantt'
+import YearView from './components/YearView'
 import TasksPanel from './components/TasksPanel'
 import UrgentBanners from './components/UrgentBanners'
+import HomePage from './components/home/HomePage'
 import BinderPage from './components/binder/BinderPage'
 import StudyTimerPage from './components/timer/StudyTimerPage'
 import SessionModal from './components/timer/SessionModal'
@@ -23,8 +26,8 @@ import JournalPage from './components/journal/JournalPage'
 import SearchOverlay from './components/search/SearchOverlay'
 import type { ParsedIcsEvent } from './utils/ics'
 
-export type Page = 'calendar' | 'tasks' | 'timer' | 'binder' | 'insights' | 'journal'
-export type View = 'day' | 'week' | 'month'
+export type Page = 'home' | 'calendar' | 'tasks' | 'timer' | 'binder' | 'insights' | 'journal'
+export type View = 'day' | 'week' | 'month' | 'year'
 
 /** Below this width the two side panels stop being columns and become drawers.
  *  The same number is the `max-width` the mobile CSS block keys off. */
@@ -58,7 +61,14 @@ export interface TaskModalInit {
 }
 /** `occurrence` = the date the rule generated the clicked occurrence on: its
  *  presence turns the editor into a scoped (only this / future / all) edit. */
-export interface RecurringModalInit { rt?: RecurringTask; projectId?: ID; sectionId?: ID | null; occurrence?: string }
+export interface RecurringModalInit {
+  rt?: RecurringTask
+  projectId?: ID
+  sectionId?: ID | null
+  occurrence?: string
+  /** Prefilled name for a NEW rule — a habit goal promoting itself into a task. */
+  title?: string
+}
 export interface ClassModalInit { cls?: ClassInfo; folderId?: ID | null }
 export interface CalendarModalInit { cal?: CustomCalendar }
 export interface SessionModalInit { id: ID }
@@ -83,7 +93,8 @@ const UICtx = createContext<UIApi>(null!)
 export const useUI = () => useContext(UICtx)
 
 export default function App() {
-  const [page, setPage] = useState<Page>('calendar')
+  // The app opens on Home — a clock and one goal, before any of the grids.
+  const [page, setPage] = useState<Page>('home')
   // A seven-column week is unreadable on a phone, so a narrow first load opens
   // on the day view instead. Only the initial choice is made here — switching
   // to week afterwards (and scrolling it sideways) is the user's call.
@@ -173,15 +184,25 @@ export default function App() {
           narrow={narrow} drawer={drawer} setDrawer={setDrawer}
         />
         <div className="main">
-          {page === 'calendar' ? (
+          {page === 'home' ? (
+            <HomePage />
+          ) : page === 'calendar' ? (
             <>
               <SidebarLeft anchor={anchor} setAnchor={setAnchor} />
               <div className="calendar-area">
                 {/* Everything due today, one banner per class, above the grid. */}
                 <UrgentBanners />
-                {view === 'month'
-                  ? <MonthGrid anchor={anchor} />
-                  : <WeekGrid anchor={anchor} days={view === 'day' ? 1 : 7} />}
+                {view === 'year' ? (
+                  <YearView anchor={anchor} setAnchor={setAnchor} setView={setView} />
+                ) : view === 'month' ? (
+                  <>
+                    <MonthGrid anchor={anchor} />
+                    {/* The month's habit gantt sits under the grid it belongs to. */}
+                    <HabitGantt anchor={anchor} />
+                  </>
+                ) : (
+                  <WeekGrid anchor={anchor} days={view === 'day' ? 1 : 7} />
+                )}
               </div>
               <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />
             </>

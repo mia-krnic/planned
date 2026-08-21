@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useStore } from '../../store'
 import type { DayLog, WeatherKind } from '../../types'
+import { fmtSleep, parseSleep } from '../../utils/daylog'
 import MoonIcon from './MoonIcon'
 import {
-  MEAL_GLYPH, MEAL_KEYS, MEAL_LABEL, MOOD_LEVELS, MOOD_LABEL, MoodFace, WEATHER_KINDS, WEATHER_LABEL, WeatherGlyph,
+  MEAL_GLYPH, MEAL_KEYS, MEAL_LABEL, MOOD_LEVELS, MOOD_LABEL, MoodFace, ShowerGlyph, SleepMoonGlyph,
+  ToothGlyph, WEATHER_KINDS, WEATHER_LABEL, WeatherGlyph,
   type MoodLevel,
 } from './glyphs'
 
@@ -25,6 +27,9 @@ const COUNTER_FROM = 440
 function useDraft(value: string, commit: (v: string) => void) {
   const [draft, setDraft] = useState(value)
   const focused = useRef(false)
+  // Escape has to be remembered rather than acted on: it blurs the field, and
+  // the blur handler would otherwise still see (and commit) the typed draft.
+  const reverting = useRef(false)
   // While the field has focus its draft is the truth; otherwise it follows the
   // store, so an edit made elsewhere (the other view) lands here straight away.
   useEffect(() => {
@@ -36,9 +41,12 @@ function useDraft(value: string, commit: (v: string) => void) {
     onFocus: () => { focused.current = true },
     onBlur: () => {
       focused.current = false
+      if (reverting.current) { reverting.current = false; setDraft(value); return }
       if (draft !== value) commit(draft)
       else setDraft(value)
     },
+    /** Throw the edit away; blur the field straight after. */
+    revert: () => { reverting.current = true; setDraft(value) },
   }
 }
 
@@ -50,11 +58,20 @@ export function useDayLog(date: string): [DayLog | undefined, (patch: Partial<Da
 
 /* ---------- Weather ---------- */
 
+/**
+ * One weather mark a day, picked like a radio group: a click replaces whatever
+ * was there, and clicking the current mark clears the day again. The store
+ * still holds an array (see DayLog.weather) so older, multi-mark days keep
+ * rendering every icon they were given — until the next click collapses them
+ * to the one that was clicked.
+ */
 export function WeatherRow({ date }: { date: string }) {
   const [log, patch] = useDayLog(date)
   const on = log?.weather ?? []
+  // Clearing the auto flag is what makes the choice the user's: the Home page's
+  // weather back-fill only ever overwrites days it filled in itself.
   const toggle = (k: WeatherKind) =>
-    patch({ weather: on.includes(k) ? on.filter((w) => w !== k) : [...on, k] })
+    patch({ weather: on.length === 1 && on[0] === k ? [] : [k], weatherAuto: false })
 
   return (
     <div className="dl-weather">
@@ -96,7 +113,7 @@ function MealRow({ date, mealKey }: { date: string; mealKey: 'b' | 'l' | 'd' }) 
         onBlur={f.onBlur}
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur()
-          if (e.key === 'Escape') { f.setDraft(value); e.currentTarget.blur() }
+          if (e.key === 'Escape') { f.revert(); e.currentTarget.blur() }
         }}
       />
     </label>
@@ -142,11 +159,55 @@ export function WaterRow({ date }: { date: string }) {
           </button>
         )
       })}
+      <ShowerToggle date={date} />
     </div>
   )
 }
 
+/**
+ * Showered today. Sits at the right end of the water row the way the moon sits
+ * at the right end of the weather row, and speaks the glasses' visual language:
+ * the same grey, struck through once it is done.
+ */
+function ShowerToggle({ date }: { date: string }) {
+  const [log, patch] = useDayLog(date)
+  const on = !!log?.shower
+  return (
+    <button type="button" className={`dl-drop dl-shower ${on ? 'on' : ''}`}
+      title="Shower" aria-label="Shower" aria-pressed={on}
+      onClick={() => patch({ shower: !on })}>
+      <ShowerGlyph size={13} struck={on} />
+    </button>
+  )
+}
+
 /* ---------- Mood ---------- */
+
+export const TEETH_MAX = 2
+
+/**
+ * Morning and evening brush, at the right end of the mood row. Clicking works
+ * exactly like the water glasses — the n-th brush moves the count to n, and
+ * clicking the last done one takes it back down.
+ */
+function TeethRow({ date }: { date: string }) {
+  const [log, patch] = useDayLog(date)
+  const count = log?.teeth ?? 0
+  return (
+    <span className="dl-teeth" role="group" aria-label="Brush teeth">
+      {Array.from({ length: TEETH_MAX }, (_, i) => {
+        const on = i < count
+        return (
+          <button key={i} type="button" className={`dl-drop dl-tooth ${on ? 'on' : ''}`}
+            title={`Brush teeth · ${i + 1} of ${TEETH_MAX}`} aria-pressed={on}
+            onClick={() => patch({ teeth: i < count ? i : i + 1 })}>
+            <ToothGlyph size={13} struck={on} />
+          </button>
+        )
+      })}
+    </span>
+  )
+}
 
 export function MoodRow({ date }: { date: string }) {
   const [log, patch] = useDayLog(date)
@@ -155,23 +216,76 @@ export function MoodRow({ date }: { date: string }) {
     <div className="dl-mood">
       {MOOD_LEVELS.map((m: MoodLevel) => (
         <button key={m} type="button"
-          className={`dl-face ${mood === m ? 'on' : ''}`}
+          className={`dl-face dl-face-${m} ${mood === m ? 'on' : ''}`}
           title={MOOD_LABEL[m]} aria-label={MOOD_LABEL[m]} aria-pressed={mood === m}
           // Clicking the selected face clears the day's mood again.
           onClick={() => patch({ mood: mood === m ? undefined : m })}>
           <MoodFace level={m} size={14} />
         </button>
       ))}
+      <TeethRow date={date} />
     </div>
+  )
+}
+
+/* ---------- Sleep ---------- */
+
+/**
+ * How long the night into this day was. Typed rather than clicked, because the
+ * answer is a number of hours and nothing else — see parseSleep for the shapes
+ * it takes ("7:30", "7h30", "7.5", "8"). Stored as minutes, always shown back
+ * as "7:30". Commits on blur or Enter; Escape puts the stored value back.
+ */
+export function SleepRow({ date }: { date: string }) {
+  const [log, patch] = useDayLog(date)
+  const mins = log?.sleepMin ?? 0
+  const shown = mins ? fmtSleep(mins) : ''
+  const [draft, setDraft] = useState(shown)
+  const focused = useRef(false)
+  const reverting = useRef(false)
+
+  useEffect(() => {
+    if (!focused.current) setDraft(shown)
+  }, [shown])
+
+  const commit = () => {
+    focused.current = false
+    if (reverting.current) { reverting.current = false; setDraft(shown); return }
+    const parsed = parseSleep(draft)
+    // Unreadable text changes nothing: the stored value comes straight back.
+    if (parsed === null) { setDraft(shown); return }
+    if (parsed !== mins) patch({ sleepMin: parsed })
+    setDraft(parsed ? fmtSleep(parsed) : '')
+  }
+
+  return (
+    <label className="dl-meal dl-sleep" title="Hours slept last night">
+      <span className="dl-meal-icon" aria-hidden="true"><SleepMoonGlyph size={12} /></span>
+      <input
+        type="text"
+        className="dl-meal-input dl-sleep-input"
+        inputMode="decimal"
+        placeholder="7:30"
+        value={draft}
+        aria-label="Hours slept last night"
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => { focused.current = true }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { reverting.current = true; e.currentTarget.blur() }
+        }}
+      />
+    </label>
   )
 }
 
 /* ---------- The whole block ---------- */
 
 /**
- * Weather + moon, the three meals, then mood. `variant` only changes the
- * scale: 'header' is the compact form squeezed into a calendar day header,
- * 'journal' the roomier one on the Journal tab.
+ * Weather + moon, the three meals, water, mood, then last night's sleep.
+ * `variant` only changes the scale: 'header' is the compact form squeezed into
+ * a calendar day header, 'journal' the roomier one on the Journal tab.
  */
 export function DayLogBlock({ date, variant = 'header' }: { date: string; variant?: 'header' | 'journal' }) {
   return (
@@ -180,6 +294,7 @@ export function DayLogBlock({ date, variant = 'header' }: { date: string; varian
       <MealRows date={date} />
       <WaterRow date={date} />
       <MoodRow date={date} />
+      <SleepRow date={date} />
     </div>
   )
 }
@@ -225,7 +340,7 @@ export function JournalBox({ date, placeholder = 'How was today?', minRows = 2 }
         onFocus={f.onFocus}
         onBlur={f.onBlur}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') { f.setDraft(value); e.currentTarget.blur() }
+          if (e.key === 'Escape') { f.revert(); e.currentTarget.blur() }
         }}
       />
       {f.draft.length >= COUNTER_FROM && (

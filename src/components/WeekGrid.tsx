@@ -14,6 +14,7 @@ import {
   addDays, daysBetween, fmtDayHeader, fmtHourLabel, fmtTime, fromISO, isSameDay, nowMinutes, startOfWeek, toISO,
 } from '../utils/date'
 import { clampMin, columnAtX, MIN_BLOCK_MIN, minutesAtY, pastThreshold, snapMin } from '../utils/drag'
+import { goalsForDate, isTicked } from '../utils/habits'
 import { useClampedPos } from '../utils/popover'
 import {
   occurrenceAt, recurringCount, recurringTimes, type EditScope, type RecurOccurrence,
@@ -141,9 +142,11 @@ export default function WeekGrid({ anchor, days }: Props) {
   const start = days === 7 ? startOfWeek(fromISO(anchor), state.weekStart) : fromISO(anchor)
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i))
 
-  // Two lane-level view prefs (persisted, outside undo history).
+  // Three lane-level view prefs (persisted, outside undo history). The habits
+  // lane shares its pref with the month view's gantt: one "show my goals" switch.
   const allDayShut = state.collapseAllDay ?? false
   const journalShut = state.collapseJournal ?? false
+  const habitsShut = state.collapseHabits ?? false
 
   useEffect(() => {
     // Normally .grid-scroll is the scroller. On a narrow screen the week is one
@@ -1014,6 +1017,53 @@ export default function WeekGrid({ anchor, days }: Props) {
                 )}
 
                 {isToday && <div className="now-line" style={{ top: (now.minutes / 60) * HOUR_H }} />}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Habit goals, one tick box per goal per day. The list is whatever
+            applies to that date: the year's goals plus its own month's. */}
+        <div className={`habits-lane${habitsShut ? ' lane-shut' : ''}`}>
+          <button type="button" className="gutter lane-toggle"
+            title={habitsShut ? 'Show habit goals' : 'Collapse habit goals'}
+            aria-expanded={!habitsShut}
+            onClick={() => dispatch({ type: 'setCollapseHabits', on: !habitsShut })}>
+            <span className={`caret ${habitsShut ? '' : 'open'}`}>▶</span>
+            <span className="lane-toggle-label">habits</span>
+          </button>
+          {/* Nothing to track anywhere in view: one hint instead of seven
+              identical empty columns. */}
+          {!habitsShut && !dates.some((d) => goalsForDate(state, toISO(d)).length > 0) ? (
+            <div className="habits-hint">No habit goals yet — add them in the month or year view.</div>
+          ) : dates.map((d) => {
+            const iso = toISO(d)
+            const goals = goalsForDate(state, iso)
+            const dayOff = isDayOff(state, iso) ? ' day-off' : ''
+            if (habitsShut) {
+              const done = goals.filter((g) => isTicked(state, g.id, iso)).length
+              return (
+                <div key={iso} className={`habits-cell habits-count${dayOff}`}
+                  title={goals.length ? `${done} of ${goals.length} ticked — click to expand` : 'Click to expand'}
+                  onClick={() => dispatch({ type: 'setCollapseHabits', on: false })}>
+                  {goals.length > 0 && <span className="hb-n">{done}/{goals.length}</span>}
+                </div>
+              )
+            }
+            return (
+              <div key={iso} className={`habits-cell${dayOff}`}>
+                {goals.map((g) => {
+                  const on = isTicked(state, g.id, iso)
+                  return (
+                    <button key={g.id} type="button" className={`hb-row${on ? ' on' : ''}`} aria-pressed={on}
+                      title={`${g.title} — ${iso}`}
+                      onClick={() => dispatch({ type: 'toggleHabitTick', goalId: g.id, date: iso })}>
+                      <span className="hb-box">{on ? '✓' : ''}</span>
+                      <span className="hb-title">{g.title}</span>
+                    </button>
+                  )
+                })}
+                {goals.length === 0 && <span className="hb-empty">No goals</span>}
               </div>
             )
           })}

@@ -350,15 +350,23 @@ button { font: inherit; color: inherit; }
 }
 
 .day-head .dow { font-size: 11px; color: var(--text-dim); font-weight: 600; }
-.day-head .dnum { font-size: 15px; font-weight: 600; margin-top: 1px; }
+/* Every day's number occupies the same 22px line box, so today's accent pill
+   fits inside it without nudging that one column's log rows 2px lower. */
+.day-head .dnum {
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 1px;
+  display: inline-block;
+  height: 22px;
+  line-height: 22px;
+}
 .day-head.today .dow { color: var(--accent); }
 .day-head.today .dnum {
   color: var(--accent-text);
   background: var(--accent);
-  display: inline-block;
   min-width: 26px;
   border-radius: 13px;
-  padding: 1px 4px;
+  padding: 0 4px;
 }
 
 /* All-day lane */
@@ -4107,12 +4115,187 @@ button { font: inherit; color: inherit; }
 }
 .ins2-xscroll > .ins2-line { max-width: none; }
 
+/* Half-page dividers ---------------------------------------- */
+/* The page is two halves — study analytics, then daily-log analytics. The rule
+   between them is deliberately quiet: an overline label and a hairline that
+   runs out to the edge, sitting in the flow gap rather than inside a card. */
+.ins2-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 -4px;
+}
+.ins2-divider-label {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+}
+.ins2-divider-note {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.ins2-divider-rule {
+  flex: 1;
+  height: 1px;
+  min-width: 20px;
+  background: var(--border);
+}
+
+/* Mood heatmap ---------------------------------------------- */
+/* Mood is a scale, not a magnitude, so the cell carries the level's own face in
+   the level's own colour instead of an opacity step. The cell keeps the grid
+   pitch of the study heatmap exactly; only its ground goes transparent so the
+   face is what reads. */
+.ins2-mood-cell {
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+/* A hint of the mood's colour inside the disc, the way a picked face reads in
+   the daily log — at 11px an outline alone all but disappears. */
+.ins2-mood-cell .mf-disc { fill: color-mix(in srgb, currentColor 20%, transparent); }
+
+.ins2-mood-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.ins2-mood-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.ins2-mood-key b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+/* A level nobody has had recedes rather than disappearing — the scale stays
+   readable as a scale. */
+.ins2-mood-key.zero { opacity: 0.4; }
+.ins2-mood-key.zero b { color: var(--text-faint); font-weight: 600; }
+.ins2-mood-key-face { display: inline-flex; line-height: 0; }
+.ins2-mood-key-face .mf-disc { fill: color-mix(in srgb, currentColor 20%, transparent); }
+
+/* Sleep line ------------------------------------------------- */
+/* Gaps in the log break the line rather than dropping it to zero, so the dots
+   have to be visible in their own right, not just as bends in a path. */
+.ins2-sleep-line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ins2-sleep-dot { fill: var(--accent); }
+.ins2-sleep-dot.today {
+  stroke: var(--bg-raised);
+  stroke-width: 1.4;
+}
+.ins2-sleep-avg {
+  stroke: var(--text-dim);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+/* Sits over the plot, so it carries a card-coloured halo like the other guides. */
+.ins2-sleep-avg-label {
+  fill: var(--text-dim);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg-raised);
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+}
+.ins2-sleep-wrap { margin-top: 12px; }
+
+/* Water bars ------------------------------------------------- */
+.ins2-water-bar {
+  fill: var(--accent);
+  opacity: 0.55;
+}
+/* A day that reached the target reads at full strength — the target line then
+   works as a finish line rather than just an annotation. */
+.ins2-water-bar.full { opacity: 1; }
+.ins2-water-bar.today { stroke: var(--text-dim); stroke-width: 0.8; }
+.ins2-water-target {
+  stroke: var(--text-dim);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+.ins2-water-target-label {
+  fill: var(--text-faint);
+  font-size: 9px;
+  paint-order: stroke;
+  stroke: var(--bg-raised);
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+}
+
+/* Journalling grid ------------------------------------------- */
+/* "N of M" — the M is an aside, so it is set smaller inside the figure rather
+   than competing with it. */
+/* Beats `.ak-stat span`, which would otherwise upper-case and space out the
+   aside that sits inside the figure. */
+.ak-stat b .ins2-of {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ins2-jr-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.ins2-hm .ak-hint svg { vertical-align: -1px; margin-right: 3px; }
+
+/* Weather rows ----------------------------------------------- */
+.ins2-weather-sum {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+.ins2-weather-sum b {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* Wider label column than the break-tag rows: these carry a glyph as well. */
+.ins2-weather-row { grid-template-columns: 130px 1fr auto; }
+.ins2-weather-row .ins2-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ins2-weather-glyph {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-dim);
+  line-height: 0;
+}
+
 @media (max-width: 720px) {
   .ins2-controls { margin-left: 0; }
   .ins2-row { grid-template-columns: 1fr 70px 56px; }
   .ins2-row > .ins2-row-num:nth-child(3) { display: none; }
   .ins2-qt-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
   .ins2-qt-nav { margin-left: 0; }
+  .ins2-divider-note { display: none; }
+  .ins2-mood-legend { gap: 10px; }
+  .ins2-weather-row { grid-template-columns: 108px 1fr auto; }
 }
 
 /* ---------- end Insights v2 ---------- */
@@ -5187,11 +5370,15 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .dl-face:hover { opacity: 1; color: var(--text-dim); }
-.dl-face.on {
-  opacity: 1;
-  color: var(--accent);
-}
-.dl-face.on .mf-disc { fill: color-mix(in srgb, var(--accent) 20%, transparent); }
+/* A selected face takes its mood's own colour (sad red → happy green),
+   with a soft disc tint of the same hue. Palette hues work in both themes. */
+.dl-face.on { opacity: 1; }
+.dl-face-1.on { color: #e07f6f; }
+.dl-face-2.on { color: #e8b06c; }
+.dl-face-3.on { color: #d4c05e; }
+.dl-face-4.on { color: #8ecfa8; }
+.dl-face-5.on { color: #7c9a5e; }
+.dl-face.on .mf-disc { fill: color-mix(in srgb, currentColor 22%, transparent); }
 
 /* Roomier form, used on the Journal tab. */
 .daylog-journal { gap: 5px; }
@@ -6133,3 +6320,844 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 }
 .chip.chip-recur .rt-slots { display: inline-flex; gap: 1px; flex: none; }
 /* ---------- end Water row & compact habit chips ---------- */
+
+/* ---------- Daylog v2 ---------- */
+
+/* ---- Showerhead, at the right end of the water row ---- */
+/* Pushed over the way the moon is on the weather row; struck (not coloured)
+   when done, so it reads as the same gesture as crossing off a glass. */
+.dl-shower {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 17px;
+  padding-left: 1px;
+}
+
+/* ---- Toothbrushes, at the right end of the mood row ---- */
+.dl-teeth {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding-left: 1px;
+}
+.dl-tooth { flex: 0 0 auto; width: 15px; }
+
+/* ---- Hours slept ---- */
+/* Same underlined field as the meals: the row belongs to that rhythm, it is
+   just the last one. The field is narrow — the answer is always "7:30". */
+.dl-sleep { margin-top: 1px; }
+.dl-sleep-input {
+  flex: 0 1 62px;
+  font-variant-numeric: tabular-nums;
+}
+.dl-sleep-input::placeholder { color: var(--text-faint); opacity: 0.55; }
+.daylog-journal .dl-sleep { margin-top: 2px; }
+.daylog-journal .dl-sleep-input { flex-basis: 74px; }
+
+/* ---- The Journal tab's sleep graph ---- */
+/* A slim column to the left of the rows. It is measured against the rows
+   rather than laid out with them, so nothing here may push the rows around:
+   the column's height is set from the measurement and the drawing inside it
+   is absolutely placed. */
+.jp-rowsblock {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+.jp-rowsblock .jp-rows { flex: 1 1 auto; min-width: 0; }
+
+.jp-sleepcol {
+  flex: 0 0 46px;
+  position: relative;
+  width: 46px;
+}
+.jp-sleepsvg {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  /* Horizontal drags must not be stolen by the page's scrolling. */
+  touch-action: none;
+}
+
+.jp-sleep-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.jp-sleep-line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 55%, transparent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.jp-sleep-dot {
+  fill: var(--accent);
+  stroke: var(--bg-raised);
+  stroke-width: 1;
+}
+.jp-sleep-dot.dragging { stroke-width: 1.5; }
+.jp-sleep-hit {
+  fill: transparent;
+  cursor: ew-resize;
+}
+.jp-sleep-hit:hover { fill: color-mix(in srgb, var(--accent) 7%, transparent); }
+.jp-sleep-label {
+  fill: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--bg-raised);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* Once the rows go single-column there is no vertical rhythm left for the
+   graph to sit against, so it steps out of the way. */
+@media (max-width: 900px) {
+  .jp-sleepcol { display: none; }
+}
+
+/* end ---------- Daylog v2 ---------- */
+
+/* ---------- Habit gantt ---------- */
+/* Three surfaces share one model: the month view's gantt card, the week grid's
+   habits lane, and the year page. They also share ONE collapse pref, so folding
+   the goals away in one place folds them away everywhere. */
+
+/* ---- Month view: the gantt card under the grid ---- */
+.habit-gantt {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+}
+.hg-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+}
+.habit-gantt.hg-shut .hg-bar { padding: 3px 10px; }
+.hg-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 0;
+  color: var(--text-dim);
+}
+.hg-toggle:hover { color: var(--text); }
+.hg-toggle .caret {
+  display: inline-block;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--text-faint);
+  transition: transform 0.12s;
+}
+.hg-toggle .caret.open { transform: rotate(90deg); }
+.hg-heading {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.hg-summary { font-size: 10.5px; color: var(--text-faint); }
+
+.hg-scroll {
+  overflow: auto;
+  max-height: 32vh;
+}
+.hg-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+.hg-row {
+  display: flex;
+  align-items: stretch;
+  min-height: 20px;
+}
+.hg-row:hover { background: var(--bg-inset); }
+.hg-headrow { border-bottom: 1px solid var(--border); }
+.hg-headrow:hover { background: transparent; }
+
+/* The name column and the completion figure stay put while the days scroll. */
+.hg-name {
+  flex: 0 0 176px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 10px;
+  font-size: 11.5px;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-raised);
+  border-right: 1px solid var(--border);
+}
+.hg-row:hover .hg-name { background: var(--bg-inset); }
+/* The date header is not a goal row — hovering it highlights nothing. */
+.hg-headrow:hover .hg-name,
+.hg-headrow:hover .hg-pct { background: var(--bg-raised); }
+.hg-name-head {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.hg-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A year goal is marked, not shouted: the ⟳ says "this one runs all year". */
+.hg-year-tag {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: help;
+}
+.hg-acts { display: flex; align-items: center; flex: 0 0 auto; }
+.hg-acts .hover-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 0 4px;
+  visibility: hidden;
+  font-size: 11px;
+}
+.hg-row:hover .hg-acts .hover-btn,
+.yv-row:hover .hg-acts .hover-btn { visibility: visible; }
+.hg-acts .hover-btn:hover { background: var(--border); color: var(--text); }
+.hg-acts .hg-act-task { font-size: 9.5px; }
+.hg-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  background: var(--bg-inset);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.hg-cell {
+  flex: 1 1 0;
+  min-width: 17px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  padding: 0;
+}
+.hg-dnum {
+  color: var(--text-faint);
+  font-size: 9.5px;
+  padding: 3px 0;
+}
+.hg-tick {
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  min-height: 20px;
+}
+.hg-tick:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+/* Days not lived yet are visibly outside the score; today's whole column is
+   picked out so the eye lands on the cell that is actually in play. */
+.hg-cell.hg-future { background-color: color-mix(in srgb, var(--text-faint) 6%, transparent); }
+.hg-cell.hg-today { background-color: color-mix(in srgb, var(--accent) 12%, transparent); }
+.hg-dnum.hg-today { color: var(--accent); font-weight: 700; }
+.hg-tick.on { background: var(--accent); color: var(--accent-text); }
+.hg-tick.on:hover { opacity: 0.82; }
+
+.hg-pct {
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px 0 4px;
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--border);
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--bg-raised);
+}
+.hg-row:hover .hg-pct { background: var(--bg-inset); }
+.hg-empty { padding: 8px 12px; font-size: 11px; color: var(--text-faint); }
+
+.hg-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--border);
+}
+.hg-add { display: flex; align-items: center; gap: 6px; }
+.hg-add-input {
+  flex: 0 1 220px;
+  min-width: 0;
+  font-size: 11.5px;
+  background: var(--bg-inset);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.hg-add-input:focus { outline: none; border-color: var(--accent); }
+.hg-add-year {
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 10px;
+  border-radius: 6px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.hg-add-year:hover { color: var(--text); border-color: var(--accent); }
+.hg-carry {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.hg-carry:hover { color: var(--text); border-color: var(--accent); }
+
+/* ---- Week/day grid: the habits lane ---- */
+/* Same gutter geometry as the all-day and journal lanes, and the same shut
+   behaviour: a slim strip carrying one ticked/total count per day. */
+.habits-lane {
+  display: flex;
+  border-top: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+}
+.habits-lane .gutter { align-items: flex-start; padding-top: 5px; }
+.habits-cell {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding: 4px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.habits-cell.day-off { background-color: color-mix(in srgb, var(--text-faint) 6%, transparent); }
+.hb-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 1px 2px;
+  border-radius: 5px;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.hb-row:hover { background: var(--bg-inset); color: var(--text); }
+.hb-box {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  color: transparent;
+}
+.hb-row.on .hb-box { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.hb-row.on .hb-title { color: var(--text-faint); text-decoration: line-through; }
+.hb-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hb-empty { font-size: 10px; color: var(--text-faint); padding: 1px 2px; }
+.habits-hint {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding: 5px 8px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.habits-lane.lane-shut .habits-cell { padding: 2px 4px; }
+.habits-cell.habits-count {
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: 17px;
+}
+.hb-n {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-inset);
+  border-radius: 7px;
+  padding: 0 5px;
+  line-height: 15px;
+}
+
+/* ---- Year page ---- */
+.year-view {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 40px;
+}
+.yv-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.yv-year { margin: 0; font-size: 22px; font-weight: 700; }
+.yv-sub { font-size: 11.5px; color: var(--text-faint); }
+
+.yv-card {
+  /* The day column is ~9px wide, so a whole year fits in one sideways scroll;
+     every width below is derived from these three so the header groups and the
+     day cells can never drift apart. */
+  --yv-cell: 9px;
+  --yv-row-h: 16px;
+  --yv-name-w: 200px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.yv-scroll { overflow: auto; max-height: 46vh; }
+.yv-table {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 100%;
+}
+.yv-row { display: flex; align-items: stretch; }
+.yv-row:hover { background: var(--bg-inset); }
+.yv-monthrow {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+}
+.yv-monthrow:hover { background: var(--bg-raised); }
+.yv-name {
+  flex: 0 0 var(--yv-name-w);
+  width: var(--yv-name-w);
+  min-width: 0;
+  min-height: var(--yv-row-h);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-raised);
+  border-right: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 10px;
+  font-size: 11.5px;
+}
+.yv-monthrow .yv-name { z-index: 4; }
+.yv-row:hover .yv-name { background: var(--bg-inset); }
+.yv-monthrow:hover .yv-name { background: var(--bg-raised); }
+.yv-name-head {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.yv-goal-head { flex: 1 1 auto; }
+.yv-pct {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.yv-mhead {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-left: 1px solid var(--border-strong);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+  padding: 3px 0 3px 2px;
+}
+.yv-cell {
+  flex: 0 0 var(--yv-cell);
+  width: var(--yv-cell);
+  height: var(--yv-row-h);
+  border: 0;
+  border-left: 1px solid var(--hour-line);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+/* A heavier rule every 1st: the month boundaries are the only landmarks a
+   365-column strip has. */
+.yv-cell.yv-mstart { border-left: 1px solid var(--border-strong); }
+.yv-cell.yv-future { background-color: color-mix(in srgb, var(--text-faint) 6%, transparent); }
+.yv-cell.yv-today { box-shadow: inset 0 0 0 1px var(--accent); }
+.yv-cell:hover { background-color: color-mix(in srgb, var(--accent) 28%, transparent); }
+.yv-cell.on { background-color: var(--accent); }
+.yv-cell.on:hover { opacity: 0.82; }
+.yv-empty { padding: 10px 12px; font-size: 11.5px; color: var(--text-faint); }
+.yv-add {
+  display: flex;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* Twelve mini months in the sidebar's visual language, read-only. */
+.yv-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+.yv-mm {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  padding: 10px;
+}
+.yv-mm .mm-head { margin-bottom: 6px; }
+.yv-mm .mm-title { font-size: 12px; }
+
+/* ---- Mobile ---- */
+@media (max-width: 768px) {
+  /* The month gantt keeps a legible cell and scrolls sideways instead. */
+  .hg-table { min-width: 700px; }
+  .hg-name { flex-basis: 132px; padding-left: 8px; }
+  .hg-scroll { max-height: 40vh; }
+  .hg-acts .hover-btn { visibility: visible; }
+
+  /* The week's lanes move as one sheet, so this one follows the journal
+     lane's rules exactly: full-width row, sticky gutter, 46vw columns. */
+  .wg-week .habits-lane { width: max-content; min-width: 100%; }
+  .wg-week .habits-cell { flex: 0 0 46vw; }
+  /* The empty-state hint has no column to size itself from. */
+  .wg-week .habits-hint { flex: 0 0 92vw; }
+  .wg-week .habits-lane .gutter {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--bg-raised);
+    border-right: 1px solid var(--border);
+  }
+
+  .year-view { padding: 12px 12px 32px; }
+  .yv-card { --yv-name-w: 148px; }
+  .yv-year { font-size: 19px; }
+  .yv-months { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+}
+
+@media (max-width: 480px) {
+  .wg-week .habits-cell { flex-basis: 60vw; }
+  .yv-months { grid-template-columns: 1fr; }
+}
+
+/* end ---------- Habit gantt ---------- */
+
+/* ---------- Home ---------- */
+
+/* The landing page. Everything is centred in the content area and layered over
+   a single background element, so the gradient below can become a photograph
+   later without a line of this changing: the text already sits on its own
+   scrims rather than directly on the page colour. */
+/* Two rows rather than a centred column: the clock block takes the free space
+   and centres inside it, the quote keeps the bottom, and a short window makes
+   the page scroll instead of letting the two overlap. */
+.home-page {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 72px 32px 26px;
+}
+
+.home-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 8%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%),
+    linear-gradient(180deg, var(--bg-raised) 0%, var(--bg) 58%, var(--bg-inset) 100%);
+}
+:root[data-theme='dark'] .home-bg {
+  background:
+    radial-gradient(120% 90% at 50% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--bg-inset) 0%, var(--bg) 52%, #0f1114 100%);
+}
+
+/* The scrim every text group sits on: a soft pool of page colour that keeps
+   the type readable whatever ends up behind it. */
+.home-centre,
+.home-corner,
+.home-quote {
+  position: relative;
+  z-index: 1;
+}
+
+.home-centre {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  text-align: center;
+  max-width: 640px;
+  padding: 36px 44px 40px;
+  border-radius: 32px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--bg) 78%, transparent), transparent 100%);
+}
+
+/* ---- Clock ---- */
+
+.home-clock {
+  font-size: 108px;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+/* The colon is the only part that shouldn't carry the digits' weight. */
+.home-clock-sep {
+  margin: 0 4px;
+  color: var(--text-faint);
+  font-weight: 100;
+}
+
+/* ---- Mantra ---- */
+
+.home-mantra {
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+/* ---- The day's goal ---- */
+
+.home-goal {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.home-goal-input {
+  width: min(440px, 100%);
+  padding: 6px 4px;
+  font: inherit;
+  font-size: 16px;
+  text-align: center;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.home-goal-input::placeholder { color: var(--text-faint); }
+.home-goal-input:focus { border-bottom-color: var(--accent); }
+
+/* Once set the goal stops looking like a field: it is a reminder, and the only
+   thing it can be clicked for is to reword it. */
+.home-goal-set {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(520px, 100%);
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  cursor: text;
+  font-size: 17px;
+  color: var(--text);
+  text-align: center;
+}
+.home-goal-set:hover { border-color: var(--border); }
+.home-goal-text { overflow-wrap: anywhere; }
+.home-goal-pencil {
+  font-size: 12px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.home-goal-set:hover .home-goal-pencil,
+.home-goal-set:focus-visible .home-goal-pencil { opacity: 1; }
+
+/* ---- Top-right cluster: focus ring + weather ---- */
+
+.home-corner {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-raised) 62%, transparent);
+}
+
+.home-focus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home-ring-bg { stroke: color-mix(in srgb, var(--border-strong) 70%, transparent); }
+.home-ring-fg {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.4s ease;
+}
+.home-ring-fg.done { stroke: var(--home-hit); }
+.home-ring-tick {
+  fill: var(--home-hit);
+  font-size: 22px;
+}
+:root { --home-hit: #5d9c6d; }
+:root[data-theme='dark'] { --home-hit: #7fc08f; }
+
+.home-focus-label {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.home-focus-num {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.home-focus-sep { color: var(--text-faint); }
+
+.home-wx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.home-wx-icon {
+  display: inline-flex;
+  color: var(--text-dim);
+}
+.home-wx-temp {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.home-wx-place {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-wx-hint {
+  gap: 4px;
+  color: var(--text-faint);
+}
+
+/* ---- The long quote ---- */
+
+.home-quote {
+  width: min(680px, 100%);
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  text-align: center;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+}
+.home-quote-text {
+  font-size: 13.5px;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+.home-quote-author {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 768px) {
+  /* The cluster keeps its corner but stops competing with the clock: it drops
+     to a single row of smaller type at the very top of the page. */
+  .home-page { padding: 84px 16px 16px; }
+  .home-corner {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    gap: 14px;
+    justify-content: space-between;
+    padding: 8px 12px;
+  }
+  .home-focus-word { display: none; }
+  .home-focus-sep { display: none; }
+  .home-wx-place { max-width: 96px; }
+
+  .home-centre { padding: 24px 16px 28px; gap: 16px; }
+  .home-clock { font-size: 64px; letter-spacing: 1px; }
+  .home-mantra { font-size: 17px; }
+  .home-goal-input { font-size: 15px; }
+  .home-goal-set { font-size: 15px; }
+  /* Touch has no hover, so the edit affordance is always visible there. */
+  .home-goal-pencil { opacity: 1; }
+
+  .home-quote { margin-top: 18px; padding: 8px 12px; }
+  .home-quote-text { font-size: 12.5px; }
+}
+
+@media (max-width: 480px) {
+  .home-clock { font-size: 52px; }
+  .home-mantra { font-size: 15.5px; }
+  .home-wx-place { display: none; }
+}
+
+/* end ---------- Home ---------- */

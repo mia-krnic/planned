@@ -465,10 +465,36 @@ export type WeatherKind = 'sun' | 'suncloud' | 'cloud' | 'rain' | 'storm' | 'sno
 export interface DayLog {
   /** Glasses of water crossed off today, 0–8 (0 stored as absent). */
   water?: number
+  /** Showered today (the showerhead icon at the end of the water row). */
+  shower?: boolean
+  /** Teeth brushed today, 0–2 (the brush icons at the end of the mood row). */
+  teeth?: number
+  /** Minutes slept the night into this day (the ☾ input under the log). */
+  sleepMin?: number
+  /** The day's one main goal (Home page) — a reminder, never a task. */
+  goal?: string
+  /** True while weather[0] came from the auto-fetcher; any user click clears it. */
+  weatherAuto?: boolean
   meals?: { b?: string; l?: string; d?: string }
+  /**
+   * Kept as an array for stored-data compatibility, but the UI treats it as a
+   * single choice — element [0] is the day's weather.
+   */
   weather?: WeatherKind[]
   mood?: 1 | 2 | 3 | 4 | 5
   journal?: string
+}
+
+/**
+ * A habit-tracker goal for the gantt grids. Year goals ('2026') trickle down
+ * into every month/week grid of that year; month goals ('2026-08') exist for
+ * that month only — the customisable part that resets monthly.
+ */
+export interface HabitGoal {
+  id: ID
+  title: string
+  period: string // 'YYYY' (year goal) or 'YYYY-MM' (month goal)
+  order: number
 }
 
 export interface AppState {
@@ -485,6 +511,9 @@ export interface AppState {
   gradeRows: GradeRow[] // assessed components per class (the grade tracker)
   ankiLogs: AnkiLog[] // manual flashcard review counts, one per (date, classId)
   dayLogs: Record<string, DayLog> // the daily log & journal, keyed by ISO date
+  habitGoals: HabitGoal[] // gantt habit-tracker goals (see HabitGoal)
+  habitTicks: Record<string, ID[]> // ISO date -> goal ids ticked that day
+  collapseHabits?: boolean // fold the habit grids away (month + week views)
   hiddenCalendars: ID[] // class ids (or 'personal') hidden from the calendar
   daysOff: string[] // ISO dates marked as days off (greyed columns + outlined date)
   showTasksOnCalendar: boolean

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 import type {
   AnkiLog, AppNotification, AppState, BinderPost, BinderSection, BinderUpload, Birthday, CalEvent, ClassFolder,
-  ClassInfo, CustomCalendar, DayLog, Freq, GradeRow, ID, Project, RecurException, RecurringTask, StudySession, Task,
+  ClassInfo, CustomCalendar, DayLog, Freq, GradeRow, HabitGoal, ID, Project, RecurException, RecurringTask, StudySession, Task,
   TaskSection, YptState,
 } from './types'
 import { PALETTE } from './types'
@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 19
+export const SEED_VERSION = 20
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -117,12 +117,11 @@ function defaultPersonalStarter(projectId: ID): { sections: TaskSection[]; recur
   ): RecurringTask => ({
     id: uid(), title, projectId, sectionId, freq: 'daily', weekday: 1, startDate, streak, completions: [], ...(rule ? { rule } : {}),
   })
-  // Water isn't a task: the daily log has its own row of eight glasses.
+  // Water, shower and teeth aren't tasks: the daily log has its own row of
+  // glasses plus the showerhead and toothbrush icons.
   return {
     sections: [selfCare, fitness],
     recurring: [
-      habit('Shower', selfCare.id, false),
-      habit('Brush teeth', selfCare.id, false, { kind: 'timesPerDay', times: 2 }),
       habit('Quick clean of the space', selfCare.id, false),
       habit('Move for 30 minutes', fitness.id, true),
     ],
@@ -138,13 +137,15 @@ export function blankState(theme: 'light' | 'dark'): AppState {
   return {
     classes: [], folders: [], customCalendars: [], events: [],
     projects: [personal], taskSections: starter.sections, tasks: [], recurring: starter.recurring, birthdays: [],
-    studySessions: [], gradeRows: [], ankiLogs: [], dayLogs: {},
+    studySessions: [], gradeRows: [], ankiLogs: [], dayLogs: {}, habitGoals: [], habitTicks: {},
+    // Fresh installs suggest a 4-hour focus day; edit it any time in the timer.
+    studyGoalMin: 240,
     hiddenCalendars: [], daysOff: [], showTasksOnCalendar: true,
     weekStart: 0, theme, themeConfig: { mode: theme, lightStart: '07:00', darkStart: '19:00' },
     // No live feed until the user binds one (Sidebar → Import live ICS).
     palette: [...PALETTE], notifications: [], icsUrl: '',
     lastSync: null, deletedUids: [], binderSections: [], binderUploads: [], binderPosts: [],
-    schema: 8,
+    schema: 9,
     // A user who explicitly cleared their data owns it — never auto-reseed them.
     seedVersion: SEED_VERSION, userOwned: true,
   }
@@ -463,18 +464,6 @@ function seed(): AppState {
     // exercise is covered by Gym above, water by the daily log's glasses row).
     // Brush teeth doubles as the several-times-a-day rule demo.
     {
-      id: uid(), title: 'Shower', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
-      freq: 'daily', weekday: 1, startDate: habitStart, streak: false,
-      completions: [-2, -1, 0].map((n) => toISO(addDays(today, n))),
-    },
-    {
-      id: uid(), title: 'Brush teeth', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
-      freq: 'daily', weekday: 1, rule: { kind: 'timesPerDay', times: 2 },
-      startDate: habitStart, streak: false,
-      completions: [-2, -1].map((n) => toISO(addDays(today, n))),
-      partial: { [todayIso]: 1 },
-    },
-    {
       id: uid(), title: 'Quick clean of the space', projectId: 'p-personal', sectionId: 'sec-personal-selfcare',
       freq: 'daily', weekday: 1, startDate: habitStart, streak: false,
       completions: [-1].map((n) => toISO(addDays(today, n))),
@@ -736,6 +725,7 @@ function seed(): AppState {
       weather: ['rain'],
       meals: { b: 'Porridge', l: 'Canteen lasagne', d: 'Soup' },
       mood: 3,
+      sleepMin: 7 * 60 + 20,
       journal: 'First chem lab. Broke exactly one beaker, which I am told is under average.',
     },
     [logDay(42)]: { weather: ['cloud'], meals: { d: 'Ramen night with Maya' }, mood: 4 },
@@ -745,45 +735,57 @@ function seed(): AppState {
       mood: 3,
       journal: 'Reading week starts tomorrow. Grand plans, a colour-coded schedule, and absolutely no faith in either.',
     },
-    [logDay(35)]: { weather: ['rain', 'wind'], meals: { l: 'Cereal. For lunch. Reading week.' }, mood: 2 },
+    [logDay(35)]: { weather: ['rain', 'wind'], meals: { l: 'Cereal. For lunch. Reading week.' }, mood: 2, sleepMin: 8 * 60 + 45 },
     [logDay(31)]: { weather: ['cloud'], meals: { b: 'Toast', d: 'Curry with the flat' }, mood: 3 },
     [logDay(27)]: {
       weather: ['sun'],
       meals: { b: 'Yoghurt and granola', l: 'Sandwich by the lake', d: 'Risotto, only slightly gluey' },
       mood: 5,
+      sleepMin: 8 * 60 + 15,
       journal: 'Ate lunch by the lake and the ducks accepted me as one of their own. Genome diagrams finally make sense. A good day.',
     },
-    [logDay(24)]: { weather: ['storm'], meals: { d: 'Emergency pizza' }, mood: 2 },
+    [logDay(24)]: { weather: ['storm'], meals: { d: 'Emergency pizza' }, mood: 2, sleepMin: 5 * 60 + 30 },
     [logDay(20)]: {
       weather: ['snow'],
       meals: { b: 'Hot chocolate and toast', l: 'Canteen stew', d: 'Leftover stew' },
       mood: 4,
       journal: 'SNOW. In August, somehow, per the weather gods of this demo. Campus shut for the afternoon and nobody complained.',
     },
-    [logDay(16)]: { weather: ['suncloud', 'wind'], meals: { l: 'Burrito with the lab group' }, mood: 3 },
+    [logDay(16)]: { weather: ['suncloud', 'wind'], meals: { l: 'Burrito with the lab group' }, mood: 3, sleepMin: 7 * 60 + 5 },
     [logDay(13)]: { weather: ['cloud', 'rain'], meals: { b: 'Porridge', d: 'Fried rice' }, mood: 3 },
     [logDay(9)]: {
       weather: ['rain'],
       meals: { b: 'Toast and peanut butter', l: 'Leftover pasta at my desk', d: 'Rice and black beans' },
       mood: 3,
+      sleepMin: 6 * 60 + 40,
+      shower: true,
+      teeth: 2,
     },
     [logDay(8)]: {
       weather: ['cloud', 'rain'],
       water: 6,
       meals: { b: 'Porridge with a banana', l: 'Cheese sandwich in the library', d: 'Instant noodles with an egg in it' },
       mood: 2,
+      sleepMin: 6 * 60 + 20,
+      shower: true,
+      teeth: 1,
       journal: 'Rain all day and still three chapters to go before the midterm. Ate lunch at my desk again, which I keep promising not to do. Library at nine tomorrow, no negotiating with myself about it.',
     },
     [logDay(7)]: {
       weather: ['cloud'],
       meals: { b: 'Coffee only, ran late', l: 'Soup from the canteen', d: 'Stir fry with the last of the veg' },
       mood: 2,
+      sleepMin: 5 * 60 + 55,
+      teeth: 2,
     },
     [logDay(6)]: {
       weather: ['sun', 'wind'],
       water: 8,
       meals: { b: 'Scrambled eggs', l: 'Chicken wrap with Priya', d: 'Pasta and pesto' },
       mood: 3,
+      sleepMin: 6 * 60 + 30,
+      shower: true,
+      teeth: 2,
       journal: 'Past papers under exam timing, which was humbling. Section C really is the same every year, so at least I know where the hours should go.',
     },
     [logDay(5)]: {
@@ -791,18 +793,27 @@ function seed(): AppState {
       water: 4,
       meals: { b: 'Porridge', l: 'Rice bowl, ate it too fast', d: 'Toast — could not face cooking' },
       mood: 2,
+      sleepMin: 5 * 60 + 45,
+      teeth: 1,
       journal: 'Thunder all evening and the library wifi kept dropping out. Three hours on related rates and I can finally see the pattern, which is the one good thing about today.',
     },
     [logDay(4)]: {
       weather: ['suncloud'],
       meals: { b: 'Yoghurt and a banana', l: 'Canteen curry', d: 'Roast veg and couscous' },
       mood: 3,
+      sleepMin: 6 * 60 + 10,
+      shower: true,
+      teeth: 2,
     },
     [logDay(3)]: {
       weather: ['sun'],
       water: 7,
       meals: { b: 'Eggs on toast', l: 'Sandwich at the lab bench', d: 'Pizza with the flat' },
       mood: 4,
+      sleepMin: 5 * 60 + 50,
+      shower: true,
+      teeth: 2,
+      goal: 'Walk in after the midterm with nothing left undone',
       journal: 'Midterm done. No idea how it went and I am refusing to think about it until the marks are up. Pizza with the flat afterwards — first proper evening off in two weeks.',
     },
     [logDay(2)]: {
@@ -810,6 +821,9 @@ function seed(): AppState {
       water: 8,
       meals: { b: 'Porridge with honey', l: 'Leftover pizza', d: 'Chilli, made a big batch' },
       mood: 5,
+      sleepMin: 9 * 60,
+      shower: true,
+      teeth: 2,
       journal: 'Slept nine hours and it changed my entire personality. Cooked something real, did the reading before the seminar instead of during it. This is the version of me I would like to keep.',
     },
     [logDay(1)]: {
@@ -817,19 +831,66 @@ function seed(): AppState {
       water: 5,
       meals: { b: 'Toast and jam', l: 'Soup and bread', d: 'Chilli again, still good' },
       mood: 4,
+      sleepMin: 8 * 60 + 10,
+      shower: true,
+      teeth: 2,
+      goal: 'Catch up on BIOL reading',
     },
     [todayIso]: {
       weather: ['suncloud'],
       water: 3,
       meals: { b: 'Coffee and a croissant from the place by Murray' },
+      sleepMin: 7 * 60 + 35,
+      shower: true,
+      teeth: 1,
+      goal: 'Essay 2 draft before anything else',
     },
   }
+
+  // Habit-tracker goals for the gantt grids. Two YEAR goals (they trickle down
+  // into every month/week/day grid of this year) and two MONTH goals that only
+  // exist for the month being viewed — the layer that resets monthly.
+  const habitYear = todayIso.slice(0, 4)
+  const habitMonth = todayIso.slice(0, 7)
+  const habitGoals: HabitGoal[] = [
+    { id: 'hg-read', title: 'Read 10 pages', period: habitYear, order: 0 },
+    { id: 'hg-bed', title: 'In bed before 1am', period: habitYear, order: 1 },
+    { id: 'hg-pages', title: 'Morning pages', period: habitMonth, order: 0 },
+    { id: 'hg-stretch', title: 'Stretch before bed', period: habitMonth, order: 1 },
+  ]
+  const habitTicks: Record<string, ID[]> = {}
+  const tick = (date: string, goalId: ID) => {
+    const on = habitTicks[date]
+    if (!on) habitTicks[date] = [goalId]
+    else if (!on.includes(goalId)) on.push(goalId)
+  }
+  // Deterministic scatter rather than a stripe: (n * 7 + k) % 10 walks all ten
+  // residues, so comparing it against a threshold gives that hit rate spread
+  // unevenly across the weeks. The threshold climbs as the days near today —
+  // the habit taking hold over the back half of the semester.
+  const hitRate = (n: number) => (n <= 7 ? 9 : n <= 21 ? 7 : n <= 35 ? 6 : 5)
+  for (let n = 41; n >= 1; n--) {
+    const date = logDay(n)
+    if (date.slice(0, 4) !== habitYear) continue // year goals exist for this year only
+    if ((n * 7) % 10 < hitRate(n)) tick(date, 'hg-read')
+    if ((n * 7 + 3) % 10 < hitRate(n)) tick(date, 'hg-bed')
+  }
+  // The month goals run on most days of the month so far, so the monthly lane
+  // of the gantt reads as busy next to the patchier year goals above it.
+  for (let d = 1; d < Number(todayIso.slice(8, 10)); d++) {
+    const date = `${habitMonth}-${String(d).padStart(2, '0')}`
+    if (d % 6 !== 0) tick(date, 'hg-pages')
+    if (d % 5 !== 2) tick(date, 'hg-stretch')
+  }
+  // Today is deliberately left part-done: one of the four ticked, three to go.
+  tick(todayIso, 'hg-read')
 
   return {
     classes, folders, customCalendars, events, projects, taskSections, tasks, recurring, birthdays,
     studySessions, gradeRows,
     ankiLogs: seedAnkiLogs(todayIso, iso(0, semesterStartWeek)),
     dayLogs,
+    habitGoals, habitTicks,
     hiddenCalendars: [],
     // Explicitly marked day off (Saturday). Sunday is a day off too, but a
     // DERIVED one: Maya's birthday sits there and hasn't opted out.
@@ -986,6 +1047,12 @@ function cleanDayLog(log: DayLog): DayLog | null {
   if (weather?.length) out.weather = weather
   if (log.mood) out.mood = log.mood
   if (typeof log.water === 'number' && log.water > 0) out.water = Math.min(8, Math.round(log.water))
+  if (log.shower) out.shower = true
+  if (typeof log.teeth === 'number' && log.teeth > 0) out.teeth = Math.min(2, Math.round(log.teeth))
+  if (typeof log.sleepMin === 'number' && log.sleepMin > 0) out.sleepMin = Math.min(24 * 60, Math.round(log.sleepMin))
+  const goal = log.goal?.trim()
+  if (goal) out.goal = goal
+  if (log.weatherAuto && (log.weather?.length ?? 0) > 0) out.weatherAuto = true
   const journal = log.journal?.trim()
   if (journal) out.journal = journal
   return Object.keys(out).length ? out : null
@@ -999,6 +1066,8 @@ function sameDayLog(a: DayLog | undefined, b: DayLog | null): boolean {
   const bw = b.weather ?? []
   return am.b === bm.b && am.l === bm.l && am.d === bm.d
     && a.mood === b.mood && a.water === b.water && a.journal === b.journal
+    && a.shower === b.shower && a.teeth === b.teeth && a.sleepMin === b.sleepMin
+    && a.goal === b.goal && a.weatherAuto === b.weatherAuto
     && aw.length === bw.length && aw.every((w, i) => w === bw[i])
 }
 
@@ -1025,6 +1094,8 @@ export function migrate(s: AppState): AppState {
     gradeRows: s.gradeRows ?? [],
     ankiLogs: s.ankiLogs ?? [],
     dayLogs: s.dayLogs ?? {},
+    habitGoals: s.habitGoals ?? [],
+    habitTicks: s.habitTicks ?? {},
     taskSections: s.taskSections ?? [],
     birthdays: s.birthdays ?? [],
     schema: s.schema ?? 1,
@@ -1222,6 +1293,11 @@ export function migrate(s: AppState): AppState {
     // The daily log & journal arrives empty: `dayLogs` is defaulted above, so
     // this stage only records that the upgrade has run.
     state.schema = 8
+  }
+
+  if (state.schema < 9) {
+    // Habit-tracker gantt fields are defaulted above; nothing to transform.
+    state.schema = 9
   }
 
   return state
@@ -1440,6 +1516,12 @@ export type Action =
   | { type: 'setLocation'; location: AppState['location'] } // hemisphere drives the moon icon
   | { type: 'setCollapseAllDay'; on: boolean }
   | { type: 'setCollapseJournal'; on: boolean }
+  // Habit-tracker gantt: year goals trickle into every month; month goals reset monthly.
+  | { type: 'addHabitGoal'; title: string; period: string }
+  | { type: 'renameHabitGoal'; id: ID; title: string }
+  | { type: 'deleteHabitGoal'; id: ID } // also clears its ticks
+  | { type: 'toggleHabitTick'; goalId: ID; date: string }
+  | { type: 'setCollapseHabits'; on: boolean }
   | { type: 'replaceState'; state: AppState } // backup import
 
 function reducer(state: AppState, a: Action): AppState {
@@ -2371,6 +2453,38 @@ function reducer(state: AppState, a: Action): AppState {
       return (state.collapseAllDay ?? false) === a.on ? state : { ...state, collapseAllDay: a.on || undefined }
     case 'setCollapseJournal':
       return (state.collapseJournal ?? false) === a.on ? state : { ...state, collapseJournal: a.on || undefined }
+    case 'setCollapseHabits':
+      return (state.collapseHabits ?? false) === a.on ? state : { ...state, collapseHabits: a.on || undefined }
+
+    case 'addHabitGoal': {
+      const title = a.title.trim()
+      if (!title) return state
+      const order = state.habitGoals.filter((g) => g.period === a.period).length
+      return { ...state, habitGoals: [...state.habitGoals, { id: uid(), title, period: a.period, order }] }
+    }
+    case 'renameHabitGoal': {
+      const title = a.title.trim()
+      if (!title) return state
+      const goals = state.habitGoals.map((g) => (g.id === a.id && g.title !== title ? { ...g, title } : g))
+      return goals.some((g, i) => g !== state.habitGoals[i]) ? { ...state, habitGoals: goals } : state
+    }
+    case 'deleteHabitGoal': {
+      if (!state.habitGoals.some((g) => g.id === a.id)) return state
+      const habitTicks: AppState['habitTicks'] = {}
+      for (const [date, ids] of Object.entries(state.habitTicks)) {
+        const rest = ids.filter((id) => id !== a.id)
+        if (rest.length) habitTicks[date] = rest
+      }
+      return { ...state, habitGoals: state.habitGoals.filter((g) => g.id !== a.id), habitTicks }
+    }
+    case 'toggleHabitTick': {
+      const cur = state.habitTicks[a.date] ?? []
+      const next = cur.includes(a.goalId) ? cur.filter((id) => id !== a.goalId) : [...cur, a.goalId]
+      const habitTicks = { ...state.habitTicks }
+      if (next.length) habitTicks[a.date] = next
+      else delete habitTicks[a.date]
+      return { ...state, habitTicks }
+    }
 
     case 'replaceState':
       return a.state
@@ -2412,7 +2526,7 @@ const COALESCE_MS = 1000
  */
 const SKIP_HISTORY = new Set<Action['type']>([
   'setTheme', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
-  'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal',
+  'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal', 'setCollapseHabits',
 ])
 
 /**

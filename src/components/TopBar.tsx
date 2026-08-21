@@ -106,6 +106,7 @@ const ADD_MENU_W = 176
 
 function rangeLabel(view: View, anchor: string, weekStart: AppState['weekStart']): string {
   const d = fromISO(anchor)
+  if (view === 'year') return String(d.getFullYear())
   if (view === 'month') return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
   if (view === 'day') return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
   const start = startOfWeek(d, weekStart)
@@ -127,7 +128,12 @@ export default function TopBar({
 
   const step = (dir: 1 | -1) => {
     const d = fromISO(anchor)
-    if (view === 'month') setAnchor(toISO(new Date(d.getFullYear(), d.getMonth() + dir, 1)))
+    if (view === 'year') {
+      const next = new Date(d.getFullYear() + dir, d.getMonth(), d.getDate())
+      // Feb 29 in a common year rolls into March; day 0 pulls it back to Feb 28.
+      if (next.getMonth() !== d.getMonth()) next.setDate(0)
+      setAnchor(toISO(next))
+    } else if (view === 'month') setAnchor(toISO(new Date(d.getFullYear(), d.getMonth() + dir, 1)))
     else setAnchor(toISO(addDays(d, dir * (view === 'day' ? 1 : 7))))
   }
 
@@ -147,6 +153,7 @@ export default function TopBar({
       <div className="brand"><span className="logo">✓</span><span className="brand-word">planned</span></div>
 
       <div className="page-tabs">
+        <button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Home</button>
         <button className={page === 'calendar' ? 'active' : ''} onClick={() => setPage('calendar')}>Calendar</button>
         <button className={page === 'tasks' ? 'active' : ''} onClick={() => setPage('tasks')}>Tasks</button>
         <button className={page === 'timer' ? 'active' : ''} onClick={() => setPage('timer')}>Timer</button>
@@ -165,6 +172,7 @@ export default function TopBar({
             <option value="day">Day</option>
             <option value="week">Week</option>
             <option value="month">Month</option>
+            <option value="year">Year</option>
           </select>
         </>
       )}

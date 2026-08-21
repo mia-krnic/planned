@@ -184,6 +184,60 @@ export function MoodFace({ level, size = 14, className }: GlyphProps & { level: 
   )
 }
 
+/* ---------- Washing up ---------- */
+
+/**
+ * The showerhead at the end of the water row. Drawn like the water glasses:
+ * one grey outline, and a strike through it once the day's shower is done.
+ */
+export function ShowerGlyph({ size = 13, struck = false }: GlyphProps & { struck?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true"
+      fill="none" stroke="currentColor" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round">
+      {/* Wall pipe, bending down into the head. */}
+      <path d="M13.4 2v2.4a1.8 1.8 0 0 1-1.8 1.8H8" />
+      <line x1="8" y1="6.2" x2="8" y2="7.4" />
+      {/* The head itself: a shallow dome. */}
+      <path d="M3.4 9.6q0-2.2 4.6-2.2t4.6 2.2z" fill="currentColor" stroke="none" />
+      {/* Falling water. */}
+      <line x1="5.2" y1="11.3" x2="5.2" y2="12.8" />
+      <line x1="8" y1="11.6" x2="8" y2="13.6" />
+      <line x1="10.8" y1="11.3" x2="10.8" y2="12.8" />
+      {struck && <line x1="1.6" y1="14.4" x2="14.4" y2="1.6" strokeWidth={1.5} />}
+    </svg>
+  )
+}
+
+/**
+ * One of the pair of teeth on the mood row: a molar in outline — a crown with
+ * two soft bumps and a dip between them, tapering into two roots. Drawn as one
+ * stroked path so it survives being shrunk to 13px, and struck through in the
+ * same grey once that brush is done.
+ */
+export function ToothGlyph({ size = 13, struck = false }: GlyphProps & { struck?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true"
+      fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.7 8C2.45 4.3 4.2 2.2 6.1 2.2C7.15 2.2 7.5 3.6 8 3.6C8.5 3.6 8.85 2.2 9.9 2.2C11.8 2.2 13.55 4.3 13.3 8C13.15 9.8 12.5 11.6 11.8 13.4C11.45 14.3 10.5 14.5 10.25 13.4C10 12.2 9.5 10.4 8 10.4C6.5 10.4 6 12.2 5.75 13.4C5.5 14.5 4.55 14.3 4.2 13.4C3.5 11.6 2.85 9.8 2.7 8Z" />
+      {struck && <line x1="1.6" y1="14.4" x2="14.4" y2="1.6" strokeWidth={1.5} />}
+    </svg>
+  )
+}
+
+/* ---------- Sleep ---------- */
+
+/**
+ * The crescent heading the hours-slept row. Outlined rather than filled, so it
+ * never reads as the (solid) dinner crescent two rows above it.
+ */
+export function SleepMoonGlyph(p: GlyphProps) {
+  return (
+    <Svg {...p}>
+      <path d="M11.4 13A6 6 0 1 1 11.4 3 7.4 7.4 0 0 0 11.4 13z" />
+    </Svg>
+  )
+}
+
 /** The pencil that heads every journal box and the Journal tab. */
 export function PencilGlyph({ size = 12, className }: GlyphProps) {
   return (
