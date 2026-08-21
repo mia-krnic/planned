@@ -6899,15 +6899,17 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* Two rows rather than a centred column: the clock block takes the free space
    and centres inside it, the quote keeps the bottom, and a short window makes
    the page scroll instead of letting the two overlap. */
+/* Three rows: the clock block takes the free space, the quote and the bottom
+   rail keep the floor. */
 .home-page {
   position: relative;
   flex: 1;
   min-width: 0;
   overflow: auto;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: 1fr auto auto;
   justify-items: center;
-  padding: 72px 32px 26px;
+  padding: 72px 32px 20px;
 }
 
 .home-bg {
@@ -6951,7 +6953,7 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 
 .home-clock {
   font-size: 108px;
-  font-weight: 200;
+  font-weight: 300;
   line-height: 1;
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
@@ -6967,6 +6969,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---- Mantra ---- */
 
 .home-mantra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   font-size: 21px;
   font-weight: 400;
   letter-spacing: 0.4px;
@@ -7120,6 +7126,12 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   line-height: 1.55;
   color: var(--text-dim);
 }
+.home-quote-foot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 16px;
+}
 .home-quote-author {
   font-size: 12px;
   color: var(--text-faint);
@@ -7172,10 +7184,490 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   transition: opacity 0.6s ease;
 }
 .home-photo.loaded { opacity: 1; }
-/* Text scrims work a little harder over photography than over the gradient. */
-.home-photo.loaded ~ .home-centre .home-clock,
-.home-photo.loaded ~ .home-centre .home-mantra { text-shadow: 0 1px 18px rgba(0, 0, 0, 0.45); }
-.home-photo.loaded ~ .home-centre,
-.home-photo.loaded ~ .home-corner,
-.home-photo.loaded ~ .home-quote { --home-scrim-boost: 1; }
+/* The only darkening on the page: a whisper along the top and bottom edges,
+   baked into the photo layer so the corner cluster and the quote read without
+   a box of their own. Each half is switched off where the region below it went
+   over to dark type — see the lum-* classes — because a light region needs no
+   help and the gradient would only muddy it. */
+.home-photo.loaded::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, var(--home-dim-top, 0.28)), rgba(0, 0, 0, 0) 30%),
+    linear-gradient(to top, rgba(0, 0, 0, var(--home-dim-bottom, 0.28)), rgba(0, 0, 0, 0) 30%);
+}
 /* ---------- end Home wallpapers ---------- */
+
+/* ---------- Home library ---------- */
+
+/* Over a photograph the page stops being a themed surface and becomes a
+   Momentum-style overlay: no scrims, no boxes, no borders — every word and
+   glyph is white, and readability comes from a soft shadow on the type plus
+   the whisper of darkening along the photo's own top and bottom edges (see
+   .home-photo.loaded::after). This holds in BOTH themes; the gradient
+   fallback, shown until the photo decodes, keeps the theme-aware styling
+   above untouched.
+
+   The exception is a photo too pale to carry white — a snowfield, a blown-out
+   sky. HomePage samples the image's luminance in three bands and adds
+   lum-centre-light / lum-corner-light / lum-bottom-light for the ones over
+   the threshold; those regions swap the palette below for a deep neutral with
+   a light glow, and the edge darkening under them is switched off. Everything
+   reads through five inherited custom properties, so a region flips by
+   redefining them once. */
+.home-page.has-photo {
+  --home-fg: #fff;
+  --home-fg-dim: rgba(255, 255, 255, 0.88);
+  --home-fg-faint: rgba(255, 255, 255, 0.66);
+  --home-line: rgba(255, 255, 255, 0.45);
+  --home-glow: 0 1px 14px rgba(0, 0, 0, 0.55);
+  --home-glow-soft: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Set on the region roots, not on the page, so only that region turns over. */
+.home-page.has-photo.lum-centre-light .home-centre,
+.home-page.has-photo.lum-corner-light .home-corner,
+.home-page.has-photo.lum-bottom-light .home-quote,
+.home-page.has-photo.lum-bottom-light .home-dock {
+  --home-fg: #1b1e23;
+  --home-fg-dim: rgba(27, 30, 35, 0.86);
+  --home-fg-faint: rgba(27, 30, 35, 0.6);
+  --home-line: rgba(27, 30, 35, 0.4);
+  --home-glow: 0 1px 12px rgba(255, 255, 255, 0.45);
+  --home-glow-soft: 0 1px 9px rgba(255, 255, 255, 0.45);
+}
+
+/* A light region needs no help from the edge gradient, and would only be
+   muddied by it. */
+.home-page.lum-corner-light { --home-dim-top: 0; }
+.home-page.lum-bottom-light { --home-dim-bottom: 0; }
+
+/* Every box on the page, gone. */
+.home-page.has-photo .home-centre,
+.home-page.has-photo .home-corner,
+.home-page.has-photo .home-quote {
+  background: none;
+  border: 0;
+}
+
+.home-page.has-photo .home-clock,
+.home-page.has-photo .home-mantra {
+  color: var(--home-fg);
+  text-shadow: var(--home-glow);
+}
+.home-page.has-photo .home-clock-sep { color: var(--home-fg-faint); }
+
+.home-page.has-photo .home-goal-input,
+.home-page.has-photo .home-goal-set,
+.home-page.has-photo .home-goal-text {
+  color: var(--home-fg);
+  text-shadow: var(--home-glow-soft);
+}
+.home-page.has-photo .home-goal-input::placeholder { color: var(--home-fg-dim); }
+.home-page.has-photo .home-goal-input { border-bottom-color: var(--home-line); }
+.home-page.has-photo .home-goal-input:focus { border-bottom-color: var(--home-fg); }
+.home-page.has-photo .home-goal-set:hover { border-color: var(--home-line); }
+.home-page.has-photo .home-goal-pencil { color: var(--home-fg-faint); }
+
+.home-page.has-photo .home-focus-label,
+.home-page.has-photo .home-focus-sep,
+.home-page.has-photo .home-wx,
+.home-page.has-photo .home-wx-icon,
+.home-page.has-photo .home-wx-hint {
+  color: var(--home-fg-dim);
+  text-shadow: var(--home-glow-soft);
+}
+.home-page.has-photo .home-focus-num,
+.home-page.has-photo .home-wx-temp {
+  color: var(--home-fg);
+  text-shadow: var(--home-glow-soft);
+}
+
+.home-page.has-photo .home-ring { filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.45)); }
+.home-page.has-photo.lum-corner-light .home-ring { filter: drop-shadow(0 1px 6px rgba(255, 255, 255, 0.5)); }
+.home-page.has-photo .home-ring-bg { stroke: var(--home-fg); opacity: 0.25; }
+.home-page.has-photo .home-ring-fg,
+.home-page.has-photo .home-ring-fg.done { stroke: var(--home-fg); }
+.home-page.has-photo .home-ring-tick { fill: var(--home-fg); }
+
+.home-page.has-photo .home-quote-text {
+  color: var(--home-fg);
+  text-shadow: var(--home-glow);
+}
+.home-page.has-photo .home-quote-author {
+  color: var(--home-fg-dim);
+  text-shadow: var(--home-glow-soft);
+}
+
+/* The ⓘ keeps its shape but drops the blue: nothing on a photo is chrome. */
+.home-page.has-photo .info-icon { color: var(--home-fg-faint); }
+.home-page.has-photo .info-glyph { text-shadow: var(--home-glow-soft); }
+
+/* ---- The heart ---- */
+
+/* Quiet until the line it belongs to is hovered; a filled heart stays out,
+   because that is the whole point of having filled it. Touch has no hover, so
+   everything is simply on there (see the hover:none block below). */
+.home-fav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.72em;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.16s, transform 0.12s;
+}
+.home-fav:hover { transform: scale(1.16); }
+.home-fav.on { opacity: 0.92; }
+.home-mantra:hover .home-fav,
+.home-quote:hover .home-fav,
+.home-dock:hover .home-fav,
+.home-page:hover .home-dock .home-fav,
+.home-fav:focus-visible { opacity: 1; }
+
+/* ---- The bottom rail ---- */
+
+.home-dock {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-dim);
+}
+.home-dock-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-dock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.16s, color 0.12s;
+}
+.home-page:hover .home-dock-btn,
+.home-dock-btn:focus-visible { opacity: 1; }
+.home-dock-btn:hover { color: var(--text); }
+.home-page.has-photo .home-dock-btn {
+  color: var(--home-fg-dim);
+  text-shadow: var(--home-glow-soft);
+}
+.home-page.has-photo .home-dock-btn:hover { color: var(--home-fg); }
+
+@media (hover: none) {
+  .home-fav,
+  .home-dock-btn { opacity: 1; }
+}
+
+/* ---- The panel ---- */
+
+.home-lib {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 40px));
+  height: min(680px, calc(100vh - 64px));
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.hl-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.hl-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.hl-tab {
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.hl-tab:hover { background: var(--bg-inset); }
+.hl-tab.on {
+  background: var(--bg-inset);
+  border-color: var(--border-strong);
+  color: var(--text);
+  font-weight: 600;
+}
+.hl-close {
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.hl-close:hover { color: var(--text); }
+
+.hl-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 20px;
+}
+
+.hl-section { margin-bottom: 18px; }
+.hl-h {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.hl-count { font-weight: 500; letter-spacing: 0; }
+.hl-empty { margin: 0; font-size: 12.5px; color: var(--text-faint); }
+
+/* ---- Wallpaper thumbnails ---- */
+
+/* Fixed cells: the whole bundled set is rendered at once and loads lazily, so
+   nothing may reflow the panel as a hundred-odd images trickle in. */
+.hl-wp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 104px);
+  gap: 8px;
+}
+.hl-wp-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.hl-wp {
+  position: relative;
+  flex: 0 0 auto;
+  width: 104px;
+  height: 64px;
+  border-radius: 8px;
+}
+.hl-wp-pick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-inset);
+  overflow: hidden;
+  cursor: pointer;
+}
+.hl-wp-pick:hover { border-color: var(--accent); }
+.hl-wp-pick img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hl-wp .home-fav {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  color: #fff;
+  font-size: 14px;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7);
+}
+
+/* ---- Quote & mantra rows ---- */
+
+.hl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.hl-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  border-radius: 8px;
+}
+.hl-row:hover { background: var(--bg-inset); }
+.hl-row-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.hl-row-text { overflow-wrap: anywhere; }
+.hl-row-author { font-size: 11.5px; color: var(--text-faint); }
+.hl-mine {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.hl-del {
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 5px;
+  cursor: pointer;
+  opacity: 0;
+}
+.hl-row:hover .hl-del,
+.hl-del:focus-visible { opacity: 1; }
+.hl-del:hover { color: var(--now-line); }
+
+/* ---- "applied" ---- */
+
+/* Picking something applies it to today and leaves the panel open, so the
+   only feedback is this flash — enough to see, gone before it is furniture. */
+.hl-wp.applied::after {
+  content: 'applied';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  animation: hl-flash 0.9s ease forwards;
+}
+.hl-row.applied { animation: hl-flash-row 0.9s ease forwards; }
+
+@keyframes hl-flash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes hl-flash-row {
+  0%, 70% { background-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+  100% { background-color: transparent; }
+}
+
+/* ---- Add your own ---- */
+
+.hl-add-open {
+  margin-bottom: 18px;
+  padding: 6px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.hl-add-open:hover {
+  border-style: solid;
+  background: var(--bg-inset);
+  color: var(--text);
+}
+.hl-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-inset);
+}
+.hl-add input {
+  flex: 1;
+  min-width: 150px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* Inside the panel the hearts are part of the furniture, not a hover secret. */
+.home-lib .home-fav { opacity: 0.5; }
+.home-lib .home-fav.on,
+.home-lib .home-fav:hover,
+.home-lib .home-fav:focus-visible { opacity: 1; }
+
+/* ---- Mobile ---- */
+@media (max-width: 768px) {
+  /* Full-height sheet, like every other modal at this width. */
+  .home-lib-scrim {
+    align-items: stretch;
+    justify-content: stretch;
+    height: 100dvh;
+  }
+  .home-lib {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+  .hl-top { padding-top: calc(10px + env(safe-area-inset-top)); }
+  .hl-body { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+
+  /* Thumbnails fill the width rather than leaving a ragged right edge. */
+  .hl-wp-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  .hl-wp-grid .hl-wp { width: auto; }
+
+  /* The rail keeps both ends reachable above the home indicator. */
+  .home-page { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .home-dock { margin-top: 10px; }
+  .home-dock-btn { font-size: 12px; padding: 6px 4px; }
+}
+
+/* ---------- end Home library ---------- */

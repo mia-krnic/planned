@@ -2,8 +2,8 @@
  * The bundled Home-page wallpapers: 159 hand-picked nature photos (Unsplash/
  * Pexels licences permit bundling; `source` keeps the original filename or
  * Unsplash photo id for a future credits list). Served from public/wallpapers.
- * Picked per day by wallpaperForDate — appending keeps existing days stable
- * only if entries stay in order, so append at the END.
+ * Picked per day in homePicks.ts; `file` is also the favourites key, so a
+ * file name must never be reused for a different photo.
  */
 export interface Wallpaper { file: string; source: string }
 
@@ -169,9 +169,7 @@ export const WALLPAPERS: Wallpaper[] = [
   { file: 'w159.webp', source: 'unsplash_524010c76b52a_1.avif' },
 ]
 
-/** Deterministic daily pick: same photo for everyone on a given date, changes at midnight. */
-export function wallpaperForDate(iso: string): Wallpaper {
-  const [y, m, d] = iso.split('-').map(Number)
-  const days = Math.floor(Date.UTC(y, m - 1, d) / 86_400_000)
-  return WALLPAPERS[((days % WALLPAPERS.length) + WALLPAPERS.length) % WALLPAPERS.length]
+/** The public URL of a bundled wallpaper. BASE_URL keeps the path right on Pages. */
+export function wallpaperUrl(file: string): string {
+  return `${import.meta.env.BASE_URL}wallpapers/${file}`
 }

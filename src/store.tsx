@@ -30,7 +30,7 @@ export const DEFAULT_BINDER_SECTIONS = ['Resources / Handouts', 'Notes']
  * data automatically on next load (see StoreProvider's initializer below).
  * User-owned data (blankState or an imported backup) is never replaced.
  */
-export const SEED_VERSION = 20
+export const SEED_VERSION = 21
 
 /**
  * A class plus its auto-created project (one per class, no nesting), the
@@ -891,6 +891,19 @@ function seed(): AppState {
     ankiLogs: seedAnkiLogs(todayIso, iso(0, semesterStartWeek)),
     dayLogs,
     habitGoals, habitTicks,
+    // A couple of hearted wallpapers and one of each home-made line, so the
+    // Home library opens with something in every tab.
+    homeFavs: {
+      wallpapers: ['w016.webp', 'w027.webp', 'w003.webp'],
+      mantras: ['Begin again.'],
+      quotes: [],
+    },
+    customMantras: [{ id: 'cm-1', text: 'Slow is smooth, smooth is fast.' }],
+    customQuotes: [{
+      id: 'cq-1',
+      text: 'You do not rise to the level of your goals. You fall to the level of your systems.',
+      author: 'James Clear',
+    }],
     hiddenCalendars: [],
     // Explicitly marked day off (Saturday). Sunday is a day off too, but a
     // DERIVED one: Maya's birthday sits there and hasn't opted out.
@@ -1522,6 +1535,13 @@ export type Action =
   | { type: 'deleteHabitGoal'; id: ID } // also clears its ticks
   | { type: 'toggleHabitTick'; goalId: ID; date: string }
   | { type: 'setCollapseHabits'; on: boolean }
+  // Home library: favourites, user-written quotes/mantras, per-date applied picks.
+  | { type: 'toggleHomeFav'; kind: 'wallpapers' | 'quotes' | 'mantras'; key: string }
+  | { type: 'addCustomQuote'; text: string; author?: string }
+  | { type: 'addCustomMantra'; text: string }
+  | { type: 'deleteCustomQuote'; id: ID }
+  | { type: 'deleteCustomMantra'; id: ID }
+  | { type: 'setHomeOverride'; date: string; patch: { wallpaper?: string; mantra?: string; quote?: string } }
   | { type: 'replaceState'; state: AppState } // backup import
 
 function reducer(state: AppState, a: Action): AppState {
@@ -2455,6 +2475,35 @@ function reducer(state: AppState, a: Action): AppState {
       return (state.collapseJournal ?? false) === a.on ? state : { ...state, collapseJournal: a.on || undefined }
     case 'setCollapseHabits':
       return (state.collapseHabits ?? false) === a.on ? state : { ...state, collapseHabits: a.on || undefined }
+
+    case 'toggleHomeFav': {
+      const cur = state.homeFavs?.[a.kind] ?? []
+      const next = cur.includes(a.key) ? cur.filter((k) => k !== a.key) : [...cur, a.key]
+      return { ...state, homeFavs: { ...state.homeFavs, [a.kind]: next } }
+    }
+    case 'addCustomQuote': {
+      const text = a.text.trim()
+      if (!text) return state
+      const q = { id: uid(), text, author: a.author?.trim() || undefined }
+      return { ...state, customQuotes: [...(state.customQuotes ?? []), q] }
+    }
+    case 'addCustomMantra': {
+      const text = a.text.trim()
+      if (!text) return state
+      return { ...state, customMantras: [...(state.customMantras ?? []), { id: uid(), text }] }
+    }
+    case 'deleteCustomQuote':
+      return { ...state, customQuotes: (state.customQuotes ?? []).filter((q) => q.id !== a.id) }
+    case 'deleteCustomMantra':
+      return { ...state, customMantras: (state.customMantras ?? []).filter((m) => m.id !== a.id) }
+    case 'setHomeOverride': {
+      const cur = state.homeOverrides?.[a.date] ?? {}
+      const merged = { ...cur, ...a.patch }
+      const overrides = { ...state.homeOverrides }
+      if (Object.values(merged).some(Boolean)) overrides[a.date] = merged
+      else delete overrides[a.date]
+      return { ...state, homeOverrides: overrides }
+    }
 
     case 'addHabitGoal': {
       const title = a.title.trim()

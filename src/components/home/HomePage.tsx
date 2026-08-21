@@ -5,11 +5,12 @@ import { addDays, fromISO, toISO, todayISO } from '../../utils/date'
 import { earliestUserDate } from '../../utils/daylog'
 import { derivedBreaks, fmtDuration, sessionDuration, sessionsOnDay } from '../../utils/study'
 import { fetchArchive, fetchForecast, geocode, WX_SYNC_KEY, type GeoPoint, type TodayWeather } from '../../utils/weather'
-import { quotePairForDate } from '../../data/quotes'
-import { wallpaperForDate } from '../../data/wallpapers'
+import { homePicks } from '../../data/homePicks'
+import { WALLPAPERS, wallpaperUrl } from '../../data/wallpapers'
 import InfoIcon from '../InfoIcon'
 import { useDayLog } from '../daylog/DayLogControls'
 import { WeatherGlyph } from '../daylog/glyphs'
+import HomeLibrary, { FavHeart } from './HomeLibrary'
 
 /**
  * The landing page: a clock, the day's mantra, one goal, and — top right —
@@ -296,25 +297,107 @@ function useWeather(): TodayWeather | null {
   return wx
 }
 
+/* ---------------- How bright the photo is ---------------- */
+
+/**
+ * Whether each part of the page has something too pale behind it to carry
+ * white type. A snowfield or a blown-out sky needs dark text; almost every
+ * other photo does not.
+ */
+interface Regions { centre: boolean; corner: boolean; bottom: boolean }
+
+const ALL_DARK: Regions = { centre: false, corner: false, bottom: false }
+
+/** Mean relative luminance above which a region flips to dark type. */
+const LIGHT_AT = 0.66
+
+/** Sampling grid. Tiny on purpose: this is a mood reading, not a histogram. */
+const SAMPLE_W = 32
+const SAMPLE_H = 18
+
+function toLinear(c: number): number {
+  const s = c / 255
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+}
+
+/**
+ * Reads the photo through a 32×18 canvas and averages relative luminance over
+ * three bands: the middle (clock, mantra, goal), the top-right corner (focus
+ * ring, weather) and the bottom strip (quote, library row).
+ *
+ * The photo is painted with `background-size: cover`, so this measures the
+ * whole image rather than the exact visible crop — close enough to tell a
+ * snowfield from a night sky, which is the only question being asked. The
+ * images are bundled and same-origin, so the canvas is never tainted; the
+ * try/catch is there for the cases that are not about CORS at all (no 2d
+ * context, a decode that silently produced nothing), and any of them simply
+ * leaves the page white over the photo.
+ */
+function sampleRegions(img: HTMLImageElement): Regions | null {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = SAMPLE_W
+    canvas.height = SAMPLE_H
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0, SAMPLE_W, SAMPLE_H)
+    const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H)
+
+    // Bounds are fractions of the image, so the grid can change size freely.
+    const mean = (x0: number, x1: number, y0: number, y1: number) => {
+      let sum = 0
+      let n = 0
+      for (let y = Math.floor(y0 * SAMPLE_H); y < Math.ceil(y1 * SAMPLE_H); y++) {
+        for (let x = Math.floor(x0 * SAMPLE_W); x < Math.ceil(x1 * SAMPLE_W); x++) {
+          const i = (y * SAMPLE_W + x) * 4
+          sum += 0.2126 * toLinear(data[i]) + 0.7152 * toLinear(data[i + 1]) + 0.0722 * toLinear(data[i + 2])
+          n++
+        }
+      }
+      return n ? sum / n : 0
+    }
+
+    return {
+      centre: mean(0.15, 0.85, 0.28, 0.72) > LIGHT_AT,
+      corner: mean(0.6, 1, 0, 0.2) > LIGHT_AT,
+      bottom: mean(0, 1, 0.78, 1) > LIGHT_AT,
+    }
+  } catch {
+    return null
+  }
+}
+
 /* ---------------- The page ---------------- */
 
 export default function HomePage() {
-  const { state } = useStore()
+  const { state, dispatch } = useStore()
   const today = todayISO()
-  const quote = quotePairForDate(today)
-  const wallpaper = wallpaperForDate(today)
+  const { wallpaper, mantra, quote } = homePicks(state, today)
   const wx = useWeather()
+  const [libOpen, setLibOpen] = useState(false)
 
   // The photo fades in only once decoded, so a slow load shows the gradient
-  // rather than a top-down trickle. BASE_URL keeps the path right on Pages.
-  const [bgUrl, setBgUrl] = useState<string | null>(null)
+  // rather than a top-down trickle — and the previous photo stays up until the
+  // next one is ready, so switching wallpapers never blinks through the
+  // gradient. Its brightness is measured in the same breath, because both
+  // answers have to arrive together or the text recolours a frame late.
+  const [bg, setBg] = useState<{ url: string; lum: Regions } | null>(null)
   useEffect(() => {
-    const url = `${import.meta.env.BASE_URL}wallpapers/${wallpaper.file}`
+    const url = wallpaperUrl(wallpaper.file)
+    let live = true
     const img = new Image()
-    img.onload = () => setBgUrl(url)
+    img.onload = () => { if (live) setBg({ url, lum: sampleRegions(img) ?? ALL_DARK }) }
     img.src = url
-    return () => { img.onload = null }
+    return () => { live = false; img.onload = null }
   }, [wallpaper.file])
+
+  /** Today's photo swapped for a random other one — a nudge, not a setting. */
+  const nextWallpaper = () => {
+    if (WALLPAPERS.length < 2) return
+    let file = wallpaper.file
+    while (file === wallpaper.file) file = WALLPAPERS[Math.floor(Math.random() * WALLPAPERS.length)].file
+    dispatch({ type: 'setHomeOverride', date: today, patch: { wallpaper: file } })
+  }
 
   // The focus ring's only heartbeat: half a minute is plenty for a figure shown
   // to the minute, and cheap enough to leave running on the landing page. The
@@ -325,13 +408,24 @@ export default function HomePage() {
     return () => window.clearInterval(id)
   }, [])
 
+  // `has-photo` hands the whole page over to the Momentum look — white type, no
+  // boxes — whatever theme the app is in; the lum-* classes hand individual
+  // regions back to dark type where the photo is too pale for white.
+  const cls = [
+    'home-page',
+    bg ? 'has-photo' : '',
+    bg?.lum.centre ? 'lum-centre-light' : '',
+    bg?.lum.corner ? 'lum-corner-light' : '',
+    bg?.lum.bottom ? 'lum-bottom-light' : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className="home-page">
+    <div className={cls}>
       {/* The gradient layer stays underneath; the day's photo fades in over it
-          once decoded. The text sits on scrims, so busy photos stay readable. */}
+          once decoded, carrying its own edge darkening (see the CSS). */}
       <div className="home-bg" aria-hidden="true" />
-      <div className={`home-bg home-photo${bgUrl ? ' loaded' : ''}`} aria-hidden="true"
-        style={bgUrl ? { backgroundImage: `url("${bgUrl}")` } : undefined} />
+      <div className={`home-bg home-photo${bg ? ' loaded' : ''}`} aria-hidden="true"
+        style={bg ? { backgroundImage: `url("${bg.url}")` } : undefined} />
 
       <div className="home-corner">
         <FocusRing state={state} nowMin={nowMin} />
@@ -340,16 +434,39 @@ export default function HomePage() {
 
       <div className="home-centre">
         <Clock />
-        <div className="home-mantra">{quote.short}</div>
+        <div className="home-mantra">
+          <span className="home-mantra-text">{mantra.text}</span>
+          <FavHeart kind="mantras" itemKey={mantra.text} label="this mantra" />
+        </div>
         <div className="home-goal">
           <GoalLine date={today} />
         </div>
       </div>
 
       <div className="home-quote">
-        <span className="home-quote-text">“{quote.long}”</span>
-        {quote.author && <span className="home-quote-author">— {quote.author}</span>}
+        <span className="home-quote-text">“{quote.text}”</span>
+        <span className="home-quote-foot">
+          {quote.author && <span className="home-quote-author">— {quote.author}</span>}
+          <FavHeart kind="quotes" itemKey={quote.text} label="this quote" />
+        </span>
       </div>
+
+      {/* The bottom rail: the library on the left, the photo's own two controls
+          on the right, both quiet until the pointer is on the page. */}
+      <div className="home-dock">
+        <button type="button" className="home-dock-btn" onClick={() => setLibOpen(true)}>
+          <span aria-hidden="true">♡</span> Library
+        </button>
+        <div className="home-dock-right">
+          <FavHeart kind="wallpapers" itemKey={wallpaper.file} label="this wallpaper" />
+          <button type="button" className="home-dock-btn" onClick={nextWallpaper}
+            title="Show a different photo today">
+            next wallpaper <span aria-hidden="true">⤳</span>
+          </button>
+        </div>
+      </div>
+
+      {libOpen && <HomeLibrary date={today} onClose={() => setLibOpen(false)} />}
     </div>
   )
 }

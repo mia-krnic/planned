@@ -497,6 +497,11 @@ export interface HabitGoal {
   order: number
 }
 
+/** A quote the user typed into the Home library themselves. */
+export interface CustomQuote { id: ID; text: string; author?: string }
+/** A mantra (the short line under the clock) the user added themselves. */
+export interface CustomMantra { id: ID; text: string }
+
 export interface AppState {
   classes: ClassInfo[]
   folders: ClassFolder[]
@@ -511,6 +516,12 @@ export interface AppState {
   gradeRows: GradeRow[] // assessed components per class (the grade tracker)
   ankiLogs: AnkiLog[] // manual flashcard review counts, one per (date, classId)
   dayLogs: Record<string, DayLog> // the daily log & journal, keyed by ISO date
+  /** Home-page favourites, keyed by wallpaper file / quote text / mantra text. */
+  homeFavs?: { wallpapers?: string[]; quotes?: string[]; mantras?: string[] }
+  customQuotes?: CustomQuote[]
+  customMantras?: CustomMantra[]
+  /** Per-date Home picks the user applied from the library, overriding the daily draw. */
+  homeOverrides?: Record<string, { wallpaper?: string; mantra?: string; quote?: string }>
   habitGoals: HabitGoal[] // gantt habit-tracker goals (see HabitGoal)
   habitTicks: Record<string, ID[]> // ISO date -> goal ids ticked that day
   collapseHabits?: boolean // fold the habit grids away (month + week views)

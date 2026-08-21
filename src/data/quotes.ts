@@ -1,15 +1,16 @@
 /**
- * The Home page's quote of the day.
+ * The Home page's words: the short mantra under the clock and the long quote
+ * along the bottom.
  *
- * Each entry pairs a two-to-four-word mantra (the line under the clock) with a
- * longer quote (the line along the bottom). Everything here is a real, sourced
- * quotation; `author` is left out only when a line genuinely has no known one.
+ * QUOTE_PAIRS is the source list — each entry keeps a mantra next to the quote
+ * it was written beside, which is how they were chosen. The page no longer
+ * shows them as a pair, though: MANTRAS and QUOTES are drawn from it as two
+ * independent pools so a day's short line and long line come from different
+ * entries (see homePicks.ts). Everything here is a real, sourced quotation;
+ * `author` is left out only when a line genuinely has no known one.
  *
- * The list is append-only by design: `quotePairForDate` indexes it modulo its
- * own length, so dropping hundreds more entries at the end needs no other
- * change. It does mean the pair a given date lands on shifts when the length
- * changes — the promise is "one pair a day, the same for everyone", not "this
- * date always gets this pair".
+ * The list is append-only by design — nothing indexes it by position across
+ * loads, so dropping hundreds more entries at the end needs no other change.
  */
 
 export interface QuotePair {
@@ -123,19 +124,14 @@ export const QUOTE_PAIRS: QuotePair[] = [
   },
 ]
 
-/**
- * Whole days since the epoch for an ISO date. Built from the date's own parts
- * in UTC so the index is a property of the calendar day itself — no timezone,
- * no daylight saving, and the same answer on every machine.
- */
-function dayNumber(iso: string): number {
-  const [y, m, d] = iso.split('-').map(Number)
-  return Math.floor(Date.UTC(y, (m || 1) - 1, d || 1) / 86_400_000)
+/** One long quotation, on its own. */
+export interface Quote {
+  text: string
+  author?: string
 }
 
-/** The day's pair. Deterministic from the date, so it turns over at midnight. */
-export function quotePairForDate(iso: string): QuotePair {
-  const n = dayNumber(iso)
-  const i = ((n % QUOTE_PAIRS.length) + QUOTE_PAIRS.length) % QUOTE_PAIRS.length
-  return QUOTE_PAIRS[i]
-}
+/** The bundled mantra pool: every pair's short line. */
+export const MANTRAS: string[] = QUOTE_PAIRS.map((p) => p.short)
+
+/** The bundled quote pool: every pair's long line, with its author. */
+export const QUOTES: Quote[] = QUOTE_PAIRS.map((p) => ({ text: p.long, author: p.author }))
