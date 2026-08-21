@@ -122,6 +122,156 @@ export const QUOTE_PAIRS: QuotePair[] = [
     long: 'We must cultivate our own garden.',
     author: 'Voltaire, Candide',
   },
+  {
+    short: 'Go through.',
+    long: 'The best way out is always through.',
+    author: 'Robert Frost, A Servant to Servants',
+  },
+  {
+    short: 'This day matters.',
+    long: 'Nothing is worth more than this day.',
+    author: 'Johann Wolfgang von Goethe',
+  },
+  {
+    short: 'Know your why.',
+    long: 'He who has a why to live for can bear almost any how.',
+    author: 'Friedrich Nietzsche',
+  },
+  {
+    short: 'Impossible, until done.',
+    long: 'It always seems impossible until it is done.',
+    author: 'Nelson Mandela',
+  },
+  {
+    short: 'Practice becomes you.',
+    long: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.',
+    author: 'Will Durant, on Aristotle',
+  },
+  {
+    short: 'Answer the mountains.',
+    long: 'The mountains are calling and I must go.',
+    author: 'John Muir',
+  },
+  {
+    short: 'Carry summer within.',
+    long: 'In the middle of winter I at last discovered that there was in me an invincible summer.',
+    author: 'Albert Camus, Return to Tipasa',
+  },
+  {
+    short: 'Spend days well.',
+    long: 'How we spend our days is, of course, how we spend our lives.',
+    author: 'Annie Dillard, The Writing Life',
+  },
+  {
+    short: 'Take the step.',
+    long: 'The journey of a thousand miles begins with a single step.',
+    author: 'Lao Tzu',
+  },
+  {
+    short: 'Do the hard thing.',
+    long: 'You must do the thing you think you cannot do.',
+    author: 'Eleanor Roosevelt, You Learn by Living',
+  },
+  {
+    short: 'Breathe first.',
+    long: 'Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.',
+    author: 'Thich Nhat Hanh',
+  },
+  {
+    short: 'Match nature\'s pace.',
+    long: 'Adopt the pace of nature: her secret is patience.',
+    author: 'Ralph Waldo Emerson',
+  },
+  {
+    short: 'Dwell in possibility.',
+    long: 'I dwell in possibility.',
+    author: 'Emily Dickinson',
+  },
+  {
+    short: 'Wander well.',
+    long: 'Not all those who wander are lost.',
+    author: 'J.R.R. Tolkien, The Fellowship of the Ring',
+  },
+  {
+    short: 'Still time.',
+    long: 'It is never too late to be what you might have been.',
+    author: 'George Eliot',
+  },
+  {
+    short: 'Thank your gardeners.',
+    long: 'Let us be grateful to the people who make us happy; they are the charming gardeners who make our souls blossom.',
+    author: 'Marcel Proust',
+  },
+  {
+    short: 'Let light in.',
+    long: 'The wound is the place where the light enters you.',
+    author: 'Rumi',
+  },
+  {
+    short: 'Step in fresh.',
+    long: 'No man ever steps in the same river twice, for it is not the same river and he is not the same man.',
+    author: 'Heraclitus',
+  },
+  {
+    short: 'Remove, then rest.',
+    long: 'Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.',
+    author: 'Antoine de Saint-Exupéry, Wind, Sand and Stars',
+  },
+  {
+    short: 'Leave the harbour.',
+    long: 'A ship in harbour is safe, but that is not what ships are built for.',
+    author: 'John A. Shedd',
+  },
+  {
+    short: 'Nature makes kin.',
+    long: 'One touch of nature makes the whole world kin.',
+    author: 'William Shakespeare, Troilus and Cressida',
+  },
+  {
+    short: 'Good beats perfect.',
+    long: 'And now that you don\'t have to be perfect, you can be good.',
+    author: 'John Steinbeck, East of Eden',
+  },
+  {
+    short: 'Let years answer.',
+    long: 'There are years that ask questions and years that answer.',
+    author: 'Zora Neale Hurston, Their Eyes Were Watching God',
+  },
+  {
+    short: 'All shall be well.',
+    long: 'All shall be well, and all shall be well, and all manner of thing shall be well.',
+    author: 'Julian of Norwich',
+  },
+  {
+    short: 'Wake up grateful.',
+    long: 'When you arise in the morning, think of what a precious privilege it is to be alive - to breathe, to think, to enjoy, to love.',
+    author: 'Marcus Aurelius, Meditations',
+  },
+  {
+    short: 'Try again tomorrow.',
+    long: 'Courage does not always roar. Sometimes courage is the quiet voice at the end of the day saying, I will try again tomorrow.',
+    author: 'Mary Anne Radmacher',
+  },
+  {
+    short: 'Keep walking.',
+    long: 'Above all, do not lose your desire to walk: every day I walk myself into a state of well-being and walk away from every illness.',
+    author: 'Søren Kierkegaard',
+  },
+  {
+    short: 'Believe it first.',
+    long: 'Believe that life is worth living, and your belief will help create the fact.',
+    author: 'William James',
+  },
+  {
+    short: 'Really live.',
+    long: 'To live is the rarest thing in the world. Most people exist, that is all.',
+    author: 'Oscar Wilde',
+  },
+  {
+    short: 'Rewrite the ending.',
+    long: 'At any given moment you have the power to say: this is not how the story is going to end.',
+    author: 'Christine Mason Miller',
+  },
 ]
 
 /** One long quotation, on its own. */
