@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { useStore } from '../../store'
 import type { DayLog } from '../../types'
-import { earliestUserDate, fmtSleep } from '../../utils/daylog'
+import { earliestUserDate, fmtSleep, fmtWeight } from '../../utils/daylog'
 import { addDays, fromISO, MONTHS, toISO, todayISO, WEEKDAYS } from '../../utils/date'
 import { DayLogBlock, JournalBox } from '../daylog/DayLogControls'
 import { MOOD_LABEL, MOOD_LEVELS, MoodFace, PencilGlyph } from '../daylog/glyphs'
@@ -341,6 +341,7 @@ function MonthRows({ dates, today, q, todayRef }: {
   return (
     <div className="jp-rowsblock">
       <SleepColumn dates={dates} bands={geom.bands} h={geom.h} />
+      <WeightColumn dates={dates} bands={geom.bands} h={geom.h} />
       <div className="jp-rows" ref={rowsRef}>
         {dates.map((iso) => (
           <DayRow key={iso} iso={iso} today={today} q={q}
@@ -452,6 +453,108 @@ function SleepColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: n
                 onPointerDown={down(i)} onPointerMove={move(i)}
                 onPointerUp={up(i)} onPointerCancel={up(i)}>
                 <title>{`${iso} · ${m > 0 ? `${fmtSleep(m)} slept` : 'no sleep logged'} — drag to set`}</title>
+              </rect>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+/** Dragging lands on fifths of a kilogram. */
+const WEIGHT_SNAP = 0.2
+const WEIGHT_COL_W = 64
+
+/**
+ * The sleep column's sibling: morning weight, read downwards, on an axis that
+ * hugs the month's own numbers (a flat line against 0 tells you nothing).
+ * Same manners as sleep — drag sideways to set, store written on release.
+ */
+function WeightColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: number }) {
+  const { state, dispatch } = useStore()
+  const [drag, setDrag] = useState<{ i: number; kg: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  if (bands.length !== dates.length || h <= 0) return <div className="jp-weightcol" aria-hidden="true" />
+
+  // Axis domain: the month's own range, two kilos of air either side.
+  let mn = Infinity
+  let mx = -Infinity
+  for (const iso of dates) {
+    const v = state.dayLogs[iso]?.weightKg
+    if (typeof v === 'number' && v > 0) { if (v < mn) mn = v; if (v > mx) mx = v }
+  }
+  const lo = Number.isFinite(mn) ? Math.max(30, Math.floor(mn) - 2) : 50
+  const hi = Number.isFinite(mx) ? Math.min(150, Math.ceil(mx) + 2) : 90
+
+  const xOf = (kg: number) =>
+    COL_PAD + ((Math.min(Math.max(kg, lo), hi) - lo) / (hi - lo)) * (WEIGHT_COL_W - 2 * COL_PAD)
+
+  const kgAt = (clientX: number): number => {
+    const r = svgRef.current?.getBoundingClientRect()
+    if (!r || r.width <= 2 * COL_PAD) return lo
+    const t = (clientX - r.left - COL_PAD) / (r.width - 2 * COL_PAD)
+    const raw = lo + Math.max(0, Math.min(1, t)) * (hi - lo)
+    return Math.round(raw / WEIGHT_SNAP) * WEIGHT_SNAP
+  }
+
+  const kgFor = (i: number): number =>
+    (drag && drag.i === i ? drag.kg : state.dayLogs[dates[i]]?.weightKg ?? 0)
+
+  const cyOf = (i: number) => bands[i].top + bands[i].h / 2
+
+  const down = (i: number) => (e: ReactPointerEvent<SVGRectElement>) => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ i, kg: kgAt(e.clientX) })
+  }
+  const move = (i: number) => (e: ReactPointerEvent<SVGRectElement>) => {
+    if (!drag || drag.i !== i) return
+    const kg = kgAt(e.clientX)
+    if (kg !== drag.kg) setDrag({ i, kg })
+  }
+  const up = (i: number) => (e: ReactPointerEvent<SVGRectElement>) => {
+    if (!drag || drag.i !== i) return
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    dispatch({ type: 'updateDayLog', date: dates[i], patch: { weightKg: Math.round(drag.kg * 10) / 10 } })
+    setDrag(null)
+  }
+
+  const runs: string[][] = []
+  let run: string[] = []
+  for (let i = 0; i < dates.length; i++) {
+    const v = kgFor(i)
+    if (v > 0) run.push(`${xOf(v).toFixed(2)},${cyOf(i).toFixed(2)}`)
+    else { if (run.length > 1) runs.push(run); run = [] }
+  }
+  if (run.length > 1) runs.push(run)
+
+  return (
+    <div className="jp-sleepcol jp-weightcol" style={{ height: h }}>
+      <svg ref={svgRef} className="jp-sleepsvg" width={WEIGHT_COL_W} height={h}
+        viewBox={`0 0 ${WEIGHT_COL_W} ${h}`} role="img" aria-label="Morning weight">
+        {runs.map((pts, i) => (
+          <polyline key={i} className="jp-sleep-line jp-weight-line" points={pts.join(' ')} />
+        ))}
+        {dates.map((iso, i) => {
+          const v = kgFor(i)
+          const dragging = drag?.i === i
+          return (
+            <g key={iso}>
+              {v > 0 && (
+                <circle className={`jp-sleep-dot jp-weight-dot ${dragging ? 'dragging' : ''}`}
+                  cx={xOf(v)} cy={cyOf(i)} r={dragging ? 3.4 : 2.4} />
+              )}
+              {dragging && (
+                <text className="jp-sleep-label" x={WEIGHT_COL_W / 2} y={cyOf(i) - 8} textAnchor="middle">
+                  {fmtWeight(v)} kg
+                </text>
+              )}
+              <rect className="jp-sleep-hit" x={0} y={bands[i].top} width={WEIGHT_COL_W} height={bands[i].h}
+                onPointerDown={down(i)} onPointerMove={move(i)}
+                onPointerUp={up(i)} onPointerCancel={up(i)}>
+                <title>{`${iso} · ${v > 0 ? `${fmtWeight(v)} kg` : 'no weigh-in'} — drag to set`}</title>
               </rect>
             </g>
           )

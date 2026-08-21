@@ -7733,3 +7733,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   margin-left: 6px;
 }
 /* ---------- end Hover affordances out of the layout ---------- */
+
+/* ---------- Journal weight column ---------- */
+.jp-weightcol { flex: 0 0 64px; width: 64px; }
+.jp-weight-line { stroke: #e8b06c; }
+.jp-weight-dot { fill: #e8b06c; }
+@media (max-width: 900px) { .jp-weightcol { display: none; } }
+/* ---------- end Journal weight column ---------- */
