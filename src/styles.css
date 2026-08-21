@@ -1913,12 +1913,6 @@ button { font: inherit; color: inherit; }
   /* .study-card.running centres its own text; the goal block never wants that. */
   text-align: left;
 }
-.st-goal-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .st-goal-lbl {
   display: inline-flex;
   align-items: center;
@@ -2010,12 +2004,6 @@ button { font: inherit; color: inherit; }
 }
 
 /* --- Mid-session quick switching ---------------------------------------- */
-.st-switched {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--text-faint);
-}
 .qs-strip {
   display: flex;
   align-items: center;
@@ -2177,24 +2165,7 @@ button { font: inherit; color: inherit; }
 
 .st-title { margin: 0 0 16px; font-size: 17px; }
 
-.st-modes { display: flex; flex-direction: column; gap: 6px; }
 /* Specific enough to beat the generic `.field label` block above. */
-.st-modes label.st-mode {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 3px 9px;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  padding: 9px 11px;
-  margin: 0;
-  cursor: pointer;
-  font-size: 13.5px;
-  font-weight: 400;
-  color: var(--text);
-}
-.st-modes label.st-mode.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.st-modes label.st-mode input { margin: 0; accent-color: var(--accent); }
 .st-mode-name { font-weight: 600; }
 .st-mode-hint { grid-column: 2; font-size: 11.5px; color: var(--text-dim); }
 
@@ -2247,7 +2218,6 @@ button { font: inherit; color: inherit; }
 .st-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .st-actions .spacer { flex: 1; }
 
-.st-start { width: 100%; padding: 10px; font-size: 15px; margin-top: 4px; }
 
 .st-note { font-size: 11.5px; color: var(--text-faint); margin: 14px 0 0; }
 
@@ -2923,37 +2893,6 @@ button { font: inherit; color: inherit; }
 .st-ring-inner .st-clock { font-size: 40px; margin: 0; }
 
 /* Custom pomodoro ratio: two small integer boxes inside the picked mode row. */
-.st-ratio {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  cursor: default;
-}
-.st-ratio-lbl { font-size: 11.5px; color: var(--text-dim); }
-.st-num { position: relative; width: 64px; flex-shrink: 0; }
-.st-num input {
-  width: 100%;
-  padding: 4px 20px 4px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--bg-inset);
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
-  text-align: left;
-}
-.st-spin {
-  position: absolute; top: 2px; right: 3px; bottom: 2px;
-  display: flex; flex-direction: column; justify-content: center;
-}
-.st-spin button {
-  border: 0; background: transparent; cursor: pointer;
-  color: var(--text-faint); font-size: 9px; line-height: 9px;
-  padding: 1px 3px;
-}
-.st-spin button:hover { color: var(--text); }
 
 /* Segment (class-switch) rows: time + class picker + delete. */
 .seg-row .seg-class { flex: 1; min-width: 0; }
@@ -7787,3 +7726,652 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 .jp-col-label { font-size: 8.5px; font-weight: 700; letter-spacing: 0.4px; fill: var(--text-faint); text-transform: uppercase; }
 .jp-col-mark { font-size: 8px; fill: var(--text-faint); opacity: 0.85; }
 /* ---------- end Journal graph labels ---------- */
+
+/* ---------- Timer dial ---------- */
+/*
+ * The study-timer set-up: a two-ring clock dial in place of the old mode radio
+ * cards, a compact daily-goal banner at the top of the card, the round
+ * play/pause control, the running view's sitting marks and its class segment
+ * bar. Appended last so the few `.st-goal*` rules it restyles win on order.
+ */
+
+.study-card {
+  --dial-focus: var(--accent);
+  --dial-brk: #56b096;
+}
+:root[data-theme='dark'] .study-card { --dial-brk: #63c2a4; }
+
+/* --- Card header: title left, goal banner right ------------------------- */
+.st-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 18px;
+}
+.st-head .st-title { margin: 0; line-height: 2.1; }
+.st-head .st-goal { flex: 1 1 250px; max-width: 290px; }
+
+/* --- Daily goal, restyled ----------------------------------------------- */
+.st-goal {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  width: auto;
+  gap: 2px 9px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--bg);
+}
+.st-head .st-goal { margin: 0; }
+.st-goal-icon {
+  grid-row: 1 / span 2;
+  fill: none;
+  stroke: var(--accent);
+  opacity: 0.9;
+}
+.st-goal-icon circle:last-child { fill: var(--accent); stroke: none; }
+.st-goal.hit .st-goal-icon { stroke: #3fae6a; }
+.st-goal.hit .st-goal-icon circle:last-child { fill: #3fae6a; }
+.st-goal-num {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 5px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.st-goal-lbl { text-transform: none; letter-spacing: 0.02em; }
+/* Quiet until wanted: the numbers are the point, not the buttons. */
+.st-goal-acts {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+.st-goal:hover .st-goal-acts,
+.st-goal:focus-within .st-goal-acts,
+.st-goal-acts.bare {
+  opacity: 1;
+  pointer-events: auto;
+}
+.st-goal .st-goal-acts .st-goal-btn { margin-left: 0; }
+.st-goal-bar {
+  grid-column: 2 / -1;
+  margin-top: 5px;
+  height: 4px;
+  border-radius: 999px;
+}
+.st-goal-fill { border-radius: 999px; }
+
+/* --- The dial ----------------------------------------------------------- */
+.st-rhythm { display: block; margin-bottom: 20px; }
+.dial-wrap {
+  position: relative;
+  width: 224px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 2px auto 0;
+  /* The rings own the gesture — no scrolling out from under a drag. */
+  touch-action: none;
+}
+.dial {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  transform-origin: 50% 50%;
+}
+.dial-track { fill: none; stroke: var(--bg-inset); stroke-width: 12; }
+.dial-tick { fill: var(--text-faint); opacity: 0.5; }
+.dial-arc {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.34s cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.dial-arc.focus { stroke: var(--dial-focus); stroke-width: 12; }
+.dial-arc.brk { stroke: var(--dial-brk); stroke-width: 10; }
+.dial-swing { transition: transform 0.34s cubic-bezier(0.34, 1.4, 0.5, 1); }
+.dial-knob { stroke: var(--bg-raised); stroke-width: 3; }
+.dial-knob.focus { fill: var(--dial-focus); }
+.dial-knob.brk { fill: var(--dial-brk); }
+/* A finger should never have to find an 12px ring. */
+.dial-hit {
+  fill: none;
+  stroke: transparent;
+  cursor: grab;
+  outline: none;
+}
+.dial-hit:focus-visible { stroke: color-mix(in srgb, var(--accent) 20%, transparent); }
+/* Mid-drag the rings must track the pointer, not ease towards it. */
+.dial-wrap.dragging .dial-arc,
+.dial-wrap.dragging .dial-swing { transition: none; }
+.dial-wrap.dragging .dial-hit { cursor: grabbing; }
+@keyframes dial-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.dial-wrap.popped .dial { animation: dial-pop 0.46s cubic-bezier(0.34, 1.5, 0.5, 1); }
+
+.dial-read {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dial-read-big {
+  display: flex;
+  align-items: baseline;
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.dial-read-unit { margin-left: 4px; font-size: 13px; font-weight: 500; color: var(--text-dim); }
+.dial-read-sub {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.dial-read-brk { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--dial-brk); }
+
+/* --- Presets, sitting hint, free-run link -------------------------------- */
+.dial-presets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 15px;
+}
+.dial-chip {
+  padding: 5px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.16s ease, background 0.16s ease;
+}
+.dial-chip:hover { transform: translateY(-1px); border-color: var(--accent); }
+.dial-chip.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.dial-presets-hint {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.dial-sitting {
+  margin-top: 9px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.st-freelink {
+  display: block;
+  margin: 11px auto 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.st-freelink:hover { text-decoration: underline; }
+
+.st-free {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 224px;
+  padding: 22px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 16px;
+  background: var(--bg);
+}
+.st-free-glyph { font-size: 42px; line-height: 1; color: var(--accent); }
+.st-free-name { margin-top: 8px; font-size: 15px; font-weight: 600; }
+.st-free-hint { font-size: 12px; color: var(--text-dim); }
+
+/* --- The round play / pause control -------------------------------------- */
+.st-play-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  margin-top: 20px;
+}
+.st-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+  transition: transform 0.14s cubic-bezier(0.34, 1.5, 0.5, 1), background 0.16s ease;
+}
+.st-play:hover { transform: scale(1.06); background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.st-play:active { transform: scale(0.96); }
+.st-play-glyph { font-size: 24px; line-height: 1; }
+/* ▶ is drawn left-heavy in its em box; nudge it back onto the centre. */
+.st-play-glyph.tri { margin-left: 4px; }
+.st-play-cap {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+@keyframes st-play-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 34%, transparent); }
+  60% { box-shadow: 0 0 0 10px transparent; }
+}
+.st-play.is-paused { animation: st-play-breathe 2.1s ease-out infinite; }
+
+/* --- Running: the sitting's session marks -------------------------------- */
+.st-marks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-bottom: 7px;
+}
+.st-marks-row { display: inline-flex; align-items: center; gap: 5px; }
+.st-mark { display: block; overflow: visible; }
+.st-mark-ring { fill: none; stroke-width: 1.6; opacity: 0.42; }
+.st-marks-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* --- Running: the class segment bar -------------------------------------- */
+.st-segbar { margin-bottom: 9px; }
+.st-segbar-track {
+  display: flex;
+  gap: 1px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+/* flex-grow carries the minutes, so the live block widens with the clock and a
+ * brand-new one visibly opens from nothing. */
+.st-seg {
+  min-width: 2px;
+  transition: flex-grow 0.9s linear;
+  animation: st-seg-in 0.5s ease both;
+}
+@keyframes st-seg-in {
+  from { flex-grow: 0.01; opacity: 0.25; }
+  to { opacity: 1; }
+}
+.st-seg.live { position: relative; }
+.st-seg.live::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 3px;
+  background: color-mix(in srgb, var(--text) 45%, transparent);
+  animation: st-seg-tip 1.7s ease-in-out infinite;
+}
+@keyframes st-seg-tip {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.6; }
+}
+.st-segbar-keys {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.st-segbar-key { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.st-segbar-arrow { margin-right: 3px; color: var(--text-faint); }
+.st-seghint { margin-top: 7px; font-size: 11px; color: var(--text-faint); }
+.qs-live {
+  margin-left: 2px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+@media (hover: none) {
+  .st-goal-acts { opacity: 1; pointer-events: auto; }
+}
+
+@media (max-width: 480px) {
+  .st-head { gap: 8px; }
+  .st-head .st-goal { flex-basis: 100%; max-width: 100%; }
+  .dial-wrap { width: 200px; }
+  .dial-read-big { font-size: 30px; }
+  /* Fatter targets for thumbs. */
+  .dial-chip { padding: 7px 15px; font-size: 13px; }
+  .st-freelink { padding: 6px; font-size: 12.5px; }
+  .st-play { width: 76px; height: 76px; }
+  .st-play-glyph { font-size: 27px; }
+  .st-marks { gap: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dial-wrap.popped .dial,
+  .st-play.is-paused,
+  .st-seg,
+  .st-seg.live::after { animation: none; }
+  .dial-arc,
+  .dial-swing,
+  .st-seg,
+  .st-play { transition: none; }
+}
+/* ---------- end Timer dial ---------- */
+
+/* ---------- Home life ---------- */
+/* Everything the landing page grew that reacts to the day: the almanac line,
+   the lines under the goal, the wellness glance and the keyboard hints.
+   Two rules run through all of it. Colour goes through the --home-fg custom
+   properties whenever a photo is up, so white-over-photo and the adaptive
+   lum-* flip keep working on every new line. And nothing that appears or
+   disappears is allowed to move anything: the phase lines are their own block
+   under the centred column, and every hint is absolutely positioned. */
+
+/* ---- The almanac line, above the clock ---- */
+
+.home-almanac {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  font-variant: small-caps;
+  letter-spacing: 0.7px;
+  color: var(--text-faint);
+}
+
+/* ---- The goal, and how the morning treats it ---- */
+
+/* A box the hint can hang off without joining the centred row (see
+   .home-hint-goal). Its width is the widest either face of the goal was
+   already allowed to be — the field's own min(440px, 100%) and the set goal's
+   max-width both still resolve exactly as they did before it existed. */
+.home-goal-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: min(520px, 100%);
+}
+
+/* Morning leans on the goal a little: the same line, two points larger and a
+   touch more present at the underline. Nothing else changes. */
+.home-goal.morning .home-goal-input,
+.home-goal.morning .home-goal-set { font-size: 18px; }
+.home-goal.morning .home-goal-input { border-bottom-color: var(--text-faint); }
+
+/* ---- The lines the day writes under the goal ---- */
+
+.home-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-top: 16px;
+  max-width: 100%;
+  text-align: center;
+}
+
+.home-dayline {
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+  color: var(--text-faint);
+}
+
+.home-care {
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.home-cheer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.home-cheer-glyph { font-size: 13px; line-height: 1; }
+
+/* Evening's added line: a question, so it is a button, but it keeps the weight
+   of the whispers around it rather than looking like an action. */
+.home-evening {
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.14s, color 0.14s;
+}
+.home-evening:hover,
+.home-evening:focus-visible { opacity: 1; color: var(--text-dim); }
+
+.home-night {
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.3px;
+  color: var(--text-faint);
+  opacity: 0.9;
+}
+
+/* ---- The ✓ nods once when the page opens on a finished day ---- */
+
+@keyframes home-tick-greet {
+  0% { transform: scale(1); filter: none; }
+  38% { transform: scale(1.3); filter: drop-shadow(0 0 6px var(--home-greet, var(--home-hit))); }
+  100% { transform: scale(1); filter: none; }
+}
+.home-ring-tick.greet {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: home-tick-greet 900ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-ring-tick.greet { animation: none; }
+}
+
+/* ---- Water and meals, in the bottom rail ---- */
+
+.home-dock-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.home-well {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.16s, color 0.12s;
+}
+.home-well:hover,
+.home-well:focus-visible { opacity: 1; color: var(--text-dim); }
+.home-well-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The keyboard hints ---- */
+
+/* Every hint is out of the flow, so fading the layer in cannot nudge a line
+   off centre or make the rail jump. */
+.home-hint {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.home-hint.on { opacity: 1; }
+
+.home-hint-goal {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 10px;
+}
+/* The Library button's own box, so its hint sits beside the button rather
+   than beside the whole left group. */
+.home-dock-anchor { position: relative; display: inline-flex; }
+.home-hint-lib {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 6px;
+}
+/* Timer and Journal have no button here to sit beside, so they take the empty
+   middle of the rail. */
+.home-hint-pages {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.home-hint-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+
+.home-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bg-raised) 72%, transparent);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* The dock's toggle keeps the rail's hover-to-appear behaviour, but stays up
+   while the hints it pinned are up. */
+.home-keys-btn { padding: 4px 5px; }
+.home-page .home-keys-btn.on { opacity: 1; color: var(--text); }
+
+/* ---- Over a photo ---- */
+
+.home-page.has-photo .home-almanac,
+.home-page.has-photo .home-dayline,
+.home-page.has-photo .home-care,
+.home-page.has-photo .home-night,
+.home-page.has-photo .home-evening,
+.home-page.has-photo .home-well,
+.home-page.has-photo .home-hint-page {
+  color: var(--home-fg-faint);
+  text-shadow: var(--home-glow-soft);
+}
+.home-page.has-photo .home-cheer {
+  color: var(--home-fg-dim);
+  text-shadow: var(--home-glow-soft);
+}
+.home-page.has-photo .home-evening:hover,
+.home-page.has-photo .home-evening:focus-visible,
+.home-page.has-photo .home-well:hover,
+.home-page.has-photo .home-well:focus-visible { color: var(--home-fg); }
+.home-page.has-photo .home-goal.morning .home-goal-input { border-bottom-color: var(--home-line); }
+
+.home-page.has-photo .home-almanac .moon-dark { fill: color-mix(in srgb, var(--home-fg) 20%, transparent); }
+.home-page.has-photo .home-almanac .moon-lit { fill: var(--home-fg-dim); }
+.home-page.has-photo .home-almanac .moon-rim { stroke: color-mix(in srgb, var(--home-fg) 45%, transparent); }
+
+.home-page.has-photo .home-keycap {
+  border-color: color-mix(in srgb, var(--home-fg) 42%, transparent);
+  background: color-mix(in srgb, var(--home-fg) 14%, transparent);
+  color: var(--home-fg);
+  text-shadow: none;
+}
+.home-page.has-photo .home-keys-btn.on { color: var(--home-fg); }
+/* The ✓ is white over a photo, so its nod glows white rather than green. */
+.home-page.has-photo .home-ring-tick.greet { --home-greet: var(--home-fg); }
+
+/* ---- Mobile ---- */
+
+@media (max-width: 768px) {
+  .home-almanac { margin-bottom: 6px; font-size: 10.5px; }
+  .home-goal.morning .home-goal-input,
+  .home-goal.morning .home-goal-set { font-size: 16.5px; }
+  .home-lines { margin-top: 12px; gap: 4px; }
+  .home-dayline,
+  .home-care,
+  .home-cheer,
+  .home-evening { font-size: 11.5px; }
+  .home-night { font-size: 11px; }
+  .home-dock-left { gap: 4px; }
+  .home-well { gap: 8px; font-size: 11px; }
+  /* No room to float labels between the two ends of a phone-width rail. */
+  .home-hint-pages { display: none; }
+}
+
+@media (hover: none) {
+  .home-well { opacity: 1; }
+}
+
+/* end ---------- Home life ---------- */

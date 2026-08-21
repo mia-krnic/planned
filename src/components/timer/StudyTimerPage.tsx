@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect, useMemo, useRef, useState,
+  type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode,
+} from 'react'
 import { groupedClasses, uid, useStore } from '../../store'
 import type { ClassInfo, ID, StudyBreak, StudyMode, StudySession, Task } from '../../types'
 import { cbTint, hexToRgba, titleTint } from '../../utils/color'
@@ -12,36 +15,237 @@ import {
   type SegmentPatch,
 } from './SessionEditors'
 import {
-  DAY_END, NEUTRAL_COLOR, clampCustomBreak, clampCustomWork, classIdAt, currentPhase, CUSTOM_BREAK_DEFAULT,
-  CUSTOM_BREAK_MAX, CUSTOM_BREAK_MIN, CUSTOM_WORK_DEFAULT, CUSTOM_WORK_MAX, CUSTOM_WORK_MIN, cycleLabel,
-  derivedBreaks, fmtClock, fmtDuration, isPomodoro, modeLabel, openTasksForClass, runningSession, sessionColor,
-  sessionDuration, sessionsOnDay, STUDY_MODES, withClassSwitch,
+  DAY_END, NEUTRAL_COLOR, clampCustomBreak, clampCustomWork, classIdAt, currentPhase, cycleFor, cycleLabel,
+  derivedBreaks, fmtClock, fmtDuration, isPomodoro, modeLabel, openTasksForClass, runningSession, segmentSpans,
+  sessionColor, sessionDuration, sessionsOnDay, withClassSwitch,
 } from '../../utils/study'
 
-/** Small integer field with its own spinner (matches the Anki logger's box). */
-function NumBox({ value, onChange, min, max, title }: {
-  value: string
-  onChange: (v: string) => void
-  min: number
-  max: number
-  title: string
+/* ---------------- The set-up dial ---------------- */
+
+const DIAL_SIZE = 224
+const DIAL_MID = DIAL_SIZE / 2
+const R_FOCUS = 90
+const R_BREAK = 62
+/** One full lap of each ring, in minutes: 2 h of focus, 1 h of break. */
+const FOCUS_LAP = 120
+const BREAK_LAP = 60
+const DIAL_SNAP = 5
+/** Shortest either ring may be dragged to. */
+const DIAL_FLOOR = 5
+/** A pomodoro sitting is this many focus sessions before the marks wrap. */
+const SITTING = 4
+
+const PRESETS = [{ work: 25, brk: 5 }, { work: 50, brk: 10 }]
+
+/** Minutes under the pointer: 0 at 12 o'clock, one lap clockwise, snapped. */
+function dialMinutes(rect: DOMRect, clientX: number, clientY: number, lap: number): number {
+  const dx = clientX - (rect.left + rect.width / 2)
+  const dy = rect.top + rect.height / 2 - clientY
+  const deg = (Math.atan2(dx, dy) * 180) / Math.PI
+  const raw = (((deg % 360) + 360) % 360) / 360 * lap
+  return Math.round(raw / DIAL_SNAP) * DIAL_SNAP
+}
+
+/**
+ * Where a drag should move the handle to. Taking the SHORT way round from
+ * where the handle already is — and clamping rather than wrapping — is what
+ * stops a drag across 12 o'clock from teleporting to the far end of the scale.
+ */
+function dialStep(prev: number, raw: number, lap: number): number {
+  let d = raw - prev
+  if (d > lap / 2) d -= lap
+  if (d < -lap / 2) d += lap
+  return Math.max(DIAL_FLOOR, Math.min(prev + d, lap))
+}
+
+/** A pie wedge from 12 o'clock, clockwise, `frac` of the way round. */
+function piePath(c: number, r: number, frac: number): string {
+  const a = Math.min(Math.max(frac, 0), 0.9999) * 2 * Math.PI
+  const x = (c + r * Math.sin(a)).toFixed(2)
+  const y = (c - r * Math.cos(a)).toFixed(2)
+  return `M ${c} ${c} L ${c} ${c - r} A ${r} ${r} 0 ${a > Math.PI ? 1 : 0} 1 ${x} ${y} Z`
+}
+
+type DialRing = 'focus' | 'break'
+
+/**
+ * The clock face the session is set up on: an outer ring for the focus length
+ * (one lap = 2 h) and an inner ring for the break (one lap = 1 h), both in
+ * 5-minute snaps. Dragging is pointer-captured so a finger may wander off the
+ * ring without losing it, and each ring is a keyboard slider as well.
+ */
+function TimerDial({ focus, brk, popped, onFocus, onBreak }: {
+  focus: number
+  brk: number
+  popped: boolean
+  onFocus: (v: number) => void
+  onBreak: (v: number) => void
 }) {
-  const bump = (d: number) => {
-    const n = parseInt(value, 10)
-    onChange(String(Math.max(min, Math.min((Number.isFinite(n) ? n : min) + d, max))))
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [dragging, setDragging] = useState<DialRing | null>(null)
+  // Where the handle stands mid-drag, so every move can take the short way round.
+  const live = useRef(0)
+
+  const ring = (which: DialRing) => {
+    const lap = which === 'focus' ? FOCUS_LAP : BREAK_LAP
+    const set = which === 'focus' ? onFocus : onBreak
+    const value = () => (which === 'focus' ? focus : brk)
+    // A press jumps straight to where it landed; only moves take the short way.
+    const apply = (e: ReactPointerEvent, jump: boolean) => {
+      const r = svgRef.current?.getBoundingClientRect()
+      if (!r) return
+      const raw = dialMinutes(r, e.clientX, e.clientY, lap)
+      const next = jump ? Math.max(DIAL_FLOOR, Math.min(raw, lap)) : dialStep(live.current, raw, lap)
+      live.current = next
+      if (next !== value()) set(next)
+    }
+    return {
+      role: 'slider' as const,
+      tabIndex: 0,
+      'aria-label': which === 'focus' ? 'Focus length' : 'Break length',
+      'aria-valuemin': DIAL_FLOOR,
+      'aria-valuemax': lap,
+      'aria-valuenow': value(),
+      'aria-valuetext': `${value()} minutes`,
+      onPointerDown: (e: ReactPointerEvent<SVGCircleElement>) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        live.current = value()
+        setDragging(which)
+        apply(e, true)
+      },
+      onPointerMove: (e: ReactPointerEvent<SVGCircleElement>) => {
+        if (dragging === which) apply(e, false)
+      },
+      onPointerUp: (e: ReactPointerEvent<SVGCircleElement>) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+        setDragging(null)
+      },
+      onPointerCancel: (e: ReactPointerEvent<SVGCircleElement>) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+        setDragging(null)
+      },
+      onKeyDown: (e: ReactKeyboardEvent) => {
+        const step = e.key === 'ArrowUp' || e.key === 'ArrowRight' ? DIAL_SNAP
+          : e.key === 'ArrowDown' || e.key === 'ArrowLeft' ? -DIAL_SNAP
+          : 0
+        if (step) {
+          e.preventDefault()
+          set(Math.max(DIAL_FLOOR, Math.min(value() + step, lap)))
+        } else if (e.key === 'Home') {
+          e.preventDefault()
+          set(DIAL_FLOOR)
+        } else if (e.key === 'End') {
+          e.preventDefault()
+          set(lap)
+        }
+      },
+    }
   }
+
+  const cF = 2 * Math.PI * R_FOCUS
+  const cB = 2 * Math.PI * R_BREAK
+  const spin = `rotate(-90 ${DIAL_MID} ${DIAL_MID})`
+
   return (
-    <div className="st-num">
-      <input type="text" inputMode="numeric" title={title} value={value}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
-        onBlur={() => {
-          const n = parseInt(value, 10)
-          onChange(String(Number.isFinite(n) ? Math.max(min, Math.min(n, max)) : min))
-        }} />
-      <span className="st-spin">
-        <button type="button" title="Increase" onClick={() => bump(1)}>▴</button>
-        <button type="button" title="Decrease" onClick={() => bump(-1)}>▾</button>
+    <div className={`dial-wrap ${dragging ? 'dragging' : ''} ${popped ? 'popped' : ''}`}>
+      <svg ref={svgRef} className="dial" width={DIAL_SIZE} height={DIAL_SIZE}
+        viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`}>
+        <circle className="dial-track" cx={DIAL_MID} cy={DIAL_MID} r={R_FOCUS} />
+        <circle className="dial-track" cx={DIAL_MID} cy={DIAL_MID} r={R_BREAK} />
+        {[R_FOCUS, R_BREAK].flatMap((r, ri) => [1, 2, 3].map((q) => (
+          <circle key={`${ri}-${q}`} className="dial-tick" r={1.6}
+            cx={DIAL_MID + r * Math.sin((q * Math.PI) / 2)}
+            cy={DIAL_MID - r * Math.cos((q * Math.PI) / 2)} />
+        )))}
+        <circle className="dial-arc focus" cx={DIAL_MID} cy={DIAL_MID} r={R_FOCUS} transform={spin}
+          strokeDasharray={cF} strokeDashoffset={cF * (1 - focus / FOCUS_LAP)} />
+        <circle className="dial-arc brk" cx={DIAL_MID} cy={DIAL_MID} r={R_BREAK} transform={spin}
+          strokeDasharray={cB} strokeDashoffset={cB * (1 - brk / BREAK_LAP)} />
+        <g className="dial-swing" transform={`rotate(${(focus / FOCUS_LAP) * 360} ${DIAL_MID} ${DIAL_MID})`}>
+          <circle className="dial-knob focus" cx={DIAL_MID} cy={DIAL_MID - R_FOCUS} r={9} />
+        </g>
+        <g className="dial-swing" transform={`rotate(${(brk / BREAK_LAP) * 360} ${DIAL_MID} ${DIAL_MID})`}>
+          <circle className="dial-knob brk" cx={DIAL_MID} cy={DIAL_MID - R_BREAK} r={7.5} />
+        </g>
+        {/* Wide transparent bands last, so the whole ring is grabbable. */}
+        <circle className="dial-hit" cx={DIAL_MID} cy={DIAL_MID} r={R_FOCUS} strokeWidth={26} {...ring('focus')} />
+        <circle className="dial-hit" cx={DIAL_MID} cy={DIAL_MID} r={R_BREAK} strokeWidth={24} {...ring('break')} />
+      </svg>
+      <div className="dial-read" aria-hidden="true">
+        <div className="dial-read-big">{focus}<span className="dial-read-unit">min</span></div>
+        <div className="dial-read-sub">focus</div>
+        <div className="dial-read-brk">+ {brk} min break</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The sitting's progress while a pomodoro runs: one mark per focus session,
+ * the current one filling as its focus phase does. Nothing new is stored — the
+ * count is elapsed time over the rhythm's span, wrapped every SITTING so a long
+ * sitting opens a fresh row instead of growing a longer one.
+ */
+function SessionMarks({ session, nowMin, color }: {
+  session: StudySession
+  nowMin: number
+  color: string
+}) {
+  const cyc = cycleFor(session)
+  if (!cyc) return null
+  const span = cyc.work + cyc.brk
+  const elapsed = Math.max(0, nowMin - session.startMin)
+  const done = Math.floor(elapsed / span)
+  const idx = done % SITTING
+  const frac = Math.min(1, (elapsed - done * span) / cyc.work)
+  return (
+    <div className="st-marks">
+      <span className="st-marks-row" aria-hidden="true">
+        {Array.from({ length: SITTING }, (_, i) => (
+          <svg key={i} className="st-mark" width={17} height={17} viewBox="0 0 20 20">
+            <circle className="st-mark-ring" cx={10} cy={10} r={7.4} stroke={color} />
+            {i < idx && <circle cx={10} cy={10} r={7.4} fill={color} />}
+            {i === idx && frac > 0 && <path d={piePath(10, 7.4, frac)} fill={color} />}
+          </svg>
+        ))}
       </span>
+      <span className="st-marks-lbl">session {idx + 1} of {SITTING}</span>
+    </div>
+  )
+}
+
+/**
+ * The session so far as one bar: a block per class stretch, sized by its time,
+ * the last one growing with the clock. Switching class APPENDS a block rather
+ * than recolouring the bar — which is the explanation nobody has to read.
+ */
+function SegmentBar({ session, nowMin }: { session: StudySession; nowMin: number }) {
+  const { state } = useStore()
+  const spans = segmentSpans(session, nowMin)
+  const name = (id: ID | null) => (id && state.classes.find((c) => c.id === id)?.name) || 'Unassigned'
+  return (
+    <div className="st-segbar">
+      <div className="st-segbar-track">
+        {spans.map((sp, i) => (
+          <div key={`${sp.startMin}-${sp.classId ?? 'none'}`}
+            className={`st-seg ${i === spans.length - 1 ? 'live' : ''}`}
+            title={`${name(sp.classId)} · ${fmtDuration(sp.endMin - sp.startMin)}`}
+            style={{
+              flexGrow: Math.max(sp.endMin - sp.startMin, 0.01),
+              background: hexToRgba(sessionColor(state, sp.classId), 0.8),
+            }} />
+        ))}
+      </div>
+      <div className="st-segbar-keys">
+        {spans.map((sp, i) => (
+          <span key={`${sp.startMin}-${sp.classId ?? 'none'}`} className="st-segbar-key">
+            {i > 0 && <span className="st-segbar-arrow">→</span>}
+            <span className="qs-dot" style={{ background: sessionColor(state, sp.classId) }} />
+            {name(sp.classId)} {fmtDuration(sp.endMin - sp.startMin)}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
@@ -130,9 +334,22 @@ function activeMinutes(s: StudySession, nowMin: number): number {
   return Math.max(0, total - brk)
 }
 
+/** Concentric rings round a centre dot — the goal banner's little bullseye. */
+function TargetIcon() {
+  return (
+    <svg className="st-goal-icon" width={19} height={19} viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx={10} cy={10} r={8.2} fill="none" strokeWidth={1.5} />
+      <circle cx={10} cy={10} r={4.7} fill="none" strokeWidth={1.5} />
+      <circle cx={10} cy={10} r={1.7} strokeWidth={0} />
+    </svg>
+  )
+}
+
 /**
- * "Today 1h 25m / 1h 30m goal" plus a slim bar. Sits next to the clock in both
- * the set-up and the running view, and is the only place the goal is edited.
+ * "Today 1h 25m / 1h 30m ✓" behind a little target, over a slim bar. Sits at
+ * the top of the set-up card and beside the clock while running, and is the
+ * only place the goal is edited — the Edit/Clear buttons stay out of the way
+ * until the banner is hovered or focused.
  */
 function DailyGoal({ todayMin }: { todayMin: number }) {
   const { state, dispatch } = useStore()
@@ -170,33 +387,35 @@ function DailyGoal({ todayMin }: { todayMin: number }) {
   const pct = goal ? Math.min(100, Math.round((todayMin / goal) * 100)) : 0
   const hit = goal != null && todayMin >= goal
   return (
-    <div className="st-goal">
-      <div className="st-goal-head">
-        <span className="st-goal-lbl">
-          Daily goal
-          <InfoIcon text={GOAL_INFO} />
-        </span>
-        {goal == null ? (
-          <>
+    <div className={`st-goal ${hit ? 'hit' : ''}`}>
+      <TargetIcon />
+      {goal == null ? (
+        <>
+          <span className="st-goal-num">
+            <span className="st-goal-lbl">Daily goal</span>
             <span className="st-goal-none">not set</span>
+            <InfoIcon text={GOAL_INFO} />
+          </span>
+          <span className="st-goal-acts bare">
             <button type="button" className="btn st-goal-btn" onClick={beginEdit}>Set a goal</button>
-          </>
-        ) : (
-          <>
-            <span className="st-goal-num">
-              Today <strong>{fmtDuration(todayMin)}</strong> / {fmtDuration(goal)} goal
-              {hit ? ' ✓' : ''}
-            </span>
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="st-goal-num">
+            Today <strong>{fmtDuration(todayMin)}</strong> / {fmtDuration(goal)}
+            {hit ? ' ✓' : ''}
+            <InfoIcon text={GOAL_INFO} />
+          </span>
+          <span className="st-goal-acts">
             <button type="button" className="btn st-goal-btn" onClick={beginEdit}>Edit</button>
             <button type="button" className="btn st-goal-btn"
               onClick={() => dispatch({ type: 'setStudyGoal', minutes: null })}>Clear</button>
-          </>
-        )}
-      </div>
-      {goal != null && (
-        <div className="st-goal-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-          <div className={`st-goal-fill ${hit ? 'done' : ''}`} style={{ width: `${pct}%` }} />
-        </div>
+          </span>
+          <div className="st-goal-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className={`st-goal-fill ${hit ? 'done' : ''}`} style={{ width: `${pct}%` }} />
+          </div>
+        </>
       )}
     </div>
   )
@@ -210,6 +429,10 @@ function DailyGoal({ todayMin }: { todayMin: number }) {
  * sideways when there are more classes than fit. The chip in force is filled
  * with its own colour. Clicking one records a ClassSegment via withClassSwitch —
  * the same mechanism the (still available) segment editor writes through.
+ *
+ * The switch is ADDITIVE, never a re-attribution, so every affordance here says
+ * so: the live chip is marked "studying now" and the rest offer to continue
+ * from now on.
  */
 function ClassSwitchStrip({ classes, current, onPick }: {
   classes: ClassInfo[]
@@ -220,13 +443,16 @@ function ClassSwitchStrip({ classes, current, onPick }: {
     const on = current === id
     return (
       <button key={key} type="button" className={`qs-chip ${on ? 'on' : ''}`} aria-pressed={on}
-        title={on ? `${label} — studying now` : `Switch to ${label}`}
+        title={on
+          ? `${label} — studying now`
+          : `Continue with ${label} from now — earlier time stays where it was`}
         style={on
           ? { background: hexToRgba(color, 0.24), borderColor: hexToRgba(color, 0.65), color: titleTint(color) }
           : undefined}
         onClick={() => onPick(id)}>
         <span className="qs-dot" style={{ background: color }} />
         <span className="qs-name">{label}</span>
+        {on && <span className="qs-live">now</span>}
       </button>
     )
   }
@@ -383,10 +609,14 @@ export default function StudyTimerPage() {
   const sec = useSecondTick()
   const running = runningSession(state)
 
-  // Set-up form (pre-start)
-  const [mode, setMode] = useState<StudyMode>('pomodoro25')
-  const [customWork, setCustomWork] = useState(String(CUSTOM_WORK_DEFAULT))
-  const [customBreak, setCustomBreak] = useState(String(CUSTOM_BREAK_DEFAULT))
+  // Set-up form (pre-start). The dial IS the pomodoro setting; `free` swaps the
+  // whole rhythm block over to free-running instead.
+  const [focusMin, setFocusMin] = useState(25)
+  const [breakMin, setBreakMin] = useState(5)
+  const [free, setFree] = useState(false)
+  // Bumped by a preset chip; drives the dial's one-off pop.
+  const [pop, setPop] = useState(0)
+  const [popping, setPopping] = useState(false)
   const [classId, setClassId] = useState<string>('')
   const [taskIds, setTaskIds] = useState<ID[]>([])
   const [uploadIds, setUploadIds] = useState<ID[]>([])
@@ -398,6 +628,15 @@ export default function StudyTimerPage() {
   const [reflectOpen, setReflectOpen] = useState(false)
   // Ending is a two-step popup so neither the finish nor the log is accidental.
   const [endStage, setEndStage] = useState<EndStage | null>(null)
+  // Why the current pause happened; handed to the resume action as the break's tag.
+  const [pauseTag, setPauseTag] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (!pop) return
+    setPopping(true)
+    const t = setTimeout(() => setPopping(false), 460)
+    return () => clearTimeout(t)
+  }, [pop])
 
   const todayIso = toISO(new Date())
   const nowMin = sec / 60
@@ -433,16 +672,27 @@ export default function StudyTimerPage() {
   const toggle = (list: ID[], set: (v: ID[]) => void) => (id: ID) =>
     set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
 
+  /**
+   * The dial and the preset chips are the same thing underneath: a work/break
+   * pair. A pair that happens to match a named preset starts as that mode so
+   * the log reads "Pomodoro 25/5"; anything else is a custom ratio, which
+   * `cycleFor` drives identically.
+   */
+  const startMode = (): StudyMode => {
+    if (free) return 'normal'
+    if (focusMin === 25 && breakMin === 5) return 'pomodoro25'
+    if (focusMin === 50 && breakMin === 10) return 'pomodoro50'
+    return 'custom'
+  }
+
   const start = () => {
+    const mode = startMode()
     const session: StudySession = {
       id: uid(), classId: classId || null, taskIds, eventIds: [],
       uploadIds: uploadIds.length ? uploadIds : undefined,
       date: todayIso, startMin: nowMinutes(), endMin: null, mode, breaks: [],
       ...(mode === 'custom'
-        ? {
-            customWork: clampCustomWork(parseInt(customWork, 10) || CUSTOM_WORK_DEFAULT),
-            customBreak: clampCustomBreak(parseInt(customBreak, 10) || CUSTOM_BREAK_DEFAULT),
-          }
+        ? { customWork: clampCustomWork(focusMin), customBreak: clampCustomBreak(breakMin) }
         : {}),
     }
     dispatch({ type: 'startStudySession', session })
@@ -459,9 +709,25 @@ export default function StudyTimerPage() {
   const endSession = (s: StudySession) => {
     const endMin = nowMinutes()
     dispatch({ type: 'endStudySession', id: s.id, endMin })
-    const ended: StudySession = { ...s, endMin: Math.min(Math.max(endMin, s.startMin), DAY_END) }
-    const materialised = derivedBreaks(ended, ended.endMin!)
-    const tagged = mergeBreakTags(s.breaks, materialised)
+    const at = Math.min(Math.max(endMin, s.startMin), DAY_END)
+    // Mirror the reducer's own close of an open pause, so the follow-up update
+    // below can't put `pausedAtMin` back on a session that has finished. The
+    // tag the user picked mid-pause rides along here and nowhere else.
+    const closed: StudySession =
+      s.pausedAtMin != null
+        ? {
+            ...s,
+            pausedAtMin: undefined,
+            breaks: [
+              ...s.breaks,
+              { startMin: s.pausedAtMin, durMin: Math.max(0, at - s.pausedAtMin), ...(pauseTag ? { tag: pauseTag } : {}) },
+            ].filter((b) => b.durMin > 0),
+          }
+        : s
+    setPauseTag(undefined)
+    const ended: StudySession = { ...closed, endMin: at }
+    const materialised = derivedBreaks(ended, at)
+    const tagged = mergeBreakTags(closed.breaks, materialised)
     if (tagged.some((b, i) => b.tag !== materialised[i].tag)) {
       dispatch({ type: 'updateStudySession', session: { ...ended, breaks: tagged } })
     }
@@ -515,9 +781,18 @@ export default function StudyTimerPage() {
     // which is the last segment the session switched to (or its only one).
     const curClassId = classIdAt(running, nowMin)
     const color = sessionColor(state, curClassId)
-    const elapsedSec = Math.max(0, sec - running.startMin * 60)
-    const phase = currentPhase(running, nowMin)
-    const onBreak = phase.phase === 'break'
+    // A pause genuinely stops the clock: every reading below is taken at the
+    // minute the user paused rather than at "now", and the rhythm is read with
+    // the pause lifted so the ring freezes where it stood instead of blanking.
+    const pausedAt = running.pausedAtMin ?? null
+    const paused = pausedAt != null
+    const shownMin = pausedAt ?? nowMin
+    const elapsedSec = Math.max(0, (paused ? pausedAt * 60 : sec) - running.startMin * 60)
+    const phase = paused
+      ? currentPhase({ ...running, pausedAtMin: undefined }, pausedAt)
+      : currentPhase(running, nowMin)
+    const onBreak = paused || phase.phase === 'break'
+    const pauseMin = paused ? Math.max(0, nowMin - pausedAt) : 0
     const ringed = isPomodoro(running.mode) && phase.leftMin != null && phase.totalMin != null
     const frac = ringed ? phase.leftMin! / phase.totalMin! : 0
     const linked = running.uploadIds ?? []
@@ -558,6 +833,8 @@ export default function StudyTimerPage() {
     return (
       <div className="study-page">
         <div className="study-card running" style={{ borderColor: hexToRgba(color, 0.55) }}>
+          <SessionMarks session={running} nowMin={shownMin} color={color} />
+
           <div className="st-mode-line">
             {modeLabel(running.mode)}
             {running.mode === 'custom' && ratio ? ` ${ratio}` : ''} · started {fmtTime(running.startMin)}
@@ -567,28 +844,34 @@ export default function StudyTimerPage() {
             ? <PhaseRing frac={frac} color={color}>{clock}</PhaseRing>
             : clock}
 
-          <div className="st-phase" style={{ background: hexToRgba(color, 0.22), color: titleTint(color) }}>
-            <strong>{onBreak ? '◌ Break' : '◉ Work'}</strong>
-            {phase.leftMin != null && (
+          <div className={`st-phase ${paused ? 'paused' : ''}`}
+            style={{ background: hexToRgba(color, 0.22), color: titleTint(color) }}>
+            <strong>{paused ? '⏸ Paused' : onBreak ? '◌ Break' : '◉ Work'}</strong>
+            {paused ? (
+              <span className="st-left">{fmtDuration(pauseMin)} so far</span>
+            ) : phase.leftMin != null && (
               <span className="st-left">
                 {fmtClock(phase.leftMin * 60)} {onBreak ? 'until work' : 'until break'}
               </span>
             )}
           </div>
 
-          {onBreak && curBreak && (
+          {paused ? (
+            <BreakTagChips value={pauseTag} color={color} onChange={setPauseTag} />
+          ) : onBreak && curBreak ? (
             <BreakTagChips value={curTag} color={color} onChange={tagCurrentBreak} />
-          )}
+          ) : null}
 
           <DailyGoal todayMin={todayMin} />
 
           <div className="field">
             <label>
-              Studying
-              <InfoIcon text="One click switches the running session to another class — the time before the switch stays with the class you were on. Fine-tune the switch times under “Adjust times”." />
-              {running.classSegments?.length ? <span className="st-switched"> — switched mid-session</span> : null}
+              Now studying
+              <InfoIcon text="Picking a class continues this session with it from now on — the time before the switch stays where it was, with the class you were on. The bar shows the split so far; fine-tune the switch times under “Adjust times”." />
             </label>
+            <SegmentBar session={running} nowMin={shownMin} />
             <ClassSwitchStrip classes={sidebarClasses} current={curClassId} onPick={switchClass} />
+            <div className="st-seghint">Picking another class adds to the bar — earlier time stays where it was.</div>
           </div>
 
           <div className="field">
@@ -657,22 +940,26 @@ export default function StudyTimerPage() {
             )}
           </div>
 
+          <div className="st-play-wrap">
+            <button type="button" className={`st-play ${paused ? 'is-paused' : ''}`}
+              aria-label={paused ? 'Resume studying' : 'Pause studying'}
+              title={paused ? 'Resume — the clock starts again' : 'Pause — the clock stops and the time counts as a break'}
+              onClick={() => {
+                if (paused) {
+                  dispatch({ type: 'resumeStudySession', id: running.id, tag: pauseTag })
+                  setPauseTag(undefined)
+                } else {
+                  dispatch({ type: 'pauseStudySession', id: running.id })
+                }
+              }}>
+              <span className={`st-play-glyph ${paused ? 'tri' : ''}`}>{paused ? '▶' : '⏸'}</span>
+            </button>
+            <div className="st-play-cap">
+              {paused ? `paused ${fmtDuration(pauseMin)} — tap to resume` : 'pause'}
+            </div>
+          </div>
+
           <div className="st-actions">
-            {running.mode === 'normal' && !onBreak && (
-              <>
-                <button className="btn" onClick={() => dispatch({ type: 'startBreak', id: running.id, durMin: 5 })}>
-                  5 min break
-                </button>
-                <button className="btn" onClick={() => dispatch({ type: 'startBreak', id: running.id, durMin: 15 })}>
-                  15 min break
-                </button>
-              </>
-            )}
-            {running.mode === 'normal' && onBreak && (
-              <button className="btn" onClick={() => dispatch({ type: 'endBreakNow', id: running.id })}>
-                End break now
-              </button>
-            )}
             <div className="spacer" />
             <button className="btn danger" onClick={() => setEndStage('confirm')}>
               End session
@@ -727,34 +1014,47 @@ export default function StudyTimerPage() {
   return (
     <div className="study-page">
       <div className="study-card">
-        <h2 className="st-title">Study timer</h2>
+        <div className="st-head">
+          <h2 className="st-title">Study timer</h2>
+          <DailyGoal todayMin={todayMin} />
+        </div>
 
-        <DailyGoal todayMin={todayMin} />
-
-        <div className="field">
-          <label>Mode</label>
-          <div className="st-modes">
-            {STUDY_MODES.map((m) => (
-              <label key={m.value} className={`st-mode ${mode === m.value ? 'on' : ''}`}>
-                <input type="radio" name="study-mode" checked={mode === m.value}
-                  onChange={() => setMode(m.value)} />
-                <span className="st-mode-name">{m.label}</span>
-                <span className="st-mode-hint">{m.hint}</span>
-                {m.value === 'custom' && mode === 'custom' && (
-                  // Only the custom row grows a ratio editor, and only when picked.
-                  <div className="st-ratio" onClick={(e) => e.preventDefault()}>
-                    <span className="st-ratio-lbl">work</span>
-                    <NumBox value={customWork} onChange={setCustomWork}
-                      min={CUSTOM_WORK_MIN} max={CUSTOM_WORK_MAX} title="Work minutes" />
-                    <span className="st-ratio-lbl">min · break</span>
-                    <NumBox value={customBreak} onChange={setCustomBreak}
-                      min={CUSTOM_BREAK_MIN} max={CUSTOM_BREAK_MAX} title="Break minutes" />
-                    <span className="st-ratio-lbl">min</span>
-                  </div>
-                )}
-              </label>
-            ))}
-          </div>
+        <div className="field st-rhythm">
+          {free ? (
+            <div className="st-free">
+              <div className="st-free-glyph" aria-hidden="true">∞</div>
+              <div className="st-free-name">Free-running</div>
+              <div className="st-free-hint">No set rhythm — pause whenever you say so.</div>
+              <button type="button" className="st-freelink" onClick={() => setFree(false)}>
+                ← back to the pomodoro dial
+              </button>
+            </div>
+          ) : (
+            <>
+              <TimerDial focus={focusMin} brk={breakMin} popped={popping}
+                onFocus={setFocusMin} onBreak={setBreakMin} />
+              <div className="dial-presets">
+                {PRESETS.map((p) => (
+                  <button key={p.work} type="button"
+                    className={`dial-chip ${focusMin === p.work && breakMin === p.brk ? 'on' : ''}`}
+                    title={`${p.work} minutes of focus, ${p.brk} of break`}
+                    onClick={() => { setFocusMin(p.work); setBreakMin(p.brk); setPop((n) => n + 1) }}>
+                    {p.work} · {p.brk}
+                  </button>
+                ))}
+                <span className="dial-presets-hint">
+                  or drag the rings
+                  <InfoIcon text="The outer ring sets the focus length — one full lap is 2 hours. The inner ring sets the break — one lap is 1 hour. Both snap to 5 minutes, and arrow keys nudge whichever ring has keyboard focus." />
+                </span>
+              </div>
+              <div className="dial-sitting">
+                a sitting is {SITTING} focus sessions · {fmtDuration(SITTING * (focusMin + breakMin))} in all
+              </div>
+              <button type="button" className="st-freelink" onClick={() => setFree(true)}>
+                or free-run, breaks when you say so →
+              </button>
+            </>
+          )}
         </div>
 
         <div className="field">
@@ -778,7 +1078,13 @@ export default function StudyTimerPage() {
             onToggle={toggle(uploadIds, setUploadIds)} />
         </div>
 
-        <button className="btn primary st-start" onClick={start}>Start studying</button>
+        <div className="st-play-wrap">
+          <button type="button" className="st-play" onClick={start}
+            aria-label="Start studying" title="Start studying">
+            <span className="st-play-glyph tri">▶</span>
+          </button>
+          <div className="st-play-cap">start studying</div>
+        </div>
       </div>
     </div>
   )

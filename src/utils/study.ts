@@ -83,11 +83,34 @@ export function sessionDuration(s: StudySession, nowMin: number): number {
 }
 
 /**
- * The break windows to render/store for a session.
- * - normal: the explicitly recorded breaks, clipped to the session span.
- * - pomodoro: derived from elapsed time — the k-th break starts at
- *   start + k*(work+break) + work and lasts `break` minutes, clipped to the
- *   current end (endMin while finished, now while running).
+ * Overlapping or touching windows fused into one, so that summing `durMin`
+ * over the result can never count the same minute twice. A pomodoro break the
+ * user also paused through, for instance, arrives here as two windows covering
+ * one span of wall-clock. The first tag encountered wins.
+ */
+function coalesceBreaks(list: StudyBreak[]): StudyBreak[] {
+  const sorted = list.slice().sort((a, b) => a.startMin - b.startMin)
+  const out: StudyBreak[] = []
+  for (const b of sorted) {
+    const prev = out[out.length - 1]
+    if (prev && b.startMin <= prev.startMin + prev.durMin) {
+      const stop = Math.max(prev.startMin + prev.durMin, b.startMin + b.durMin)
+      const tag = prev.tag ?? b.tag
+      out[out.length - 1] = { startMin: prev.startMin, durMin: stop - prev.startMin, ...(tag ? { tag } : {}) }
+    } else {
+      out.push(b)
+    }
+  }
+  return out
+}
+
+/**
+ * The break windows to render/store for a session: the explicitly recorded
+ * breaks, an open pause (a break running up to "now"), and — in a pomodoro
+ * mode — the rhythm's own breaks, where the k-th starts at
+ * start + k*(work+break) + work and lasts `break` minutes. Everything is
+ * clipped to the session's current end (endMin when finished, now while
+ * running) and coalesced, so the three sources can overlap freely.
  */
 export function derivedBreaks(s: StudySession, nowMin: number): StudyBreak[] {
   const end = sessionEnd(s, nowMin)
@@ -96,22 +119,26 @@ export function derivedBreaks(s: StudySession, nowMin: number): StudyBreak[] {
     const to = Math.min(stop, end)
     return to > from ? { startMin: from, durMin: to - from, ...(tag ? { tag } : {}) } : null
   }
-  const cyc = cycleFor(s)
-  if (!cyc) {
-    return s.breaks
-      .map((b) => clip(b.startMin, b.startMin + b.durMin, b.tag))
-      .filter((b): b is StudyBreak => b !== null)
-      .sort((a, b) => a.startMin - b.startMin)
-  }
   const out: StudyBreak[] = []
-  const span = cyc.work + cyc.brk
-  for (let k = 0; k < 1000; k++) {
-    const bs = s.startMin + k * span + cyc.work
-    if (bs >= end) break
-    const b = clip(bs, bs + cyc.brk)
-    if (b) out.push(b)
+  for (const b of s.breaks) {
+    const c = clip(b.startMin, b.startMin + b.durMin, b.tag)
+    if (c) out.push(c)
   }
-  return out
+  if (s.pausedAtMin != null) {
+    const c = clip(s.pausedAtMin, end)
+    if (c) out.push(c)
+  }
+  const cyc = cycleFor(s)
+  if (cyc) {
+    const span = cyc.work + cyc.brk
+    for (let k = 0; k < 1000; k++) {
+      const bs = s.startMin + k * span + cyc.work
+      if (bs >= end) break
+      const b = clip(bs, bs + cyc.brk)
+      if (b) out.push(b)
+    }
+  }
+  return coalesceBreaks(out)
 }
 
 export interface Phase {
@@ -127,6 +154,8 @@ export interface Phase {
  * fractional so the timer page can show a seconds-accurate countdown.
  */
 export function currentPhase(s: StudySession, nowMin: number): Phase {
+  // A paused session is on break in every mode, with no phase to count down.
+  if (s.pausedAtMin != null) return { phase: 'break', leftMin: null, totalMin: null }
   const cyc = cycleFor(s)
   if (cyc) {
     const span = cyc.work + cyc.brk

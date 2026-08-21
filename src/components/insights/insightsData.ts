@@ -12,7 +12,7 @@
 
 import type { AppState, ID, StudyBreak, StudySession, Task } from '../../types'
 import { MONTHS, WEEKDAYS, addDays, fromISO, startOfWeek, toISO, todayISO, weekdayLabels } from '../../utils/date'
-import { NEUTRAL_COLOR, cycleFor, derivedBreaks, segmentSpans, sessionEnd } from '../../utils/study'
+import { NEUTRAL_COLOR, derivedBreaks, segmentSpans, sessionEnd } from '../../utils/study'
 
 /* ---------- page-wide controls ---------- */
 
@@ -96,21 +96,12 @@ export function classLabelOf(state: AppState, id: ID | null): string {
 /* ---------- session decomposition ---------- */
 
 /**
- * Like `derivedBreaks`, but keeps the `tag` of hand-recorded breaks (the shared
- * helper drops it while clipping). Pomodoro rhythms generate their breaks from
- * wall-clock, so those are untagged by construction.
+ * Every break of a session, tags kept — hand-recorded ones, an open pause, and
+ * a pomodoro rhythm's own, all coalesced. `derivedBreaks` now carries all three
+ * with their tags, so this is a name kept for the call sites below.
  */
 export function taggedBreaks(s: StudySession, nowMin: number): StudyBreak[] {
-  if (cycleFor(s)) return derivedBreaks(s, nowMin)
-  const end = sessionEnd(s, nowMin)
-  return s.breaks
-    .map((b): StudyBreak | null => {
-      const from = Math.max(b.startMin, s.startMin)
-      const to = Math.min(b.startMin + b.durMin, end)
-      return to > from ? { startMin: from, durMin: to - from, tag: b.tag } : null
-    })
-    .filter((b): b is StudyBreak => b !== null)
-    .sort((a, b) => a.startMin - b.startMin)
+  return derivedBreaks(s, nowMin)
 }
 
 /** One contiguous slice of a session: either studied time or a pause. */

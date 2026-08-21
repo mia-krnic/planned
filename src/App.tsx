@@ -188,7 +188,7 @@ export default function App() {
         <UrgentBanners />
         <div className="main">
           {page === 'home' ? (
-            <HomePage />
+            <HomePage setPage={setPage} />
           ) : page === 'calendar' ? (
             <>
               <SidebarLeft anchor={anchor} setAnchor={setAnchor} />

@@ -1519,6 +1519,8 @@ export type Action =
   | { type: 'deleteStudySession'; id: ID }
   | { type: 'startBreak'; id: ID; durMin: number } // normal mode: start a break now
   | { type: 'endBreakNow'; id: ID } // normal mode: cut the current break short
+  | { type: 'pauseStudySession'; id: ID } // stops the clock; opens a pause
+  | { type: 'resumeStudySession'; id: ID; tag?: string } // closes the pause into a break
   | { type: 'addGradeRow'; classId: ID; name?: string }
   | { type: 'updateGradeRow'; row: GradeRow }
   | { type: 'deleteGradeRow'; id: ID }
@@ -2310,10 +2312,19 @@ function reducer(state: AppState, a: Action): AppState {
     case 'endStudySession': {
       const s = state.studySessions.find((x) => x.id === a.id)
       if (!s || s.endMin !== null) return state
-      const ended: StudySession = {
-        ...s,
-        endMin: Math.min(Math.max(a.endMin, s.startMin), 24 * 60),
-      }
+      const endMin = Math.min(Math.max(a.endMin, s.startMin), 24 * 60)
+      // Ending while paused: the open pause becomes a real break first, so the
+      // frozen record carries it and nothing stays "live".
+      const closed: StudySession =
+        s.pausedAtMin != null
+          ? {
+              ...s,
+              pausedAtMin: undefined,
+              breaks: [...s.breaks, { startMin: s.pausedAtMin, durMin: Math.max(0, endMin - s.pausedAtMin) }]
+                .filter((b) => b.durMin > 0),
+            }
+          : s
+      const ended: StudySession = { ...closed, endMin }
       // Freeze the pomodoro rhythm into the record so it never drifts again.
       return {
         ...state,
@@ -2352,6 +2363,35 @@ function reducer(state: AppState, a: Action): AppState {
             )
             .filter((b) => b.durMin > 0)
           return { ...s, breaks }
+        }),
+      }
+    }
+    case 'pauseStudySession': {
+      const now = nowMinutes()
+      return {
+        ...state,
+        studySessions: state.studySessions.map((s) =>
+          s.id === a.id && s.endMin === null && s.pausedAtMin == null
+            ? { ...s, pausedAtMin: Math.max(s.startMin, now) }
+            : s,
+        ),
+      }
+    }
+    case 'resumeStudySession': {
+      const now = nowMinutes()
+      return {
+        ...state,
+        studySessions: state.studySessions.map((s) => {
+          if (s.id !== a.id || s.endMin !== null || s.pausedAtMin == null) return s
+          const durMin = Math.max(0, now - s.pausedAtMin)
+          const resumed: StudySession = { ...s, pausedAtMin: undefined }
+          // A pause shorter than a minute leaves no trace worth recording.
+          return durMin > 0
+            ? {
+                ...resumed,
+                breaks: [...s.breaks, { startMin: s.pausedAtMin, durMin, ...(a.tag ? { tag: a.tag } : {}) }],
+              }
+            : resumed
         }),
       }
     }

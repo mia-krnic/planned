@@ -334,6 +334,12 @@ export interface StudySession {
   customBreak?: number // custom pomodoro: break minutes (mode === 'custom')
   breaks: StudyBreak[] // explicit; pomodoro breaks are derived live, stored on end
   /**
+   * Set while the user has the session paused: the minute they pressed pause.
+   * An open pause counts as a break running up to "now", and resuming (or
+   * ending) closes it into `breaks`, so nothing but this field is ever "live".
+   */
+  pausedAtMin?: number
+  /**
    * Mid-session class switches: slices ordered by startMin; the first slice
    * starts at the session start (classId above mirrors the first slice for
    * back-compat). Absent = single-class session.

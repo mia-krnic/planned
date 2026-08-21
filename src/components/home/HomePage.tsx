@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import type { Page } from '../../App'
 import { useStore } from '../../store'
 import type { AppState, StudySession, WeatherKind } from '../../types'
+import { birthdaysForDay, isDayOff } from '../../utils/agenda'
 import { addDays, fromISO, toISO, todayISO } from '../../utils/date'
 import { earliestUserDate } from '../../utils/daylog'
+import { almanacLine, birthdayCheer, dayLine, nightLine, phaseAt, wellbeingWhisper } from '../../utils/homeLife'
 import { derivedBreaks, fmtDuration, sessionDuration, sessionsOnDay } from '../../utils/study'
 import { fetchArchive, fetchForecast, geocode, WX_SYNC_KEY, type GeoPoint, type TodayWeather } from '../../utils/weather'
 import { homePicks } from '../../data/homePicks'
 import { WALLPAPERS, wallpaperUrl } from '../../data/wallpapers'
 import InfoIcon from '../InfoIcon'
-import { useDayLog } from '../daylog/DayLogControls'
-import { WeatherGlyph } from '../daylog/glyphs'
+import { useDayLog, WATER_MAX } from '../daylog/DayLogControls'
+import { MEAL_KEYS, WeatherGlyph } from '../daylog/glyphs'
+import MoonIcon from '../daylog/MoonIcon'
+import { GiftMark } from '../modals/BirthdayPopover'
 import HomeLibrary, { FavHeart } from './HomeLibrary'
 
 /**
@@ -67,17 +72,30 @@ const GOAL_PROMPT = 'What is your main goal for today?'
  * Empty → an underlined input. Set → calm text that turns back into the input
  * when clicked.
  */
-function GoalLine({ date }: { date: string }) {
+/** What `g` reaches for: the goal field, whichever of its two faces is up. */
+export interface GoalHandle { focus(): void }
+
+const GoalLine = forwardRef<GoalHandle, { date: string }>(function GoalLine({ date }, ref) {
   const [log, patch] = useDayLog(date)
   const goal = log?.goal ?? ''
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(goal)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // An edit made elsewhere (or midnight rolling the date over) lands here as
   // long as the field is not the one being typed in.
   useEffect(() => {
     if (!editing) setDraft(goal)
   }, [goal, editing])
+
+  // A set goal is a button, not a field: asking for focus takes the same route
+  // clicking it does, and the input it swaps in autofocuses itself.
+  useImperativeHandle(ref, () => ({
+    focus() {
+      if (goal && !editing) { setDraft(goal); setEditing(true) }
+      else inputRef.current?.focus()
+    },
+  }), [goal, editing])
 
   const commit = () => {
     setEditing(false)
@@ -96,6 +114,7 @@ function GoalLine({ date }: { date: string }) {
 
   return (
     <input
+      ref={inputRef}
       type="text"
       className="home-goal-input"
       placeholder={GOAL_PROMPT}
@@ -111,7 +130,7 @@ function GoalLine({ date }: { date: string }) {
       }}
     />
   )
-}
+})
 
 /* ---------------- Focus ring ---------------- */
 
@@ -131,6 +150,11 @@ function activeMinutes(s: StudySession, nowMin: number): number {
   return Math.max(0, sessionDuration(s, nowMin) - brk)
 }
 
+/** Focused minutes behind you today — the ring's figure, and the whisper's. */
+function focusedMinutes(state: AppState, iso: string, nowMin: number): number {
+  return sessionsOnDay(state, iso).reduce((n, s) => n + activeMinutes(s, nowMin), 0)
+}
+
 const RING_SIZE = 68
 const RING_STROKE = 5
 
@@ -138,12 +162,15 @@ const RING_STROKE = 5
  * Today's focused study against the daily goal. Past 100% the ✓ appears and
  * the minutes keep climbing — the goal is a floor, not a ceiling.
  */
-function FocusRing({ state, nowMin }: { state: AppState; nowMin: number }) {
+function FocusRing({ state, todayMin }: { state: AppState; todayMin: number }) {
   const goal = state.studyGoalMin ?? null
-  const todayMin = sessionsOnDay(state, todayISO()).reduce((n, s) => n + activeMinutes(s, nowMin), 0)
 
   const pct = goal ? Math.min(1, todayMin / goal) : 0
   const hit = goal != null && todayMin >= goal
+  // Arriving on a day already finished gets one soft pulse of the ✓. Held from
+  // the first render so crossing the goal while the page is open — or any later
+  // repaint — never sets it off again.
+  const [greet] = useState(hit)
   const r = (RING_SIZE - RING_STROKE) / 2
   const c = 2 * Math.PI * r
 
@@ -161,7 +188,10 @@ function FocusRing({ state, nowMin }: { state: AppState; nowMin: number }) {
             transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
           />
         )}
-        {hit && <text className="home-ring-tick" x="50%" y="54%" textAnchor="middle" dominantBaseline="middle">✓</text>}
+        {hit && (
+          <text className={`home-ring-tick${greet ? ' greet' : ''}`} x="50%" y="54%"
+            textAnchor="middle" dominantBaseline="middle">✓</text>
+        )}
       </svg>
       <div className="home-focus-label">
         <span className="home-focus-num">{fmtDuration(todayMin)}</span>
@@ -365,9 +395,86 @@ function sampleRegions(img: HTMLImageElement): Regions | null {
   }
 }
 
+/* ---------------- Wellness whisper ---------------- */
+
+/** The water row's drop, at glance size. */
+function DropGlyph() {
+  return (
+    <svg width="9" height="11" viewBox="0 0 16 19" aria-hidden="true">
+      <path d="M8 1.8 C8 1.8 3.2 8.4 3.2 11.8 a4.8 4.8 0 0 0 9.6 0 C12.8 8.4 8 1.8 8 1.8 Z"
+        fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+/** A plate and a fork: the three meals, counted rather than named. */
+function PlateGlyph() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="7" cy="8" r="5.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="7" cy="8" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.1" opacity="0.65" />
+      <path d="M14 2.4 V8.2 M14 8.2 V13.6" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Two figures the day already knows: glasses of water, and how many of
+ * breakfast/lunch/dinner have been written down. Nothing here can be changed —
+ * it is a glance, and the whole strip opens the journal where it is edited.
+ */
+function WellnessWhisper({ state, date, onOpen }: { state: AppState; date: string; onOpen: () => void }) {
+  const log = state.dayLogs[date]
+  const water = Math.max(0, Math.min(WATER_MAX, log?.water ?? 0))
+  const meals = MEAL_KEYS.filter((k) => (log?.meals?.[k] ?? '').trim()).length
+
+  return (
+    <button type="button" className="home-well" onClick={onOpen} title="Today in the journal">
+      <span className="home-well-item">
+        <DropGlyph /> {water}/{WATER_MAX}
+      </span>
+      <span className="home-well-item">
+        <PlateGlyph /> {meals}/{MEAL_KEYS.length}
+      </span>
+    </button>
+  )
+}
+
+/* ---------------- Keyboard shortcuts ---------------- */
+
+/** Home-only, single letters, no modifiers. */
+const SHORTCUT_KEYS = ['t', 'j', 'g', 'l']
+
+/** How long an accidental keypress leaves the hints up. */
+const HINT_FLASH_MS = 3000
+/** After this many self-invited showings the page stops offering. */
+const HINT_MAX_SHOWINGS = 2
+const HINT_KEY = 'planned.homeKeyHint.v1'
+
+/** Times the hints have shown themselves. No storage → the count stays 0. */
+function hintShowings(): number {
+  try { return Number(localStorage.getItem(HINT_KEY)) || 0 } catch { return 0 }
+}
+
+/** One key cap. Absolutely placed by its parent, so nothing it labels moves. */
+function KeyCap({ k }: { k: string }) {
+  return <span className="home-keycap">{k}</span>
+}
+
+/** The keyboard the dock's hint button wears: a cap with three keys on it. */
+function KeyboardGlyph() {
+  return (
+    <svg width="15" height="12" viewBox="0 0 20 15" aria-hidden="true">
+      <rect x="1" y="1.6" width="18" height="11.8" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M5 5.4h1.4M9.3 5.4h1.4M13.6 5.4h1.4M6.4 9.6h7.2"
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 /* ---------------- The page ---------------- */
 
-export default function HomePage() {
+export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   const { state, dispatch } = useStore()
   const today = todayISO()
   const { wallpaper, mantra, quote } = homePicks(state, today)
@@ -406,6 +513,59 @@ export default function HomePage() {
     return () => window.clearInterval(id)
   }, [])
 
+  // The same tick tells the page what part of the day it is. A phase only ever
+  // emphasises what is already there or adds a line beneath it — crossing into
+  // the evening never takes anything off the page.
+  const phase = phaseAt(nowMin)
+  const evening = phase === 'evening' || phase === 'night'
+
+  const focusedMin = focusedMinutes(state, today, nowMin)
+  const line = dayLine(state, today, nowMin)
+  const whisper = wellbeingWhisper(state, today, focusedMin)
+  const birthdays = birthdaysForDay(state, today)
+  const dayOff = isDayOff(state, today)
+
+  // ---- Shortcuts, and the layer that admits they exist ------------------
+  const goalRef = useRef<GoalHandle>(null)
+  const [hintsPinned, setHintsPinned] = useState(false)
+  const [hintFlash, setHintFlash] = useState(false)
+  const hints = hintsPinned || hintFlash
+  const flashTimer = useRef(0)
+  useEffect(() => () => window.clearTimeout(flashTimer.current), [])
+
+  /** A letter that does nothing gets an answer: here is what the letters do. */
+  const flashHints = useCallback(() => {
+    const shown = hintShowings()
+    if (shown >= HINT_MAX_SHOWINGS) return
+    try { localStorage.setItem(HINT_KEY, String(shown + 1)) } catch { /* no storage: it offers again next load */ }
+    setHintFlash(true)
+    window.clearTimeout(flashTimer.current)
+    flashTimer.current = window.setTimeout(() => setHintFlash(false), HINT_FLASH_MS)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (libOpen) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName))) return
+      // A modal or the search overlay owns the keyboard for as long as it is up.
+      if (document.querySelector('.scrim, .search-scrim')) return
+
+      const key = e.key.toLowerCase()
+      if (!/^[a-z]$/.test(key)) return
+      if (SHORTCUT_KEYS.includes(key)) e.preventDefault()
+
+      if (key === 't') setPage('timer')
+      else if (key === 'j') setPage('journal')
+      else if (key === 'g') goalRef.current?.focus()
+      else if (key === 'l') setLibOpen(true)
+      else flashHints()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [libOpen, setPage, flashHints])
+
   // `has-photo` hands the whole page over to the Momentum look — white type, no
   // boxes — whatever theme the app is in; the lum-* classes hand individual
   // regions back to dark type where the photo is too pale for white.
@@ -426,18 +586,55 @@ export default function HomePage() {
         style={bg ? { backgroundImage: `url("${bg.url}")` } : undefined} />
 
       <div className="home-corner">
-        <FocusRing state={state} nowMin={nowMin} />
+        <FocusRing state={state} todayMin={focusedMin} />
         <WeatherChip label={state.location?.label?.trim() || undefined} wx={wx} />
       </div>
 
       <div className="home-centre">
+        <div className="home-almanac">
+          <span>{almanacLine(today)}</span>
+          <MoonIcon date={today} size={11} />
+        </div>
         <Clock />
         <div className="home-mantra">
           <span className="home-mantra-text">{mantra.text}</span>
           <FavHeart kind="mantras" itemKey={mantra.text} label="this mantra" />
         </div>
-        <div className="home-goal">
-          <GoalLine date={today} />
+        <div className={`home-goal${phase === 'morning' ? ' morning' : ''}`}>
+          {/* The wrapper gives the hint an edge to hang off on the left — the
+              pencil already owns the right — without either of them taking
+              part in the centring. */}
+          <span className="home-goal-wrap">
+            <GoalLine ref={goalRef} date={today} />
+            <span className={`home-hint home-hint-goal${hints ? ' on' : ''}`} aria-hidden="true">
+              <KeyCap k="G" />
+            </span>
+          </span>
+        </div>
+
+        {/* Everything the day itself has to say. Each line appears only when it
+            is true, and no line ever replaces another. */}
+        <div className="home-lines">
+          {line && <div className="home-dayline">{line}</div>}
+          {whisper && <div className="home-care">{whisper}</div>}
+          {birthdays.map((b) => (
+            <div className="home-cheer" key={b.id}>
+              <GiftMark size={12} />
+              <span>{birthdayCheer(b, today)}</span>
+            </div>
+          ))}
+          {dayOff && (
+            <div className="home-cheer">
+              <span className="home-cheer-glyph" aria-hidden="true">⛱︎</span>
+              <span>day off — nothing urgent today</span>
+            </div>
+          )}
+          {evening && (
+            <button type="button" className="home-evening" onClick={() => setPage('journal')}>
+              How was today? <span aria-hidden="true">✎</span>
+            </button>
+          )}
+          {phase === 'night' && <div className="home-night">{nightLine(today)}</div>}
         </div>
       </div>
 
@@ -449,22 +646,44 @@ export default function HomePage() {
         </span>
       </div>
 
-      {/* The bottom rail: the library on the left, the photo's own two controls
-          on the right, both quiet until the pointer is on the page. */}
+      {/* The bottom rail: the library and today's water/meals on the left, the
+          photo's controls and the shortcut hints on the right, all of it quiet
+          until the pointer is on the page. */}
       <div className="home-dock">
-        <button type="button" className="home-dock-btn" onClick={() => setLibOpen(true)}>
-          {/* Three spines on a shelf: the library holds more than favourites. */}
-          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2.6 2.4 h2.6 v11.2 H2.6 Z M6.6 2.4 h2.6 v11.2 H6.6 Z M10.9 3 l2.5 -0.5 2.1 10.9 -2.5 0.5 Z"
-              fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          </svg>
-          {' '}Library
-        </button>
+        <div className="home-dock-left">
+          <span className="home-dock-anchor">
+            <button type="button" className="home-dock-btn" onClick={() => setLibOpen(true)}>
+              {/* Three spines on a shelf: the library holds more than favourites. */}
+              <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2.6 2.4 h2.6 v11.2 H2.6 Z M6.6 2.4 h2.6 v11.2 H6.6 Z M10.9 3 l2.5 -0.5 2.1 10.9 -2.5 0.5 Z"
+                  fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+              {' '}Library
+            </button>
+            <span className={`home-hint home-hint-lib${hints ? ' on' : ''}`} aria-hidden="true">
+              <KeyCap k="L" />
+            </span>
+          </span>
+          <WellnessWhisper state={state} date={today} onOpen={() => setPage('journal')} />
+        </div>
+
+        {/* The two pages with no button of their own get their labels here,
+            floating clear of the rail so showing them shifts nothing. */}
+        <div className={`home-hint home-hint-pages${hints ? ' on' : ''}`} aria-hidden="true">
+          <span className="home-hint-page"><KeyCap k="T" /><span>· timer</span></span>
+          <span className="home-hint-page"><KeyCap k="J" /><span>· journal</span></span>
+        </div>
+
         <div className="home-dock-right">
           <FavHeart kind="wallpapers" itemKey={wallpaper.file} label="this wallpaper" />
           <button type="button" className="home-dock-btn" onClick={nextWallpaper}
             title="Show a different photo today">
             next wallpaper <span aria-hidden="true">⤳</span>
+          </button>
+          <button type="button" className={`home-dock-btn home-keys-btn${hintsPinned ? ' on' : ''}`}
+            aria-pressed={hintsPinned} aria-label="Keyboard shortcuts" title="Keyboard shortcuts"
+            onClick={() => { setHintFlash(false); setHintsPinned((v) => !v) }}>
+            <KeyboardGlyph />
           </button>
         </div>
       </div>
