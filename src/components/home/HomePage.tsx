@@ -453,7 +453,12 @@ export default function HomePage() {
           on the right, both quiet until the pointer is on the page. */}
       <div className="home-dock">
         <button type="button" className="home-dock-btn" onClick={() => setLibOpen(true)}>
-          <span aria-hidden="true">♡</span> Library
+          {/* Three spines on a shelf: the library holds more than favourites. */}
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2.6 2.4 h2.6 v11.2 H2.6 Z M6.6 2.4 h2.6 v11.2 H6.6 Z M10.9 3 l2.5 -0.5 2.1 10.9 -2.5 0.5 Z"
+              fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+          </svg>
+          {' '}Library
         </button>
         <div className="home-dock-right">
           <FavHeart kind="wallpapers" itemKey={wallpaper.file} label="this wallpaper" />
