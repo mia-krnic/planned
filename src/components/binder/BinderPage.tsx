@@ -5,6 +5,7 @@ import type { BinderPost, BinderSection, BinderUpload, ClassInfo, ClassMeta, ID 
 import { hexToRgba } from '../../utils/color'
 import { fmtFriendly } from '../../utils/date'
 import { allowDrop, getDragPayload, isDragKind, setDragPayload } from '../../utils/dnd'
+import AmbientWallpaper from '../AmbientWallpaper'
 import { ProjectNode } from '../ProjectTree'
 import FileChip from './FileChip'
 import GradesTab from './GradesTab'
@@ -232,6 +233,7 @@ export default function BinderPage() {
         <ClassBinder key={openClass.id} cls={openClass} />
       ) : (
         <div className="binder-page">
+          <AmbientWallpaper variant="full" />
           <h2 className="binder-title">My binder</h2>
           <p className="binder-sub">
             Posts, notes, handouts and resources — one page per class. Drag cards to rearrange or refolder.
@@ -328,7 +330,7 @@ function IndexCards({ classes, hint, onOpen, onDropClass }: {
             onDrop={onDropClass ? onDropClass(c) : swallowDrop}
             onClick={() => guardedClick(() => onOpen(c.id))}
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpen(c.id)}
-            style={{ borderTopColor: c.color, background: hexToRgba(c.color, 0.07) }}>
+            style={{ borderTopColor: c.color, background: `color-mix(in srgb, ${c.color} 7%, var(--bg-raised))` }}>
             <div className="corner-pins">
               <button className={`corner-pin ${c.pinnedBinder ? 'on' : ''}`}
                 title={c.pinnedBinder ? 'Unpin from top of binder' : 'Pin to top of binder'}

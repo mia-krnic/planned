@@ -15,6 +15,7 @@
  */
 
 import type { WeatherKind } from '../types'
+import { todayISO } from './date'
 
 /** Resolved place cache. Keyed by the label the user typed, verbatim. */
 const GEO_KEY = 'planned-geo-v1'
@@ -36,6 +37,13 @@ export interface TodayWeather {
   kind: WeatherKind | null
   /** Degrees Celsius, unrounded. */
   tempC: number | null
+  /**
+   * Today's sunrise and sunset as minutes since local midnight. Null wherever
+   * the day has neither — inside the polar circles for half the year — and
+   * wherever the response did not carry them.
+   */
+  sunrise: number | null
+  sunset: number | null
 }
 
 /**
@@ -147,9 +155,25 @@ function dailyCodes(daily: any): Record<string, WeatherKind> {
 }
 
 /**
- * Today's conditions, plus the daily codes for the last `pastDays` days.
- * Those recent days matter: the archive lags real time by several days, so the
- * forecast endpoint is the only place the gap between them can be filled from.
+ * "2026-08-21T06:12" → 372. `timezone=auto` makes every time in the response
+ * local wall time with no offset on it, so only the clock part is of interest
+ * — and reading it with a regex keeps Date's parsing rules out of it.
+ */
+function localMinutes(v: unknown): number | null {
+  if (typeof v !== 'string') return null
+  const m = /T(\d{2}):(\d{2})/.exec(v)
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+/**
+ * Today's conditions and today's sunrise and sunset, plus the daily codes for
+ * the last `pastDays` days. Those recent days matter: the archive lags real
+ * time by several days, so the forecast endpoint is the only place the gap
+ * between them can be filled from.
+ *
+ * The sun times ride along on the daily block this call already asks for — the
+ * Home page's arc costs no request of its own.
  */
 export async function fetchForecast(
   p: GeoPoint,
@@ -157,17 +181,27 @@ export async function fetchForecast(
 ): Promise<{ today: TodayWeather; daily: Record<string, WeatherKind> } | null> {
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${p.lat}&longitude=${p.lon}`
-    + '&current=temperature_2m,weather_code&daily=weather_code'
+    + '&current=temperature_2m,weather_code&daily=weather_code,sunrise,sunset'
     + `&timezone=auto&forecast_days=1&past_days=${Math.max(0, Math.min(92, Math.round(pastDays)))}`
   const data = await getJson(url)
   if (!data) return null
 
   const code = data.current?.weather_code
   const temp = data.current?.temperature_2m
+
+  // The daily block runs from `pastDays` ago to today, so today is found by
+  // date rather than counted to — a range the server trimmed cannot mislead it.
+  const times: unknown = data.daily?.time
+  const i = Array.isArray(times)
+    ? times.findIndex((t) => typeof t === 'string' && t.slice(0, 10) === todayISO())
+    : -1
+
   return {
     today: {
       kind: typeof code === 'number' ? wmoToKind(code) : null,
       tempC: typeof temp === 'number' ? temp : null,
+      sunrise: i < 0 ? null : localMinutes(data.daily?.sunrise?.[i]),
+      sunset: i < 0 ? null : localMinutes(data.daily?.sunset?.[i]),
     },
     daily: dailyCodes(data.daily),
   }

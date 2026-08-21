@@ -2,6 +2,7 @@ import {
   useLayoutEffect, useMemo, useRef, useState,
   type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject,
 } from 'react'
+import AmbientWallpaper from '../AmbientWallpaper'
 import { useStore } from '../../store'
 import type { DayLog } from '../../types'
 import { earliestUserDate, fmtSleep, fmtWeight } from '../../utils/daylog'
@@ -175,6 +176,7 @@ export default function JournalPage() {
   return (
     <div className="journal-page">
       <div className="jp-wrap">
+        <AmbientWallpaper variant="sides" />
         <header className="jp-head">
           <div className="jp-title">
             <h1><PencilGlyph size={18} /> Journal</h1>

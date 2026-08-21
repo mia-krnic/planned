@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import AmbientWallpaper from '../AmbientWallpaper'
 import { useStore } from '../../store'
 import { nowMinutes } from '../../utils/date'
 import BreakAnalytics from './BreakAnalytics'
@@ -50,6 +51,7 @@ export default function InsightsPage() {
 
   return (
     <div className="insights-page">
+      <AmbientWallpaper variant="sides" />
       <div className="ins2-wrap">
         <header className="ins2-head">
           <div className="ins2-title">

@@ -9,6 +9,7 @@ import { DUE_FLAG, fmtDue } from '../utils/agenda'
 import { occurrencesOn, recurringCount, recurringTimes, type RecurOccurrence } from '../utils/occur'
 import ProjectTree from './ProjectTree'
 import InfoIcon from './InfoIcon'
+import AmbientWallpaper from './AmbientWallpaper'
 import TaskCheck, { RecurringCheck } from './TaskCheck'
 
 interface Props {
@@ -116,6 +117,7 @@ export default function TasksPanel({ mode, onExpand }: Props) {
 
   return (
     <div className={`tasks-panel ${mode === 'full' ? 'full' : ''}`}>
+      {mode === 'full' && <AmbientWallpaper variant="sides" />}
       <div className="tp-head">
         <h2>Tasks</h2>
         <div className="tp-tabs">

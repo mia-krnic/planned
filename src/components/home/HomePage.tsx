@@ -16,6 +16,7 @@ import { MEAL_KEYS, WeatherGlyph } from '../daylog/glyphs'
 import MoonIcon from '../daylog/MoonIcon'
 import { GiftMark } from '../modals/BirthdayPopover'
 import HomeLibrary, { FavHeart } from './HomeLibrary'
+import SunArc from './SunArc'
 
 /**
  * The landing page: a clock, the day's mantra, one goal, and — top right —
@@ -484,6 +485,13 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   const wx = useWeather()
   const [libOpen, setLibOpen] = useState(false)
 
+  // The sun arc has no place in the grid: it measures the empty band between
+  // the centre stack and the quote and lays itself into that, so it needs an
+  // edge on both blocks and the page they are laid out in.
+  const pageRef = useRef<HTMLDivElement>(null)
+  const centreRef = useRef<HTMLDivElement>(null)
+  const quoteRef = useRef<HTMLDivElement>(null)
+
   // The photo fades in only once decoded, so a slow load shows the gradient
   // rather than a top-down trickle — and the previous photo stays up until the
   // next one is ready, so switching wallpapers never blinks through the
@@ -581,19 +589,26 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={cls}>
+    <div className={cls} ref={pageRef}>
       {/* The gradient layer stays underneath; the day's photo fades in over it
           once decoded, carrying its own edge darkening (see the CSS). */}
       <div className="home-bg" aria-hidden="true" />
       <div className={`home-bg home-photo${bg ? ' loaded' : ''}`} aria-hidden="true"
         style={bg ? { backgroundImage: `url("${bg.url}")` } : undefined} />
 
+      {/* Where in the day you are. It lays itself into the empty band between
+          the text blocks, so it is drawn whether or not the weather answered —
+          without a located sun it falls back to an ordinary day. */}
+      <SunArc date={today} nowMin={nowMin}
+        sunrise={wx?.sunrise ?? null} sunset={wx?.sunset ?? null}
+        centreRef={centreRef} quoteRef={quoteRef} pageRef={pageRef} />
+
       <div className="home-corner">
         <FocusRing state={state} todayMin={focusedMin} />
         <WeatherChip label={state.location?.label?.trim() || undefined} wx={wx} />
       </div>
 
-      <div className="home-centre">
+      <div className="home-centre" ref={centreRef}>
         <div className="home-almanac">
           <span>{almanacLine(today)}</span>
           <MoonIcon date={today} size={11} />
@@ -641,7 +656,7 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
         </div>
       </div>
 
-      <div className="home-quote">
+      <div className="home-quote" ref={quoteRef}>
         <span className="home-quote-text">“{quote.text}”</span>
         <span className="home-quote-foot">
           {quote.author && <span className="home-quote-author">— {quote.author}</span>}

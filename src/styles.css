@@ -4248,7 +4248,7 @@ button { font: inherit; color: inherit; }
    over transparent, so it lands slightly LIGHTER than its surroundings in dark
    mode and slightly DARKER in light mode with no per-theme overrides. */
 .pin-box {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
+  background: color-mix(in srgb, var(--text) 6%, var(--bg));
   border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
   border-radius: 12px;
   padding: 8px 10px;
@@ -6930,8 +6930,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---- Clock ---- */
 
 .home-clock {
-  font-size: 148px;
-  font-weight: 400;
+  font-size: 176px;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
@@ -6955,7 +6955,7 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-size: 30px;
+  font-size: 44px;
   font-weight: 500;
   letter-spacing: 0.4px;
   color: var(--text-dim);
@@ -6972,10 +6972,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 }
 
 .home-goal-input {
-  width: min(440px, 100%);
+  width: min(560px, 100%);
   padding: 6px 4px;
   font: inherit;
-  font-size: 16px;
+  font-size: 26px;
   text-align: center;
   color: var(--text);
   background: transparent;
@@ -6993,13 +6993,13 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: min(520px, 100%);
+  max-width: min(640px, 100%);
   padding: 6px 10px;
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
   cursor: text;
-  font-size: 17px;
+  font-size: 26px;
   color: var(--text);
   text-align: center;
 }
@@ -8138,8 +8138,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* Morning leans on the goal a little: the same line, two points larger and a
    touch more present at the underline. Nothing else changes. */
 .home-goal.morning .home-goal-input,
-.home-goal.morning .home-goal-set { font-size: 18px; }
-.home-goal.morning .home-goal-input { border-bottom-color: var(--text-faint); }
+.home-goal.morning .home-goal-set { font-size: 28px; }
+.home-goal.morning .home-goal-input { font-size: 28px; border-bottom-color: var(--text-faint); }
 
 /* ---- The lines the day writes under the goal ---- */
 
@@ -8405,3 +8405,188 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 }
 .grid-header .dl-fold:hover { color: var(--text-dim); }
 /* ---------- end Daily-log fold ---------- */
+
+/* ---------- Ambient wallpaper ---------- */
+/* The day's photo whispered into dead space: never under text, never boxed.
+   Hosts must be positioning contexts; their content already stacks above
+   because the layer is z-index 0 and pointer-transparent. */
+.tasks-panel.full, .jp-wrap, .study-page, .binder-index { position: relative; }
+/* Rest at the whisper opacity; the animation only supplies the fade-from-0,
+   so no var() ever has to survive inside a keyframe. */
+.ambient-wp {
+  /* Fixed to the viewport: the picture sits exactly where the Home page draws
+     it — one image at one scale — and each page's mask merely chooses which
+     parts of it show through the dead space. Never per-container, never
+     repeated, and scrolling the page doesn't move the mountains. */
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  animation: ambient-in 0.8s ease;
+  filter: saturate(0.65);
+}
+@keyframes ambient-in { from { opacity: 0; } }
+/* Side fades: alive only at the far edges, gone before any content column. */
+/* Side strips: the picture lives only in the margins OUTSIDE the page's
+   content column. --amb-col is each host's column width (plus breathing room),
+   so the fade is guaranteed to die before the first line of text regardless of
+   window size; on screens too narrow to have margins, max() leaves a sliver. */
+.ambient-sides {
+  opacity: 0.16;
+  --amb-safe: max(14px, calc(50% - var(--amb-col, 1140px) / 2));
+  --amb-hold: max(8px, calc((50% - var(--amb-col, 1140px) / 2) * 0.45));
+  -webkit-mask-image: linear-gradient(to right,
+    black, black var(--amb-hold), transparent var(--amb-safe),
+    transparent calc(100% - var(--amb-safe)), black calc(100% - var(--amb-hold)), black);
+  mask-image: linear-gradient(to right,
+    black, black var(--amb-hold), transparent var(--amb-safe),
+    transparent calc(100% - var(--amb-safe)), black calc(100% - var(--amb-hold)), black);
+}
+.journal-page .ambient-sides { --amb-col: 1160px; }   /* jp-wrap 1120 + margin */
+.tasks-panel.full .ambient-sides { --amb-col: 820px; } /* tp-scroll 760 + margin */
+.insights-page .ambient-sides { --amb-col: 940px; }    /* ins2-wrap 880 + margin */
+/* Full whisper: uniform and fainter — only solid surfaces float on top of it,
+   so it shows through the true gaps between them. */
+.ambient-full {
+  opacity: 0.12;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+}
+/* The content stacks above the layer without new stacking contexts leaking. */
+.tasks-panel.full > *:not(.ambient-wp),
+.jp-wrap > *:not(.ambient-wp),
+.study-page > *:not(.ambient-wp),
+.insights-page > *:not(.ambient-wp),
+.binder-page > *:not(.ambient-wp) { position: relative; z-index: 1; }
+/* Pages that host the whisper keep every text-bearing surface opaque: the
+   picture is for dead space only, never under words. */
+.tasks-panel.full .tp-head { background: var(--bg-raised); }
+.binder-page .binder-title,
+.binder-page .binder-sub,
+.binder-page .add-inline {
+  background: var(--bg);
+  width: fit-content;
+  padding-left: 10px;
+  padding-right: 12px;
+  margin-left: -10px;
+  border-radius: 8px;
+}
+.binder-page .binder-title { padding-top: 3px; padding-bottom: 3px; margin-top: -3px; }
+.binder-page .binder-group-head { background: var(--bg); width: fit-content; padding-right: 12px; border-radius: 6px; }
+/* ---------- end Ambient wallpaper ---------- */
+
+/* ---------- Sun arc ---------- */
+
+/* The day's solar path: one wave running the full width of the Home page, in
+   the empty band between the bottom of the centre stack and the top of the
+   quote. SunArc measures that band and sets this layer's `top` and `height`
+   inline; left and right are pinned to the page's own edges, so the day maps
+   hard edge to hard edge with no padding stolen from either end.
+
+   Because the band is measured rather than assumed, the arc never crosses a
+   word — which is what earns it real contrast instead of the whisper it would
+   have to be behind text. The SVG inside is drawn 1:1 in CSS pixels, so a
+   twenty-pixel sun is twenty pixels wide at every window size instead of
+   growing with a viewBox.
+
+   Colour comes from --home-fg, so a photo too pale for white type turns the
+   arc dark along with the words. Nothing here is a box and nothing here takes
+   part in the grid — z-index 0 keeps it under every text block on the page and
+   over the photo. */
+.home-sunarc {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+  line-height: 0;
+  color: var(--home-fg, var(--text));
+}
+
+.home-sunarc svg { display: block; overflow: hidden; }
+
+.home-sunarc-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+}
+
+/* The day so far is the solid part of the drawing and the rest of it is barely
+   a suggestion — the gap is meant to be readable at a glance, from across a
+   room, over a busy photograph. Weight carries it as well as opacity, so the
+   split still shows where the wallpaper is loud enough to swallow a hairline.
+   Within each half the sky outranks the ground, which is only ever context. */
+.home-sunarc-line.sky { stroke-width: 1.25; opacity: 0.25; }
+.home-sunarc-line.ground { stroke-width: 1.25; opacity: 0.15; }
+.home-sunarc-line.sky.behind { stroke-width: 2; opacity: 0.85; }
+.home-sunarc-line.ground.behind { stroke-width: 2; opacity: 0.55; }
+
+.home-sunarc-horizon {
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.16;
+}
+
+/* ---- The traveller ---- */
+
+/* Its position is reassigned once every half minute. The easing is what makes
+   that a drift rather than a jump; there is no pulse and no animation of its
+   own, because the only thing moving on this page should be the day. */
+.home-sunarc-now { transition: transform 1200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .home-sunarc-now { transition: none; }
+}
+
+.home-sunarc-disc { fill: currentColor; opacity: 0.9; }
+/* Two flat rings instead of a blur: the same soft edge for none of the cost of
+   filtering a layer this wide every time the sun moves. */
+.home-sunarc-halo { fill: currentColor; opacity: 0.1; }
+
+/* The night traveller is the real moon, so it needs the almanac's treatment
+   out here where --border and --text would be the wrong answer. */
+.home-sunarc .moon-dark { fill: color-mix(in srgb, currentColor 18%, transparent); }
+.home-sunarc .moon-lit { fill: color-mix(in srgb, currentColor 72%, transparent); }
+.home-sunarc .moon-rim { stroke: color-mix(in srgb, currentColor 40%, transparent); }
+
+/* ---- Sunrise, midday, sunset ---- */
+
+/* Ten pixels of hairline each, and the only part of the layer a pointer can
+   reach: the invisible disc under the glyph is what carries the tooltip. */
+.home-sunarc-mark {
+  pointer-events: auto;
+  color: var(--home-fg-faint, var(--text-faint));
+}
+.home-sunarc-hit { fill: transparent; }
+.home-sunarc-mark-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.home-sunarc-mark-disc { fill: currentColor; }
+
+/* Over a photo the line itself is meant to stay lost in the picture, but the
+   three marks and the traveller are small enough to be swallowed by a busy
+   one — they get the same shadow the focus ring wears. */
+.home-page.has-photo .home-sunarc-now,
+.home-page.has-photo .home-sunarc-mark { filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5)); }
+
+/* The arc is not inside .home-centre, so a pale middle band has to hand it the
+   dark palette separately. */
+.home-page.has-photo.lum-centre-light .home-sunarc {
+  --home-fg: #1b1e23;
+  --home-fg-faint: rgba(27, 30, 35, 0.6);
+}
+.home-page.has-photo.lum-centre-light .home-sunarc-now,
+.home-page.has-photo.lum-centre-light .home-sunarc-mark {
+  filter: drop-shadow(0 1px 4px rgba(255, 255, 255, 0.5));
+}
+
+/* No breakpoints. The arc is full width at every size and lives in whatever
+   empty band the page has to offer; when a narrow window leaves too little of
+   one, SunArc measures that and draws nothing at all. */
+
+/* end ---------- Sun arc ---------- */

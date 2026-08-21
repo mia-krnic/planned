@@ -6,6 +6,7 @@ import { groupedClasses, uid, useStore } from '../../store'
 import type { ClassInfo, ID, StudyBreak, StudyMode, StudySession, Task } from '../../types'
 import { cbTint, hexToRgba, titleTint } from '../../utils/color'
 import { fmtTime, hmToMin, minToHm, nowMinutes, toISO } from '../../utils/date'
+import AmbientWallpaper from '../AmbientWallpaper'
 import ColorSelect, { type ColorGroup } from '../ColorSelect'
 import InfoIcon from '../InfoIcon'
 import TaskCheck from '../TaskCheck'
@@ -832,6 +833,7 @@ export default function StudyTimerPage() {
 
     return (
       <div className="study-page">
+        <AmbientWallpaper variant="full" />
         <div className="study-card running" style={{ borderColor: hexToRgba(color, 0.55) }}>
           <SessionMarks session={running} nowMin={shownMin} color={color} />
 
@@ -981,6 +983,7 @@ export default function StudyTimerPage() {
     const color = sessionColor(state, ended.classId)
     return (
       <div className="study-page">
+        <AmbientWallpaper variant="full" />
         <div className="study-card" style={{ borderColor: hexToRgba(color, 0.55) }}>
           <h2 className="st-title">Session finished</h2>
           <div className="st-summary">
@@ -1013,6 +1016,7 @@ export default function StudyTimerPage() {
   /* ---------------- Set up a new session ---------------- */
   return (
     <div className="study-page">
+      <AmbientWallpaper variant="full" />
       <div className="study-card">
         <div className="st-head">
           <h2 className="st-title">Study timer</h2>
