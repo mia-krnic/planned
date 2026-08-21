@@ -7671,3 +7671,14 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* ---------- end Home library ---------- */
+
+/* ---------- Top-bar declutter ---------- */
+/* Home is an icon tab; hairlines group the list into home · doing · reflecting. */
+.page-tabs .tab-home { display: inline-flex; align-items: center; padding: 5px 9px; }
+.page-tabs .tab-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 5px 3px;
+  background: var(--border-strong);
+}
+/* ---------- end Top-bar declutter ---------- */

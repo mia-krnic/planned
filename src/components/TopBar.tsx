@@ -126,6 +126,9 @@ export default function TopBar({
   const toggleDrawer = (which: Exclude<Drawer, null>) =>
     setDrawer(drawer === which ? null : which)
 
+  // Pages that only read: no creation buttons, no undo/redo in the bar.
+  const quiet = page === 'home' || page === 'insights' || page === 'journal'
+
   const step = (dir: 1 | -1) => {
     const d = fromISO(anchor)
     if (view === 'year') {
@@ -152,12 +155,22 @@ export default function TopBar({
 
       <div className="brand"><span className="logo">✓</span><span className="brand-word">planned</span></div>
 
+      {/* Home is the landing page, so it earns an icon rather than a word;
+          thin dividers split the list into home · doing · reflecting. */}
       <div className="page-tabs">
-        <button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Home</button>
+        <button className={`tab-home ${page === 'home' ? 'active' : ''}`}
+          title="Home" aria-label="Home" onClick={() => setPage('home')}>
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2.6 7.6 8 2.8 l5.4 4.8 M4.2 6.9 V13 a0.6 0.6 0 0 0 0.6 0.6 h2 V10 h2.4 v3.6 h2 a0.6 0.6 0 0 0 0.6 -0.6 V6.9"
+              fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <span className="tab-sep" aria-hidden="true" />
         <button className={page === 'calendar' ? 'active' : ''} onClick={() => setPage('calendar')}>Calendar</button>
         <button className={page === 'tasks' ? 'active' : ''} onClick={() => setPage('tasks')}>Tasks</button>
         <button className={page === 'timer' ? 'active' : ''} onClick={() => setPage('timer')}>Timer</button>
         <button className={page === 'binder' ? 'active' : ''} onClick={() => setPage('binder')}>Binder</button>
+        <span className="tab-sep" aria-hidden="true" />
         <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>Insights</button>
         <button className={page === 'journal' ? 'active' : ''} onClick={() => setPage('journal')}>Journal</button>
       </div>
@@ -179,43 +192,50 @@ export default function TopBar({
 
       <div className="spacer" />
 
-      {/* Creation actions live in their own box, apart from the utility icons.
-          Narrow screens swap the three for the single ＋ menu below. */}
-      <div className="tb-group tb-adds" role="group" aria-label="Add">
-        <button className="tb-add" onClick={() => ui.openEvent({ date: anchor })}>+ Event</button>
-        <button className="tb-add" onClick={() => ui.openTask({ date: todayISO() })}>+ Task</button>
-        {/* The trailing word is dropped at tablet widths, leaving "+ Log". */}
-        <button className="tb-add tb-add-log" onClick={() => ui.openLogStudy({ date: anchor })}>
-          + Log<span className="tb-add-word"> study</span>
-        </button>
-      </div>
-      {narrow && <AddMenu anchor={anchor} />}
+      {/* Creation and history only appear where creating and editing happen;
+          Home, Insights and Journal keep a quiet bar (search/bell/settings).
+          Narrow screens swap the three add buttons for the single ＋ menu. */}
+      {!quiet && (
+        <div className="tb-group tb-adds" role="group" aria-label="Add">
+          <button className="tb-add" onClick={() => ui.openEvent({ date: anchor })}>+ Event</button>
+          <button className="tb-add" onClick={() => ui.openTask({ date: todayISO() })}>+ Task</button>
+          {/* The trailing word is dropped at tablet widths, leaving "+ Log". */}
+          <button className="tb-add tb-add-log" onClick={() => ui.openLogStudy({ date: anchor })}>
+            + Log<span className="tb-add-word"> study</span>
+          </button>
+        </div>
+      )}
+      {narrow && !quiet && <AddMenu anchor={anchor} />}
       <div className="tb-group tb-tools" role="group" aria-label="Tools">
         <button className="btn icon" title="Search (⌘K)" aria-label="Search" onClick={() => ui.openSearch()}>⌕</button>
-        <button
-          className="btn icon history-btn"
-          title="Undo (⌘Z)"
-          aria-label="Undo"
-          disabled={!canUndo}
-          onClick={() => dispatch({ type: 'undo' })}
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M6.3 2.6 2.9 6 6.3 9.4 M2.9 6 h7.2 a3.6 3.6 0 0 1 0 7.2 H6.6"
-              fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <button
-          className="btn icon history-btn"
-          title="Redo (⌘Y)"
-          aria-label="Redo"
-          disabled={!canRedo}
-          onClick={() => dispatch({ type: 'redo' })}
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M9.7 2.6 13.1 6 9.7 9.4 M13.1 6 H5.9 a3.6 3.6 0 0 0 0 7.2 h3.5"
-              fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        {!quiet && (
+          <>
+            <button
+              className="btn icon history-btn"
+              title="Undo (⌘Z)"
+              aria-label="Undo"
+              disabled={!canUndo}
+              onClick={() => dispatch({ type: 'undo' })}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M6.3 2.6 2.9 6 6.3 9.4 M2.9 6 h7.2 a3.6 3.6 0 0 1 0 7.2 H6.6"
+                  fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              className="btn icon history-btn"
+              title="Redo (⌘Y)"
+              aria-label="Redo"
+              disabled={!canRedo}
+              onClick={() => dispatch({ type: 'redo' })}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M9.7 2.6 13.1 6 9.7 9.4 M13.1 6 H5.9 a3.6 3.6 0 0 0 0 7.2 h3.5"
+                  fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </>
+        )}
         <NotificationCenter />
         <ViewSettings narrow={narrow} />
       </div>
