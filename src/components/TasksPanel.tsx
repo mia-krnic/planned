@@ -7,9 +7,9 @@ import { addDays, fmtFriendly, fmtTime, fromISO, toISO, todayISO } from '../util
 import { cbTint, dueTint, hexToRgba, titleTint } from '../utils/color'
 import { DUE_FLAG, fmtDue } from '../utils/agenda'
 import { occurrencesOn, recurringCount, recurringTimes, type RecurOccurrence } from '../utils/occur'
+import AmbientWallpaper from './AmbientWallpaper'
 import ProjectTree from './ProjectTree'
 import InfoIcon from './InfoIcon'
-import AmbientWallpaper from './AmbientWallpaper'
 import TaskCheck, { RecurringCheck } from './TaskCheck'
 
 interface Props {

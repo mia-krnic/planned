@@ -15,6 +15,9 @@ import MiniMonth from './MiniMonth'
 interface Props {
   anchor: string
   setAnchor: (iso: string) => void
+  /** Shrunk to a rail. Never true on a narrow screen — the panel is a drawer there. */
+  collapsed: boolean
+  onToggleCollapse: () => void
 }
 
 /**
@@ -58,7 +61,7 @@ function FolderGroup({ self, onDropHere, children }: {
 }
 
 /** Mini month + per-class calendar visibility toggles. */
-export default function SidebarLeft({ anchor, setAnchor }: Props) {
+export default function SidebarLeft({ anchor, setAnchor, collapsed, onToggleCollapse }: Props) {
   const { state, dispatch } = useStore()
   const ui = useUI()
   const importRef = useRef<HTMLInputElement>(null)
@@ -197,8 +200,20 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
     </FolderGroup>
   )
 
+  // Collapsed: everything below the toggle is dropped from the tree, so nothing
+  // in it can be tabbed into behind the rail.
+  if (collapsed) {
+    return (
+      <div className="sidebar-left collapsed">
+        <button className="panel-collapse" title="Expand calendars" onClick={onToggleCollapse}>»</button>
+        <span className="panel-rail-label">Calendars</span>
+      </div>
+    )
+  }
+
   return (
     <div className="sidebar-left">
+      <button className="panel-collapse" title="Collapse calendars" onClick={onToggleCollapse}>«</button>
       <MiniMonth anchor={anchor} onSelect={setAnchor} />
       <ExamCountdown />
 

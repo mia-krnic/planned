@@ -34,8 +34,10 @@ const SUN_HALO_R = 13.5
 const SUN_GLOW_R = 18
 const MOON_SIZE = 23.5
 
+/** Room above the traveller for the small time that always rides over it. */
+const TIME_ROOM = 15
 /** Clear air kept at the top and bottom of the layer for the traveller. */
-const TOP_CLEAR = SUN_GLOW_R + 1
+const TOP_CLEAR = SUN_GLOW_R + 1 + TIME_ROOM
 const BOTTOM_CLEAR = MOON_SIZE / 2 + 1
 /** How far inside the left and right edges the traveller is held. */
 const EDGE_HOLD = SUN_GLOW_R + 1
@@ -43,7 +45,7 @@ const EDGE_HOLD = SUN_GLOW_R + 1
 /** Breathing room between the layer and the two text blocks it sits between. */
 const BAND_MARGIN = 8
 /** A band shorter than this has no room for a wave worth drawing. */
-const MIN_BAND = 70
+const MIN_BAND = 85
 /** Narrower than this and there is no page to speak of. */
 const MIN_WIDTH = 320
 
@@ -193,14 +195,17 @@ const SETTING = 'M-2,-8.6 0,-6.7 2,-8.6'
 
 /**
  * One turning point of the day, sitting on the curve. The glyph is ten pixels
- * of hairline; the tooltip and the target under it are what make it a thing
- * you can ask about.
+ * of hairline; the invisible disc under it is the hover target, and hovering
+ * raises the mark's name over its time. The noon mark lives at the apex where
+ * there is no sky above it, so its caption hangs below instead.
  */
-function Mark({ x, y, glyph, label }: { x: number; y: number; glyph: 'rise' | 'noon' | 'set'; label: string }) {
+function Mark({ x, y, glyph, name, time }: {
+  x: number; y: number; glyph: 'rise' | 'noon' | 'set'; name: string; time: string
+}) {
+  const below = glyph === 'noon'
   return (
     <g className="home-sunarc-mark" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
-      <title>{label}</title>
-      <circle className="home-sunarc-hit" r="12" />
+      <circle className="home-sunarc-hit" r="14" />
       {glyph === 'noon' ? (
         <>
           <circle className="home-sunarc-mark-disc" r="2.6" />
@@ -210,6 +215,10 @@ function Mark({ x, y, glyph, label }: { x: number; y: number; glyph: 'rise' | 'n
         <path className="home-sunarc-mark-line"
           d={HALF_DISC + BASE_LINE + (glyph === 'rise' ? RISING : SETTING)} />
       )}
+      <g className="home-sunarc-tip">
+        <text className="home-sunarc-tip-name" y={below ? 17 : -25}>{name}</text>
+        <text className="home-sunarc-tip-time" y={below ? 29 : -13}>{time}</text>
+      </g>
     </g>
   )
 }
@@ -296,23 +305,28 @@ export default function SunArc({ date, nowMin, sunrise, sunset, centreRef, quote
           <path className="home-sunarc-line ground behind" d={d} clipPath={`url(#${id}ground)`} />
         </g>
 
-        <Mark x={xOf(rise)} y={horizon} glyph="rise" label={`sunrise ${hhmm(rise)}`} />
-        <Mark x={xOf(noon)} y={TOP_CLEAR} glyph="noon" label={`midday ${hhmm(noon)}`} />
-        <Mark x={xOf(set)} y={horizon} glyph="set" label={`sunset ${hhmm(set)}`} />
+        <Mark x={xOf(rise)} y={horizon} glyph="rise" name="sunrise" time={hhmm(rise)} />
+        <Mark x={xOf(noon)} y={TOP_CLEAR} glyph="noon" name="midday" time={hhmm(noon)} />
+        <Mark x={xOf(set)} y={horizon} glyph="set" name="sunset" time={hhmm(set)} />
 
         {/* The traveller only ever has its position reassigned; the easing on
             the transform is what turns a half-minute step into a drift. */}
+        {/* The traveller wears the current time faintly above it at all times —
+            the one always-on caption in the layer, which is why the layer keeps
+            TIME_ROOM of clear air over the apex. */}
         {daylight ? (
           <g className="home-sunarc-now" transform={`translate(${markX.toFixed(1)} ${markY.toFixed(1)})`}>
             <circle className="home-sunarc-halo" r={SUN_GLOW_R} />
             <circle className="home-sunarc-halo" r={SUN_HALO_R} />
             <circle className="home-sunarc-disc" r={SUN_R} />
+            <text className="home-sunarc-time" y={-(SUN_GLOW_R + 6)}>{hhmm(nowMin)}</text>
           </g>
         ) : (
           // A nested svg has no centre of its own: it is placed by its corner.
           <g className="home-sunarc-now"
             transform={`translate(${(markX - MOON_SIZE / 2).toFixed(1)} ${(markY - MOON_SIZE / 2).toFixed(1)})`}>
             <MoonIcon date={date} size={MOON_SIZE} />
+            <text className="home-sunarc-time" x={MOON_SIZE / 2} y={-7}>{hhmm(nowMin)}</text>
           </g>
         )}
       </svg>

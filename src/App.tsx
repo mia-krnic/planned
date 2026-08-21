@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { CalEvent, ClassInfo, CustomCalendar, ID, RecurringTask, Task } from './types'
 import { todayISO } from './utils/date'
+import { useStore } from './store'
 import TopBar from './components/TopBar'
 import SidebarLeft from './components/SidebarLeft'
 import WeekGrid from './components/WeekGrid'
@@ -46,6 +47,27 @@ function useNarrow(): boolean {
     return () => mq.removeEventListener('change', onChange)
   }, [])
   return narrow
+}
+
+/**
+ * The strip that shuts a tasks sidebar away. It lives on the host rather than
+ * inside TasksPanel because the panel's header row is already full at sidebar
+ * width, and because the calendar and the timer each remember their own state.
+ * Collapsed it widens a touch and names what it is hiding, the way the binder's
+ * collapsed class rail does. Hidden entirely on a narrow screen, where the
+ * panel is a drawer and the top bar already toggles it.
+ */
+function TasksHandle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      className={`tasks-handle${collapsed ? ' collapsed' : ''}`}
+      title={collapsed ? 'Expand tasks' : 'Collapse tasks'}
+      onClick={onToggle}
+    >
+      <span className="th-arrow">{collapsed ? '«' : '»'}</span>
+      {collapsed && <span className="panel-rail-label">Tasks</span>}
+    </button>
+  )
 }
 
 /** `startMin`/`endMin` prefill a NEW event's times — a drag-created block passes both. */
@@ -111,8 +133,6 @@ export default function App() {
   const [staticImport, setStaticImport] = useState<StaticImportInit | null>(null)
   const [logStudyModal, setLogStudyModal] = useState<LogStudyModalInit | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
-  // Tasks sidebar on the timer page — handy while timing, collapsible when it's in the way.
-  const [timerTasks, setTimerTasks] = useState(true)
 
   // ---- Mobile drawers -------------------------------------------------
   // Inert on desktop: `narrow` is false there, so no toggle renders, `drawer`
@@ -142,6 +162,14 @@ export default function App() {
       document.body.classList.remove('drawer-lock')
     }
   }, [drawer])
+
+  // ---- Side-panel rails -----------------------------------------------
+  // Remembered per panel *position* (see the setCollapse* actions), so the
+  // tasks sidebar can be shut on the timer page and open on the calendar one.
+  // Ignored while narrow: those panels are drawers there, with no rail to
+  // shrink into and a topbar toggle already doing the hiding.
+  const { state, dispatch } = useStore()
+  const railed = (on: boolean | undefined) => !narrow && (on ?? false)
 
   const ui: UIApi = {
     openEvent: setEventModal,
@@ -191,7 +219,11 @@ export default function App() {
             <HomePage setPage={setPage} />
           ) : page === 'calendar' ? (
             <>
-              <SidebarLeft anchor={anchor} setAnchor={setAnchor} />
+              <SidebarLeft
+                anchor={anchor} setAnchor={setAnchor}
+                collapsed={railed(state.collapseCalSidebar)}
+                onToggleCollapse={() => dispatch({ type: 'setCollapseCalSidebar', on: !state.collapseCalSidebar })}
+              />
               <div className="calendar-area">
                 {view === 'year' ? (
                   <YearView anchor={anchor} setAnchor={setAnchor} setView={setView} />
@@ -205,24 +237,22 @@ export default function App() {
                   <WeekGrid anchor={anchor} days={view === 'day' ? 1 : 7} />
                 )}
               </div>
-              <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />
+              <TasksHandle
+                collapsed={railed(state.collapseCalTasks)}
+                onToggle={() => dispatch({ type: 'setCollapseCalTasks', on: !state.collapseCalTasks })}
+              />
+              {!railed(state.collapseCalTasks) && <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />}
             </>
           ) : page === 'tasks' ? (
             <TasksPanel mode="full" onExpand={() => setPage('calendar')} />
           ) : page === 'timer' ? (
             <>
               <StudyTimerPage />
-              <button
-                className={`timer-tasks-handle ${timerTasks ? '' : 'collapsed'}`}
-                title={timerTasks ? 'Hide tasks' : 'Show tasks'}
-                onClick={() => setTimerTasks((v) => !v)}
-              >
-                <span className="tth-arrow">{timerTasks ? '›' : '‹'}</span>
-                {!timerTasks && <span className="tth-label">Tasks</span>}
-              </button>
-              {/* Narrow: the panel is a drawer, so the handle that hides it is
-                  gone and the panel is always mounted for the topbar toggle. */}
-              {(timerTasks || narrow) && <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />}
+              <TasksHandle
+                collapsed={railed(state.collapseTimerTasks)}
+                onToggle={() => dispatch({ type: 'setCollapseTimerTasks', on: !state.collapseTimerTasks })}
+              />
+              {!railed(state.collapseTimerTasks) && <TasksPanel mode="sidebar" onExpand={() => setPage('tasks')} />}
             </>
           ) : page === 'insights' ? (
             <InsightsPage />

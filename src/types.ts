@@ -572,6 +572,12 @@ export interface AppState {
   collapseAllDay?: boolean
   /** Bottom-of-day journal boxes collapsed to their header row. Absent = expanded. */
   collapseJournal?: boolean
+  /** Calendar page's left sidebar shrunk to its rail. Absent = expanded. */
+  collapseCalSidebar?: boolean
+  /** Calendar page's tasks sidebar shrunk to its rail. Absent = expanded. */
+  collapseCalTasks?: boolean
+  /** Timer page's tasks sidebar shrunk to its rail — its own pref, not the calendar's. */
+  collapseTimerTasks?: boolean
 }
 
 export const PALETTE = [

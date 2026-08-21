@@ -205,6 +205,58 @@ button { font: inherit; color: inherit; }
   gap: 14px;
 }
 
+/* ---------- Collapsible side panels ---------- */
+/* The calendar's left sidebar shrinks to the same 46px rail the binder's class
+   list uses, leaving only the toggle and a vertical label naming what's shut. */
+.sidebar-left.collapsed {
+  width: 46px;
+  padding: 10px 0;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.panel-collapse {
+  border: 0; background: transparent; color: var(--text-faint);
+  cursor: pointer; border-radius: 6px; padding: 3px 8px;
+  align-self: center; font-size: 13px;
+}
+.panel-collapse:hover { background: var(--bg-inset); color: var(--text); }
+/* Expanded, the toggle rides on top of the mini month instead of taking a row
+   of its own — the sidebar's 14px column gap would leave a hole below it. */
+.sidebar-left:not(.collapsed) .panel-collapse { align-self: flex-end; margin: -4px -4px -10px 0; }
+
+.panel-rail-label {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+/* The tasks sidebar collapses onto the strip that hides it (calendar + timer
+   pages) rather than into a rail of its own — its header row has no space
+   left for another control at sidebar width. */
+.tasks-handle {
+  flex-shrink: 0;
+  width: 18px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.tasks-handle:hover { background: var(--bg-inset); color: var(--text); }
+.tasks-handle.collapsed { width: 24px; }
+
+.th-arrow { font-size: 13px; line-height: 1; }
+
 .mini-month .mm-head {
   display: flex;
   align-items: center;
@@ -2244,33 +2296,6 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 
-/* ---------- Timer page: collapsible tasks sidebar handle ---------- */
-.timer-tasks-handle {
-  flex-shrink: 0;
-  width: 18px;
-  border: 0;
-  border-left: 1px solid var(--border);
-  background: var(--bg-raised);
-  color: var(--text-faint);
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-.timer-tasks-handle:hover { background: var(--bg-inset); color: var(--text); }
-.timer-tasks-handle.collapsed { width: 24px; }
-
-.tth-arrow { font-size: 15px; line-height: 1; }
-.tth-label {
-  writing-mode: vertical-rl;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.6px;
-}
-
 /* ---------- Text-glyph icons (monochrome, replace colour emoji) ---------- */
 /* Folder outline used next to the pin-in-folder button — matches the
    folder+plus icon in the sidebar's "add folder" control, minus the plus. */
@@ -4248,7 +4273,7 @@ button { font: inherit; color: inherit; }
    over transparent, so it lands slightly LIGHTER than its surroundings in dark
    mode and slightly DARKER in light mode with no per-theme overrides. */
 .pin-box {
-  background: color-mix(in srgb, var(--text) 6%, var(--bg));
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
   border-radius: 12px;
   padding: 8px 10px;
@@ -5850,6 +5875,10 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
     transition: transform 0.22s ease, visibility 0.22s;
     padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
+  /* Both panels are drawers here, so the desktop collapse controls have nothing
+     to shrink — the top bar's toggles do the hiding instead. */
+  .tasks-handle, .panel-collapse { display: none; }
+
   .sidebar-left { left: 0; transform: translateX(-102%); border-right: 1px solid var(--border); }
   .tasks-panel:not(.full) { right: 0; transform: translateX(102%); border-left: 1px solid var(--border); }
 
@@ -5859,9 +5888,6 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
     visibility: visible;
     box-shadow: var(--shadow);
   }
-
-  /* The timer page's own show/hide handle is redundant next to the drawer. */
-  .timer-tasks-handle { display: none; }
 
   /* ---- Top bar: two rows ---------------------------------------------- */
   /* Row 1 is navigation + actions, row 2 the calendar's date controls. The
@@ -8407,17 +8433,17 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---------- end Daily-log fold ---------- */
 
 /* ---------- Ambient wallpaper ---------- */
-/* The day's photo whispered into dead space: never under text, never boxed.
-   Hosts must be positioning contexts; their content already stacks above
-   because the layer is z-index 0 and pointer-transparent. */
-.tasks-panel.full, .jp-wrap, .study-page, .binder-index { position: relative; }
+/* The day's photo whispered into the working pages. Headings may sit straight
+   on it; the cards and panels people actually read from keep opaque surfaces
+   above it, so the picture never runs under a paragraph. */
+.tasks-panel.full, .jp-wrap, .study-page, .insights-page, .binder-page { position: relative; }
 /* Rest at the whisper opacity; the animation only supplies the fade-from-0,
    so no var() ever has to survive inside a keyframe. */
 .ambient-wp {
   /* Fixed to the viewport: the picture sits exactly where the Home page draws
      it — one image at one scale — and each page's mask merely chooses which
-     parts of it show through the dead space. Never per-container, never
-     repeated, and scrolling the page doesn't move the mountains. */
+     parts of it show through. Never per-container, never repeated, and
+     scrolling the page doesn't move the mountains. */
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -8428,7 +8454,6 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   filter: saturate(0.65);
 }
 @keyframes ambient-in { from { opacity: 0; } }
-/* Side fades: alive only at the far edges, gone before any content column. */
 /* Side strips: the picture lives only in the margins OUTSIDE the page's
    content column. --amb-col is each host's column width (plus breathing room),
    so the fade is guaranteed to die before the first line of text regardless of
@@ -8447,8 +8472,7 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 .journal-page .ambient-sides { --amb-col: 1160px; }   /* jp-wrap 1120 + margin */
 .tasks-panel.full .ambient-sides { --amb-col: 820px; } /* tp-scroll 760 + margin */
 .insights-page .ambient-sides { --amb-col: 940px; }    /* ins2-wrap 880 + margin */
-/* Full whisper: uniform and fainter — only solid surfaces float on top of it,
-   so it shows through the true gaps between them. */
+/* Full whisper: uniform and fainter — the solid cards float on top of it. */
 .ambient-full {
   opacity: 0.12;
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
@@ -8460,21 +8484,7 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 .study-page > *:not(.ambient-wp),
 .insights-page > *:not(.ambient-wp),
 .binder-page > *:not(.ambient-wp) { position: relative; z-index: 1; }
-/* Pages that host the whisper keep every text-bearing surface opaque: the
-   picture is for dead space only, never under words. */
 .tasks-panel.full .tp-head { background: var(--bg-raised); }
-.binder-page .binder-title,
-.binder-page .binder-sub,
-.binder-page .add-inline {
-  background: var(--bg);
-  width: fit-content;
-  padding-left: 10px;
-  padding-right: 12px;
-  margin-left: -10px;
-  border-radius: 8px;
-}
-.binder-page .binder-title { padding-top: 3px; padding-bottom: 3px; margin-top: -3px; }
-.binder-page .binder-group-head { background: var(--bg); width: fit-content; padding-right: 12px; border-radius: 6px; }
 /* ---------- end Ambient wallpaper ---------- */
 
 /* ---------- Sun arc ---------- */
@@ -8553,12 +8563,34 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---- Sunrise, midday, sunset ---- */
 
 /* Ten pixels of hairline each, and the only part of the layer a pointer can
-   reach: the invisible disc under the glyph is what carries the tooltip. */
+   reach: the invisible disc under the glyph is what carries the hover caption. */
 .home-sunarc-mark {
   pointer-events: auto;
   color: var(--home-fg-faint, var(--text-faint));
 }
 .home-sunarc-hit { fill: transparent; }
+
+/* ---- Captions ---- */
+
+/* The traveller's time, always on and faint; and each mark's name-over-time
+   pair, raised only under the pointer. All of it is currentColor, so the
+   photo-vs-plain foreground logic carries the text for free. */
+.home-sunarc-time {
+  fill: currentColor;
+  opacity: 0.55;
+  font-size: 10.5px;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+.home-sunarc-tip {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.home-sunarc-mark:hover .home-sunarc-tip { opacity: 1; }
+.home-sunarc-tip text { fill: var(--home-fg, var(--text-dim)); text-anchor: middle; }
+.home-sunarc-tip-name { font-size: 9.5px; opacity: 0.8; letter-spacing: 0.5px; }
+.home-sunarc-tip-time { font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .home-sunarc-mark-line {
   fill: none;
   stroke: currentColor;

@@ -1543,6 +1543,11 @@ export type Action =
   | { type: 'setLocation'; location: AppState['location'] } // hemisphere drives the moon icon
   | { type: 'setCollapseAllDay'; on: boolean }
   | { type: 'setCollapseJournal'; on: boolean }
+  // Side panels shrunk to a rail. One flag per panel *position*, so the tasks
+  // sidebar can be shut on the timer page and open on the calendar page.
+  | { type: 'setCollapseCalSidebar'; on: boolean }
+  | { type: 'setCollapseCalTasks'; on: boolean }
+  | { type: 'setCollapseTimerTasks'; on: boolean }
   // Habit-tracker gantt: year goals trickle into every month; month goals reset monthly.
   | { type: 'addHabitGoal'; title: string; period: string }
   | { type: 'renameHabitGoal'; id: ID; title: string }
@@ -2530,6 +2535,12 @@ function reducer(state: AppState, a: Action): AppState {
       return (state.collapseHabits ?? false) === a.on ? state : { ...state, collapseHabits: a.on || undefined }
     case 'setCollapseDayLog':
       return (state.collapseDayLog ?? false) === a.on ? state : { ...state, collapseDayLog: a.on || undefined }
+    case 'setCollapseCalSidebar':
+      return (state.collapseCalSidebar ?? false) === a.on ? state : { ...state, collapseCalSidebar: a.on || undefined }
+    case 'setCollapseCalTasks':
+      return (state.collapseCalTasks ?? false) === a.on ? state : { ...state, collapseCalTasks: a.on || undefined }
+    case 'setCollapseTimerTasks':
+      return (state.collapseTimerTasks ?? false) === a.on ? state : { ...state, collapseTimerTasks: a.on || undefined }
 
     case 'toggleHomeFav': {
       const cur = state.homeFavs?.[a.kind] ?? []
@@ -2631,6 +2642,7 @@ const COALESCE_MS = 1000
 const SKIP_HISTORY = new Set<Action['type']>([
   'setTheme', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
   'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal', 'setCollapseHabits', 'setCollapseDayLog',
+  'setCollapseCalSidebar', 'setCollapseCalTasks', 'setCollapseTimerTasks',
 ])
 
 /**
@@ -2660,7 +2672,10 @@ function keepUnversioned(restored: AppState, current: AppState): AppState {
     restored.showGhosts === current.showGhosts &&
     restored.location === current.location &&
     restored.collapseAllDay === current.collapseAllDay &&
-    restored.collapseJournal === current.collapseJournal
+    restored.collapseJournal === current.collapseJournal &&
+    restored.collapseCalSidebar === current.collapseCalSidebar &&
+    restored.collapseCalTasks === current.collapseCalTasks &&
+    restored.collapseTimerTasks === current.collapseTimerTasks
   ) return restored
   return {
     ...restored,
@@ -2668,6 +2683,8 @@ function keepUnversioned(restored: AppState, current: AppState): AppState {
     taskCheckStyle: current.taskCheckStyle, showGhosts: current.showGhosts,
     location: current.location,
     collapseAllDay: current.collapseAllDay, collapseJournal: current.collapseJournal,
+    collapseCalSidebar: current.collapseCalSidebar, collapseCalTasks: current.collapseCalTasks,
+    collapseTimerTasks: current.collapseTimerTasks,
   }
 }
 
