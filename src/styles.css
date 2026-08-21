@@ -4505,12 +4505,29 @@ button { font: inherit; color: inherit; }
 
 /* Urgent banners: one compact line per class, everything due today, at the top
    of the calendar area. No dismiss control by design — see UrgentBanners. */
+/* A floating stack pinned under the top bar, on every page: it overlays the
+   content rather than displacing it, and clicks pass through the gaps. */
 .urgent-banners {
-  flex: 0 0 auto;
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 85;
+  width: min(720px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 7px 10px 1px;
+  pointer-events: none;
+}
+.urgent-banners .urgent-banner {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(6px);
+}
+@media (max-width: 768px) {
+  .urgent-banners { top: 92px; }
+  .tb-cal ~ .main .urgent-banners { top: 92px; }
 }
 .urgent-banner {
   display: flex;

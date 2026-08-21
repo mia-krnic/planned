@@ -183,6 +183,9 @@ export default function App() {
           anchor={anchor} setAnchor={setAnchor}
           narrow={narrow} drawer={drawer} setDrawer={setDrawer}
         />
+        {/* Everything due today floats over the top of every page — one pill
+            per class, taking no layout space anywhere. */}
+        <UrgentBanners />
         <div className="main">
           {page === 'home' ? (
             <HomePage />
@@ -190,8 +193,6 @@ export default function App() {
             <>
               <SidebarLeft anchor={anchor} setAnchor={setAnchor} />
               <div className="calendar-area">
-                {/* Everything due today, one banner per class, above the grid. */}
-                <UrgentBanners />
                 {view === 'year' ? (
                   <YearView anchor={anchor} setAnchor={setAnchor} setView={setView} />
                 ) : view === 'month' ? (

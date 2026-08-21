@@ -194,7 +194,7 @@ function WeatherChip({ label, wx }: { label: string | undefined; wx: TodayWeathe
   if (!wx || !wx.kind) return null
   return (
     <div className="home-wx" title={label}>
-      <span className="home-wx-icon" aria-hidden="true"><WeatherGlyph kind={wx.kind} size={60} /></span>
+      <span className="home-wx-icon" aria-hidden="true"><WeatherGlyph kind={wx.kind} size={88} /></span>
       {wx.tempC != null && <span className="home-wx-temp">{Math.round(wx.tempC)}°</span>}
       <span className="home-wx-place">{label}</span>
     </div>
