@@ -4505,29 +4505,50 @@ button { font: inherit; color: inherit; }
 
 /* Urgent banners: one compact line per class, everything due today, at the top
    of the calendar area. No dismiss control by design — see UrgentBanners. */
-/* A floating stack pinned under the top bar, on every page: it overlays the
-   content rather than displacing it, and clicks pass through the gaps. */
-.urgent-banners {
+/* One small chip pinned top-centre on every page; the stack drops from it on
+   demand. Neither state displaces any layout, and shut it covers nothing. */
+.urgent-wrap {
   position: fixed;
-  top: 52px;
+  top: 50px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 85;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.urgent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2.5px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+.urgent-chip .uc-mark { color: var(--now-line); font-weight: 800; }
+.urgent-chip .uc-dots { display: inline-flex; gap: 3px; margin-left: 2px; }
+.urgent-chip .uc-dot { width: 7px; height: 7px; border-radius: 50%; }
+.urgent-banners {
   width: min(720px, calc(100vw - 24px));
   display: flex;
   flex-direction: column;
   gap: 4px;
-  pointer-events: none;
 }
 .urgent-banners .urgent-banner {
-  pointer-events: auto;
-  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(6px);
 }
 @media (max-width: 768px) {
-  .urgent-banners { top: 92px; }
-  .tb-cal ~ .main .urgent-banners { top: 92px; }
+  .urgent-wrap { top: 92px; }
 }
 .urgent-banner {
   display: flex;

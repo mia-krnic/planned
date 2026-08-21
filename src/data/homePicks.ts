@@ -86,13 +86,19 @@ export function homePicks(state: AppState, iso: string): HomePicks {
     (ov?.wallpaper ? WALLPAPERS.find((w) => w.file === ov.wallpaper) : undefined)
     ?? WALLPAPERS[pickIndex(`${iso}wp`, WALLPAPERS.length)]
 
+  // The daily draw comes from the BUILT-IN pools only, never the user's own
+  // entries: a given date then shows the exact same photo, mantra and quote to
+  // everyone on the same version — half the charm of a daily pick is knowing
+  // someone else is looking at it too. Custom entries live in the library, to
+  // favourite or apply as an override by hand.
   const mantra = ov?.mantra
     ? mantras.find((m) => m.text === ov.mantra) ?? { text: ov.mantra }
-    : mantras[pickIndex(`${iso}mantra`, mantras.length)]
+    : { text: MANTRAS[pickIndex(`${iso}mantra`, MANTRAS.length)] }
 
+  const drawn = QUOTES[pickIndex(`${iso}quote`, QUOTES.length)]
   const quote = ov?.quote
     ? quotes.find((q) => q.text === ov.quote) ?? { text: ov.quote }
-    : quotes[pickIndex(`${iso}quote`, quotes.length)]
+    : { text: drawn.text, author: drawn.author }
 
   return { wallpaper, mantra, quote }
 }
