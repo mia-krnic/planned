@@ -206,42 +206,15 @@ button { font: inherit; color: inherit; }
 }
 
 /* ---------- Collapsible side panels ---------- */
-/* The calendar's left sidebar shrinks to the same 46px rail the binder's class
-   list uses, leaving only the toggle and a vertical label naming what's shut. */
-.sidebar-left.collapsed {
-  width: 46px;
-  padding: 10px 0;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-
-.panel-collapse {
-  border: 0; background: transparent; color: var(--text-faint);
-  cursor: pointer; border-radius: 6px; padding: 3px 8px;
-  align-self: center; font-size: 13px;
-}
-.panel-collapse:hover { background: var(--bg-inset); color: var(--text); }
-/* Expanded, the toggle rides on top of the mini month instead of taking a row
-   of its own — the sidebar's 14px column gap would leave a hole below it. */
-.sidebar-left:not(.collapsed) .panel-collapse { align-self: flex-end; margin: -4px -4px -10px 0; }
-
-.panel-rail-label {
-  writing-mode: vertical-rl;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.6px;
-  color: var(--text-dim);
-}
-
-/* The tasks sidebar collapses onto the strip that hides it (calendar + timer
-   pages) rather than into a rail of its own — its header row has no space
-   left for another control at sidebar width. */
-.tasks-handle {
+/* Every side panel collapses onto the strip that hides it rather than into a
+   rail of its own: the strip always sits on the panel's inner edge, so the two
+   calendar sidebars mirror each other. The border goes on the side facing the
+   middle of the page, leaving one rule between the strip and the grid to match
+   the one the panel already draws on its far side. */
+.panel-handle {
   flex-shrink: 0;
   width: 18px;
   border: 0;
-  border-left: 1px solid var(--border);
   background: var(--bg-raised);
   color: var(--text-faint);
   cursor: pointer;
@@ -252,10 +225,22 @@ button { font: inherit; color: inherit; }
   justify-content: center;
   gap: 10px;
 }
-.tasks-handle:hover { background: var(--bg-inset); color: var(--text); }
-.tasks-handle.collapsed { width: 24px; }
+.panel-handle.on-left { border-right: 1px solid var(--border); }
+.panel-handle.on-right { border-left: 1px solid var(--border); }
+.panel-handle:hover { background: var(--bg-inset); color: var(--text); }
+/* Collapsed it is the only trace of the panel left, so it earns a little more
+   room for the label naming what's shut. */
+.panel-handle.collapsed { width: 24px; }
 
-.th-arrow { font-size: 13px; line-height: 1; }
+.ph-arrow { font-size: 13px; line-height: 1; }
+
+.panel-rail-label {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
 
 .mini-month .mm-head {
   display: flex;
@@ -5877,7 +5862,7 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
   }
   /* Both panels are drawers here, so the desktop collapse controls have nothing
      to shrink — the top bar's toggles do the hiding instead. */
-  .tasks-handle, .panel-collapse { display: none; }
+  .panel-handle { display: none; }
 
   .sidebar-left { left: 0; transform: translateX(-102%); border-right: 1px solid var(--border); }
   .tasks-panel:not(.full) { right: 0; transform: translateX(102%); border-left: 1px solid var(--border); }

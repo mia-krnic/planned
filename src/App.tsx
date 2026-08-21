@@ -50,22 +50,33 @@ function useNarrow(): boolean {
 }
 
 /**
- * The strip that shuts a tasks sidebar away. It lives on the host rather than
- * inside TasksPanel because the panel's header row is already full at sidebar
- * width, and because the calendar and the timer each remember their own state.
- * Collapsed it widens a touch and names what it is hiding, the way the binder's
- * collapsed class rail does. Hidden entirely on a narrow screen, where the
- * panel is a drawer and the top bar already toggles it.
+ * The strip that shuts a side panel away — one per collapsible panel, sitting
+ * on the panel's inner edge so both of the calendar's sidebars read the same
+ * way. It lives on the host rather than inside the panels because the tasks
+ * panel's header row is already full at sidebar width, and because each
+ * position remembers its own state (tasks appears on two pages). Collapsed the
+ * panel unmounts and the strip widens a touch to name what it is hiding, the
+ * way the binder's collapsed class rail does. Hidden entirely on a narrow
+ * screen, where the panels are drawers and the top bar already toggles them.
  */
-function TasksHandle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function PanelHandle({ side, label, collapsed, onToggle }: {
+  /** Which edge of the window the panel this controls sits against. */
+  side: 'left' | 'right'
+  label: string
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  // The arrow points at the panel to shut it, and away from it to bring it back.
+  const at = side === 'left' ? '«' : '»'
+  const away = side === 'left' ? '»' : '«'
   return (
     <button
-      className={`tasks-handle${collapsed ? ' collapsed' : ''}`}
-      title={collapsed ? 'Expand tasks' : 'Collapse tasks'}
+      className={`panel-handle on-${side}${collapsed ? ' collapsed' : ''}`}
+      title={`${collapsed ? 'Expand' : 'Collapse'} ${label.toLowerCase()}`}
       onClick={onToggle}
     >
-      <span className="th-arrow">{collapsed ? '«' : '»'}</span>
-      {collapsed && <span className="panel-rail-label">Tasks</span>}
+      <span className="ph-arrow">{collapsed ? away : at}</span>
+      {collapsed && <span className="panel-rail-label">{label}</span>}
     </button>
   )
 }
@@ -219,10 +230,11 @@ export default function App() {
             <HomePage setPage={setPage} />
           ) : page === 'calendar' ? (
             <>
-              <SidebarLeft
-                anchor={anchor} setAnchor={setAnchor}
+              {!railed(state.collapseCalSidebar) && <SidebarLeft anchor={anchor} setAnchor={setAnchor} />}
+              <PanelHandle
+                side="left" label="Calendars"
                 collapsed={railed(state.collapseCalSidebar)}
-                onToggleCollapse={() => dispatch({ type: 'setCollapseCalSidebar', on: !state.collapseCalSidebar })}
+                onToggle={() => dispatch({ type: 'setCollapseCalSidebar', on: !state.collapseCalSidebar })}
               />
               <div className="calendar-area">
                 {view === 'year' ? (
@@ -237,7 +249,8 @@ export default function App() {
                   <WeekGrid anchor={anchor} days={view === 'day' ? 1 : 7} />
                 )}
               </div>
-              <TasksHandle
+              <PanelHandle
+                side="right" label="Tasks"
                 collapsed={railed(state.collapseCalTasks)}
                 onToggle={() => dispatch({ type: 'setCollapseCalTasks', on: !state.collapseCalTasks })}
               />
@@ -248,7 +261,8 @@ export default function App() {
           ) : page === 'timer' ? (
             <>
               <StudyTimerPage />
-              <TasksHandle
+              <PanelHandle
+                side="right" label="Tasks"
                 collapsed={railed(state.collapseTimerTasks)}
                 onToggle={() => dispatch({ type: 'setCollapseTimerTasks', on: !state.collapseTimerTasks })}
               />
