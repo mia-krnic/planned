@@ -47,6 +47,16 @@ export default function PaletteBundles() {
     }
   }, [open])
 
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+
+  const save = () => {
+    if (!name.trim()) return
+    dispatch({ type: 'addCustomPalette', name })
+    setName('')
+    setNaming(false)
+  }
+
   // Only the accent can say which bundle is showing: class colours are editable
   // one by one afterwards, so matching them proves nothing. Classic therefore
   // never lights up — no override is the state every custom palette starts in
@@ -87,6 +97,53 @@ export default function PaletteBundles() {
               <span className="pal-accent" aria-hidden="true" style={{ background: b.accent[state.theme] }} />
             </button>
           ))}
+
+          {/* The user's own bundles: snapshots of the class colours as they
+              stand, deletable because they made them. Creation is the snapshot
+              — the per-class colour editor is the palette editor. */}
+          {(state.customPalettes ?? []).map((p) => (
+            <div key={p.id} className="pal-chip pal-own">
+              <button type="button" className="pal-chip-apply"
+                title={`${t('Recolour every class in')} ${p.name}`}
+                onClick={() => {
+                  dispatch({ type: 'applyPaletteBundle', bundleId: p.id })
+                  setOpen(false)
+                }}>
+                <span className="pal-name">{p.name}</span>
+                <span className="pal-dots" aria-hidden="true">
+                  {p.colors.slice(0, 6).map((c, i) => (
+                    <span key={`${c}${i}`} className="pal-dot" style={{ background: c }} />
+                  ))}
+                </span>
+                {p.accent && <span className="pal-accent" aria-hidden="true" style={{ background: p.accent[state.theme] }} />}
+              </button>
+              <button type="button" className="pal-del" title={t('Delete this palette — it is yours')}
+                onClick={() => dispatch({ type: 'deleteCustomPalette', id: p.id })}>
+                ×
+              </button>
+            </div>
+          ))}
+
+          {naming ? (
+            <div className="pal-save-row">
+              <input autoFocus value={name} placeholder={t('Name this palette')}
+                aria-label={t('Name this palette')} maxLength={24}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') save()
+                  if (e.key === 'Escape') { setNaming(false); setName('') }
+                }} />
+              <button type="button" className="pal-save-go" onClick={save} disabled={!name.trim()}>
+                {t('Save')}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="add-inline pal-save"
+              title={t('Saves the colours your classes wear right now, and the current accent, as a palette of your own')}
+              onClick={() => setNaming(true)}>
+              {t('+ Save current colours')}
+            </button>
+          )}
         </div>
       )}
     </div>

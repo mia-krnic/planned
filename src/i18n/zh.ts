@@ -616,14 +616,21 @@ export const ZH: Record<string, string> = {
   'Palettes': '配色',
   'Recolour every class in': '把所有课程配色改为',
   'Classic': '经典',
-  'Fall': '秋日',
+  'Earth tones': '大地色',
   'Ocean': '海洋',
+  'Jewel box': '宝石盒',
+  'Café': '咖啡馆',
   'Spring': '春日',
   'Berry': '莓果',
   'Forest': '森林',
   'Sunset': '日落',
   'Lavender dusk': '薰衣草暮色',
   'Slate': '石板灰',
+  '+ Save current colours': '+ 保存当前配色',
+  'Name this palette': '给这套配色起个名字',
+  'Delete this palette — it is yours': '删除这套配色——这是你自己保存的',
+  'Saves the colours your classes wear right now, and the current accent, as a palette of your own':
+    '把课程现在穿的这身颜色和当前的强调色，保存为一套你自己的配色',
   "One click recolours every class and swings the app's accent colour to match — Classic puts the classes back on the default palette and hands the accent back to the theme. Class colours you set yourself are overwritten, so undo (⌘Z) if you want them back: a whole bundle reverts in one step.":
     '一键为所有课程重新配色，并把应用的强调色调成相配的颜色 — 经典会把课程恢复为默认配色，并把强调色交还给主题。你自己设过的课程颜色会被覆盖，想找回就撤销（⌘Z）：整套配色一步就能还原。',
 

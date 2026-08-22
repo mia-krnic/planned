@@ -507,6 +507,13 @@ export interface HabitGoal {
 
 /** A quote the user typed into the Home library themselves. */
 export interface CustomQuote { id: ID; text: string; author?: string }
+export interface CustomPalette {
+  id: ID
+  name: string
+  colors: string[]
+  /** The accent captured with the snapshot; absent = the theme's own accent. */
+  accent?: { light: string; dark: string }
+}
 /** A mantra (the short line under the clock) the user added themselves. */
 export interface CustomMantra { id: ID; text: string }
 
@@ -528,6 +535,8 @@ export interface AppState {
   homeFavs?: { wallpapers?: string[]; quotes?: string[]; mantras?: string[] }
   customQuotes?: CustomQuote[]
   customMantras?: CustomMantra[]
+  /** User-saved palette bundles: a named snapshot of class colours + accent. */
+  customPalettes?: CustomPalette[]
   /** Per-date Home picks the user applied from the library, overriding the daily draw. */
   homeOverrides?: Record<string, { wallpaper?: string; mantra?: string; quote?: string }>
   habitGoals: HabitGoal[] // gantt habit-tracker goals (see HabitGoal)

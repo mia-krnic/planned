@@ -1509,6 +1509,9 @@ export type Action =
   | { type: 'removePaletteColor'; color: string }
   // One quick-apply bundle: recolours every class AND sets the app accent.
   | { type: 'applyPaletteBundle'; bundleId: string }
+  // Snapshot the classes' current colours (and accent) as a named bundle.
+  | { type: 'addCustomPalette'; name: string }
+  | { type: 'deleteCustomPalette'; id: ID }
   | { type: 'addBinderSection'; classId: ID; name: string }
   | { type: 'renameBinderSection'; id: ID; name: string }
   | { type: 'deleteBinderSection'; id: ID }
@@ -2286,14 +2289,32 @@ function reducer(state: AppState, a: Action): AppState {
      */
     case 'applyPaletteBundle': {
       const bundle = PALETTE_BUNDLES.find((b) => b.id === a.bundleId)
-      if (!bundle) return state
+        ?? (state.customPalettes ?? []).find((b) => b.id === a.bundleId)
+      if (!bundle || bundle.colors.length === 0) return state
       return {
         ...state,
         classes: state.classes.map((c, i) => ({ ...c, color: bundle.colors[i % bundle.colors.length] })),
         // Classic is the restore: no override, so the theme tokens win again.
-        accent: bundle.id === DEFAULT_BUNDLE_ID ? undefined : { ...bundle.accent },
+        // A custom bundle re-applies whatever accent it was saved with —
+        // including "none", which also hands the tokens back.
+        accent: 'accent' in bundle && bundle.accent && bundle.id !== DEFAULT_BUNDLE_ID
+          ? { ...bundle.accent } : undefined,
       }
     }
+
+    case 'addCustomPalette': {
+      const name = a.name.trim()
+      if (!name || state.classes.length === 0) return state
+      const pal = {
+        id: uid(), name,
+        colors: state.classes.map((c) => c.color),
+        accent: state.accent ? { ...state.accent } : undefined,
+      }
+      return { ...state, customPalettes: [...(state.customPalettes ?? []), pal] }
+    }
+
+    case 'deleteCustomPalette':
+      return { ...state, customPalettes: (state.customPalettes ?? []).filter((p) => p.id !== a.id) }
 
     case 'addBinderSection':
       return {

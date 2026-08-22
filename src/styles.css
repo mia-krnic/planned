@@ -1888,6 +1888,60 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 0 0 1.5px var(--bg-raised), 0 0 0 2.5px var(--border-strong);
 }
 
+/* The user's own palettes: the chip is a row of [apply | ×] so the delete
+   never fires from a mis-tap on the name. */
+.pal-own { padding: 0; gap: 0; border: 1px solid transparent; }
+.pal-own:hover { border-color: var(--accent); background: var(--bg-inset); }
+.pal-chip-apply {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0 5px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.pal-del {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px 7px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+.pal-del:hover { color: var(--danger, #c0574f); }
+.pal-save { margin-top: 2px; font-size: 12px; }
+.pal-save-row { display: flex; gap: 5px; margin-top: 3px; }
+.pal-save-row input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-inset);
+  color: var(--text);
+}
+.pal-save-go {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.pal-save-go:disabled { color: var(--text-faint); cursor: default; }
+
 .cal-row .folder-name, .binder-nav-row .folder-name {
   text-transform: uppercase;
   font-size: 10.5px;
