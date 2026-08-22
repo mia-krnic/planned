@@ -11,6 +11,7 @@ import { parseIcs } from '../utils/ics'
 import { allowDrop, getDragPayload, isDragKind, setDragPayload } from '../utils/dnd'
 import ExamCountdown from './ExamCountdown'
 import MiniMonth from './MiniMonth'
+import PaletteBundles from './PaletteBundles'
 
 interface Props {
   anchor: string
@@ -258,6 +259,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           title="Drop a class here to remove it from its folder">
           <h3>Classes</h3>
           <span className="spacer" />
+          <PaletteBundles />
           <button className="head-icon" title="Add class" onClick={() => ui.openClass({})}>＋</button>
           <button className="head-icon" title="Add folder" onClick={() => setAddingFolder(true)}>
             <svg width="15" height="13" viewBox="0 0 15 13" aria-hidden="true">

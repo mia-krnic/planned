@@ -6,7 +6,8 @@ import type {
 } from './types'
 import { PALETTE } from './types'
 import type { ColorGroup } from './components/ColorSelect'
-import { PERSONAL_COLOR } from './utils/color'
+import { accentText, PERSONAL_COLOR } from './utils/color'
+import { DEFAULT_BUNDLE_ID, PALETTE_BUNDLES } from './data/palettes'
 import { getFile, putFile } from './api/files'
 import { loadState, saveState } from './api/storage'
 import { addDays, daysBetween, fmtFriendly, fmtTime, fromISO, nowMinutes, startOfWeek, toISO } from './utils/date'
@@ -1504,6 +1505,8 @@ export type Action =
   | { type: 'dismissNotification'; id: ID }
   | { type: 'addPaletteColor'; color: string }
   | { type: 'removePaletteColor'; color: string }
+  // One quick-apply bundle: recolours every class AND sets the app accent.
+  | { type: 'applyPaletteBundle'; bundleId: string }
   | { type: 'addBinderSection'; classId: ID; name: string }
   | { type: 'renameBinderSection'; id: ID; name: string }
   | { type: 'deleteBinderSection'; id: ID }
@@ -2268,6 +2271,25 @@ function reducer(state: AppState, a: Action): AppState {
       return state.palette.includes(a.color) ? state : { ...state, palette: [...state.palette, a.color] }
     case 'removePaletteColor':
       return { ...state, palette: state.palette.filter((c) => c !== a.color) }
+    /**
+     * A quick-apply colour bundle: every class takes the next colour off the
+     * bundle, cycling once the list runs out, and the accent follows. Both
+     * halves happen in this one dispatch, so a single undo puts back the
+     * colours *and* the accent the user had before.
+     *
+     * state.palette is deliberately left alone — those are the swatches the
+     * user curates for the colour pickers, not something a bundle owns.
+     */
+    case 'applyPaletteBundle': {
+      const bundle = PALETTE_BUNDLES.find((b) => b.id === a.bundleId)
+      if (!bundle) return state
+      return {
+        ...state,
+        classes: state.classes.map((c, i) => ({ ...c, color: bundle.colors[i % bundle.colors.length] })),
+        // Classic is the restore: no override, so the theme tokens win again.
+        accent: bundle.id === DEFAULT_BUNDLE_ID ? undefined : { ...bundle.accent },
+      }
+    }
 
     case 'addBinderSection':
       return {
@@ -2792,6 +2814,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = state.theme
   }, [state.theme])
+
+  // A palette bundle's accent, painted straight onto :root so it overrides the
+  // theme block's --accent for everything downstream. Each theme carries its
+  // own accent in the bundle, so this re-runs on a theme flip as well as on a
+  // new bundle; with no override the properties come off entirely and the
+  // stylesheet's own accent takes back over.
+  useEffect(() => {
+    const root = document.documentElement
+    const accent = state.accent?.[state.theme]
+    if (!accent) {
+      root.style.removeProperty('--accent')
+      root.style.removeProperty('--accent-text')
+      return
+    }
+    root.style.setProperty('--accent', accent)
+    root.style.setProperty('--accent-text', accentText(accent))
+  }, [state.accent, state.theme])
 
   // Auto theme: resolve light/dark from the current time vs. lightStart/darkStart
   // whenever mode is 'auto'. Re-checked every 60s and whenever the config changes.

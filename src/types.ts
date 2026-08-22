@@ -545,6 +545,8 @@ export interface AppState {
     darkStart: string // 'HH:MM' — auto mode: dark theme from this time
   }
   palette: string[] // editable color palette (seeded from PALETTE)
+  /** Accent override from a palette bundle, per theme. Absent = the theme tokens' own accent. */
+  accent?: { light: string; dark: string }
   notifications: AppNotification[]
   icsUrl: string
   lastSync: string | null // ISO datetime of last successful feed sync
