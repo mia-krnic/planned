@@ -1,10 +1,11 @@
+import { t } from '../../i18n'
 import type { AppState } from '../../types'
 import { fmtHourLabel } from '../../utils/date'
 import { hexToRgba } from '../../utils/color'
 import InfoIcon from '../InfoIcon'
 import StartEndScatter from './StartEndScatter'
 import {
-  classColorOf, classLabelOf, fmtMins, intervalIn,
+  classColorOf, classLabelOf, fill, fmtMins, intervalIn,
   type IntervalData, type IntervalKey, type Unit,
 } from './insightsData'
 
@@ -47,20 +48,20 @@ export default function TimelinePatterns({ state, data, ival, unit }: {
 
   return (
     <section className="ins2-card">
-      <h2 className="ins2-h2">Timeline &amp; Patterns</h2>
+      <h2 className="ins2-h2">{t('Timeline & Patterns')}</h2>
 
       {ival === 'day' && <DayTimeline state={state} data={data} unit={unit} />}
 
       <div className="ins2-sub-head">
-        <h3>Peak productivity hours</h3>
-        <InfoIcon text={`For each hour of the day, the mean number of minutes studied in that hour across all ${nDays} ${nDays === 1 ? 'day' : 'days'} of the interval — days with nothing logged pull the mean down.`} />
+        <h3>{t('Peak productivity hours')}</h3>
+        <InfoIcon text={fill(t('For each hour of the day, the mean number of minutes studied in that hour across all {n} {days} of the interval — days with nothing logged pull the mean down.'), { n: nDays, days: t(nDays === 1 ? 'day' : 'days') })} />
       </div>
 
       {!hasStudy ? (
-        <div className="ins2-empty">No study time {intervalIn(ival)}, so there is no hourly pattern yet.</div>
+        <div className="ins2-empty">{fill(t('No study time {span}, so there is no hourly pattern yet.'), { span: intervalIn(ival) })}</div>
       ) : (
         <svg className="ins2-line" viewBox={`0 0 ${W} ${H}`} role="img"
-          aria-label="Mean study minutes by hour of day">
+          aria-label={t('Mean study minutes by hour of day')}>
           {[0, 0.5, 1].map((f) => {
             const y = PAD_T + INNER_H - f * INNER_H
             return (
@@ -76,7 +77,7 @@ export default function TimelinePatterns({ state, data, ival, unit }: {
           {means.map((v, h) => (
             <circle key={h} cx={px(h)} cy={py(v)} r={v > 0 ? 2.8 : 1.8}
               className={`ins2-line-dot ${v > 0 ? '' : 'zero'}`}>
-              <title>{`${fmtHourLabel(h)} — ${fmtMins(v, unit)} on average`}</title>
+              <title>{`${fmtHourLabel(h)} — ${fmtMins(v, unit)} ${t('on average')}`}</title>
             </circle>
           ))}
           {X_TICKS.map((h) => (
@@ -130,11 +131,11 @@ function DayTimeline({ state, data, unit }: { state: AppState; data: IntervalDat
   return (
     <>
       <div className="ins2-sub-head">
-        <h3>Chronological timeline</h3>
-        <InfoIcon text="Today, hour by hour: each row is one hour, with a box per ten minutes to read the times off. Each stretch of time is drawn as one strip over that grid, starting and ending at the exact minute — solid in the class colour for studying, faded for a break." />
+        <h3>{t('Chronological timeline')}</h3>
+        <InfoIcon text={t('Today, hour by hour: each row is one hour, with a box per ten minutes to read the times off. Each stretch of time is drawn as one strip over that grid, starting and ending at the exact minute — solid in the class colour for studying, faded for a break.')} />
       </div>
       {!any ? (
-        <div className="ins2-empty">Nothing logged today yet.</div>
+        <div className="ins2-empty">{t('Nothing logged today yet.')}</div>
       ) : (
         <div className="ins2-tl-wrap">
           <div className="ins2-tl-mins" aria-hidden="true">
@@ -167,7 +168,7 @@ function DayTimeline({ state, data, unit }: { state: AppState; data: IntervalDat
                             width: xCalc(e.cells - s.cells, e.frac - s.frac),
                             background: p.isBreak ? hexToRgba(col, 0.32) : col,
                           }}
-                          title={`${name} — ${p.isBreak ? `break${p.tag ? ` (${p.tag})` : ''}` : 'studying'} · ${fmtMins(b - a, unit)}`}
+                          title={`${name} — ${p.isBreak ? `${t('break')}${p.tag ? ` (${t(p.tag)})` : ''}` : t('studying')} · ${fmtMins(b - a, unit)}`}
                         />
                       )
                     })}

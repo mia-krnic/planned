@@ -10,9 +10,18 @@
  * timer and the calendar stripe already render it.
  */
 
+import { t } from '../../i18n'
 import type { AppState, ID, StudyBreak, StudySession, Task } from '../../types'
 import { MONTHS, WEEKDAYS, addDays, fromISO, startOfWeek, toISO, todayISO, weekdayLabels } from '../../utils/date'
 import { NEUTRAL_COLOR, derivedBreaks, segmentSpans, sessionEnd } from '../../utils/study'
+
+/**
+ * Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts) — for the
+ * few strings whose word order cannot survive being translated piecewise.
+ */
+export function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /* ---------- page-wide controls ---------- */
 
@@ -44,7 +53,7 @@ export function intervalMeta(key: IntervalKey) {
  */
 export function intervalIn(key: IntervalKey): string {
   const m = intervalMeta(key)
-  return key === 'all' ? `across ${m.noun}` : `in ${m.noun}`
+  return t(key === 'all' ? `across ${m.noun}` : `in ${m.noun}`)
 }
 
 /**
@@ -89,8 +98,8 @@ export function classColorOf(state: AppState, id: ID | null): string {
 }
 
 export function classLabelOf(state: AppState, id: ID | null): string {
-  if (!id) return 'Unassigned'
-  return state.classes.find((c) => c.id === id)?.name ?? 'Unassigned'
+  if (!id) return t('Unassigned')
+  return state.classes.find((c) => c.id === id)?.name ?? t('Unassigned')
 }
 
 /* ---------- session decomposition ---------- */
@@ -195,8 +204,8 @@ const TAG_LABELS: Record<string, string> = {
 }
 
 function tagLabel(tag: string): string {
-  if (!tag) return 'Untagged'
-  return TAG_LABELS[tag] ?? tag.charAt(0).toUpperCase() + tag.slice(1)
+  if (!tag) return t('Untagged')
+  return t(TAG_LABELS[tag] ?? tag.charAt(0).toUpperCase() + tag.slice(1))
 }
 
 /** Merge touching/overlapping [start, end) spans, then take the longest. */
@@ -377,7 +386,7 @@ export function buildWeekMomentum(state: AppState, nowMin: number, today = today
   const ws = state.weekStart ?? 0
   const start = startOfWeek(fromISO(today), ws)
   const prevStart = addDays(start, -7)
-  const labels = weekdayLabels(ws)
+  const labels = weekdayLabels(ws).map((d) => t(d))
 
   const thisDates = Array.from({ length: 7 }, (_, i) => toISO(addDays(start, i)))
   const prevDates = Array.from({ length: 7 }, (_, i) => toISO(addDays(prevStart, i)))
@@ -428,7 +437,11 @@ export function buildWeekMomentum(state: AppState, nowMin: number, today = today
   const totalMin = cumThis[todayIdx]
   const daysElapsed = todayIdx + 1
   const end = addDays(start, 6)
-  const dLabel = (d: Date) => `${WEEKDAYS[d.getDay()]}, ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`
+  const dLabel = (d: Date) => fill(t('{dow}, {mon} {day}'), {
+    dow: t(WEEKDAYS[d.getDay()]),
+    mon: t(MONTHS[d.getMonth()].slice(0, 3)),
+    day: d.getDate(),
+  })
 
   return {
     rangeLabel: `${dLabel(start)} – ${dLabel(end)}`,

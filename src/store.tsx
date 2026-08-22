@@ -5,6 +5,7 @@ import type {
   TaskSection, YptState,
 } from './types'
 import { PALETTE } from './types'
+import { setLang } from './i18n'
 import type { ColorGroup } from './components/ColorSelect'
 import { accentText, PERSONAL_COLOR } from './utils/color'
 import { DEFAULT_BUNDLE_ID, PALETTE_BUNDLES } from './data/palettes'
@@ -1495,6 +1496,7 @@ export type Action =
   | { type: 'toggleDayOff'; date: string }
   | { type: 'toggleTasksOnCalendar' }
   | { type: 'setTheme'; theme: 'light' | 'dark' }
+  | { type: 'setLanguage'; language: 'en' | 'zh' }
   | { type: 'setWeekStart'; weekStart: 0 | 1 | 6 }
   | { type: 'setThemeConfig'; config: AppState['themeConfig'] }
   | { type: 'setIcsUrl'; url: string } // bind / unbind the live feed ('' = unbound)
@@ -2119,6 +2121,8 @@ function reducer(state: AppState, a: Action): AppState {
       return { ...state, showTasksOnCalendar: !state.showTasksOnCalendar }
     case 'setTheme':
       return { ...state, theme: a.theme }
+    case 'setLanguage':
+      return { ...state, language: a.language === 'en' ? undefined : a.language }
     case 'setWeekStart':
       return { ...state, weekStart: a.weekStart }
     case 'setThemeConfig':
@@ -2662,7 +2666,7 @@ const COALESCE_MS = 1000
  *  - setTheme: cosmetic, undoing it would be a surprise.
  */
 const SKIP_HISTORY = new Set<Action['type']>([
-  'setTheme', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
+  'setTheme', 'setLanguage', 'setWeekStart', 'setThemeConfig', 'setNlQuickAdd', 'setStudyGoal',
   'setTaskCheckStyle', 'setShowGhosts', 'setLocation', 'setCollapseAllDay', 'setCollapseJournal', 'setCollapseHabits', 'setCollapseDayLog',
   'setCollapseCalSidebar', 'setCollapseCalTasks', 'setCollapseTimerTasks',
 ])
@@ -2688,6 +2692,7 @@ const CLEAR_HISTORY = new Set<Action['type']>(['replaceState', 'applySync'])
 function keepUnversioned(restored: AppState, current: AppState): AppState {
   if (
     restored.theme === current.theme &&
+    restored.language === current.language &&
     restored.weekStart === current.weekStart &&
     restored.themeConfig === current.themeConfig &&
     restored.taskCheckStyle === current.taskCheckStyle &&
@@ -2701,7 +2706,8 @@ function keepUnversioned(restored: AppState, current: AppState): AppState {
   ) return restored
   return {
     ...restored,
-    theme: current.theme, weekStart: current.weekStart, themeConfig: current.themeConfig,
+    theme: current.theme, language: current.language,
+    weekStart: current.weekStart, themeConfig: current.themeConfig,
     taskCheckStyle: current.taskCheckStyle, showGhosts: current.showGhosts,
     location: current.location,
     collapseAllDay: current.collapseAllDay, collapseJournal: current.collapseJournal,
@@ -2805,6 +2811,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     past: [], present: migrate(loadOrSeed()), future: [], lastType: null, lastAt: 0,
   }))
   const state = hist.present
+  // Written during render on purpose: children read t() while rendering, and
+  // an effect would leave the first post-switch render in the old language.
+  setLang(state.language ?? 'en')
   useEffect(() => saveState(state), [state])
   // Make sure the example binder uploads have real (openable) file blobs.
   useEffect(() => {
@@ -2814,6 +2823,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = state.theme
   }, [state.theme])
+  useEffect(() => {
+    document.documentElement.lang = state.language === 'zh' ? 'zh-CN' : 'en'
+  }, [state.language])
 
   // A palette bundle's accent, painted straight onto :root so it overrides the
   // theme block's --accent for everything downstream. Each theme carries its

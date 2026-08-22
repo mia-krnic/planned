@@ -9,6 +9,12 @@ import type { Birthday, CalEvent, ID, RecurringTask, Task } from '../types'
 import { cbTint, hexToRgba } from '../utils/color'
 import { addDays, daysBetween, fmtTime, fromISO, isSameDay, monthMatrix, toISO, weekdayLabels } from '../utils/date'
 import { pastThreshold } from '../utils/drag'
+import { t } from '../i18n'
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 import { recurringCount, recurringTimes, type EditScope } from '../utils/occur'
 import TaskCheck, { RecurringCheck } from './TaskCheck'
 import { ScopePopover } from './modals/DragPopovers'
@@ -138,7 +144,7 @@ export default function MonthGrid({ anchor }: { anchor: string }) {
   return (
     <div className="month-grid">
       <div className="month-dows">
-        {weekdayLabels(state.weekStart).map((d, i) => <div key={i}>{d}</div>)}
+        {weekdayLabels(state.weekStart).map((d, i) => <div key={i}>{t(d)}</div>)}
       </div>
       {matrix.map((row, r) => (
         <div key={r} className="month-row">
@@ -262,7 +268,7 @@ export default function MonthGrid({ anchor }: { anchor: string }) {
                     </div>
                   )
                 })}
-                {extra > 0 && <div className="more">+{extra} more</div>}
+                {extra > 0 && <div className="more">{fill(t('+{n} more'), { n: extra })}</div>}
               </div>
             )
           })}

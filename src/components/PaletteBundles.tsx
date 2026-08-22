@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { PALETTE_BUNDLES } from '../data/palettes'
+import { t } from '../i18n'
 import InfoIcon from './InfoIcon'
 
 /** Painter's palette — the head-icon glyph, drawn rather than typed. */
@@ -56,7 +57,7 @@ export default function PaletteBundles() {
 
   return (
     <div className="pal-wrap" ref={wrapRef}>
-      <button className="head-icon" title="Colour palettes" aria-label="Colour palettes"
+      <button className="head-icon" title={t('Colour palettes')} aria-label={t('Colour palettes')}
         aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <PaletteGlyph />
       </button>
@@ -64,18 +65,18 @@ export default function PaletteBundles() {
       {open && (
         <div className="pal-pop">
           <div className="pal-pop-head">
-            <span className="proj-section-label">Palettes</span>
-            <InfoIcon text="One click recolours every class and swings the app's accent colour to match — Classic puts the classes back on the default palette and hands the accent back to the theme. Class colours you set yourself are overwritten, so undo (⌘Z) if you want them back: a whole bundle reverts in one step." />
+            <span className="proj-section-label">{t('Palettes')}</span>
+            <InfoIcon text={t("One click recolours every class and swings the app's accent colour to match — Classic puts the classes back on the default palette and hands the accent back to the theme. Class colours you set yourself are overwritten, so undo (⌘Z) if you want them back: a whole bundle reverts in one step.")} />
           </div>
           {PALETTE_BUNDLES.map((b) => (
             <button key={b.id} type="button"
               className={`pal-chip${activeId === b.id ? ' on' : ''}`}
-              title={`Recolour every class in ${b.name.toLowerCase()}`}
+              title={`${t('Recolour every class in')} ${t(b.name).toLowerCase()}`}
               onClick={() => {
                 dispatch({ type: 'applyPaletteBundle', bundleId: b.id })
                 setOpen(false)
               }}>
-              <span className="pal-name">{b.name}</span>
+              <span className="pal-name">{t(b.name)}</span>
               <span className="pal-dots" aria-hidden="true">
                 {b.colors.slice(0, 6).map((c) => (
                   <span key={c} className="pal-dot" style={{ background: c }} />

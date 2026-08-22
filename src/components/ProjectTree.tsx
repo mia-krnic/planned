@@ -2,6 +2,7 @@ import { createContext, useContext, useState } from 'react'
 import { useUI } from '../App'
 import { sortArchived, sortTaskList, taskColor, useStore, uid } from '../store'
 import type { AppState, ID, Project, Task, TaskSection } from '../types'
+import { t } from '../i18n'
 import { dueTint, titleTint } from '../utils/color'
 import { DUE_FLAG, fmtDue } from '../utils/agenda'
 import { fmtFriendly, fmtTime, todayISO } from '../utils/date'
@@ -12,6 +13,11 @@ import HabitStrip from './HabitStrip'
 import InfoIcon from './InfoIcon'
 import Ring from './Ring'
 import TaskCheck from './TaskCheck'
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /** Sections of a project sorted by their stored `order`. */
 function sectionsOf(state: AppState, projectId: ID): TaskSection[] {
@@ -97,16 +103,16 @@ function TaskRow({ task, planned, archived }: { task: Task; planned?: boolean; a
         {/* Due date — coloured DUE_FLAG line; always distinct from planned. */}
         {due && (
           <div className="due-note" style={dueTint(color)}>
-            {DUE_FLAG} {due}{task.extensions?.length ? ' · extended' : ''}
+            {DUE_FLAG} {due}{task.extensions?.length ? ` · ${t('extended')}` : ''}
           </div>
         )}
-        {task.submitted && <div className="submitted-note">✓ submitted</div>}
+        {task.submitted && <div className="submitted-note">✓ {t('submitted')}</div>}
         {task.location && <div className="loc-note">⌖ {task.location}</div>}
       </div>
       {/* Nothing to pin to the top of: an archived task is already at rest. */}
       {!archived && (
         <button className={`pin-btn ${task.pinned ? 'pinned' : ''}`}
-          title={task.pinned ? 'Unpin' : 'Pin to top'}
+          title={task.pinned ? t('Unpin') : t('Pin to top')}
           onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleTaskPin', id: task.id }) }}>⚲</button>
       )}
     </div>
@@ -124,9 +130,9 @@ function ArchiveBox({ tasks, planned }: { tasks: Task[]; planned?: boolean }) {
   return (
     <div className="archive-box">
       <div className="archive-head" onClick={() => setOpen((v) => !v)}
-        title={open ? 'Hide completed tasks' : 'Show completed tasks'}>
+        title={open ? t('Hide completed tasks') : t('Show completed tasks')}>
         <span className={`caret ${open ? 'open' : ''}`}>▶</span>
-        Archive <span className="archive-count">{tasks.length}</span>
+        {t('Archive')} <span className="archive-count">{tasks.length}</span>
       </div>
       {open && (
         <div className="archive-body">
@@ -275,13 +281,14 @@ export function ProjectNode({ project }: { project: Project }) {
   const removeSection = (sec: TaskSection) => {
     const has = own.some((t) => t.sectionId === sec.id) || recurring.some((r) => r.sectionId === sec.id)
     const msg = has
-      ? `Delete section "${sec.name}"? Its tasks will move to ${project.classId ? 'Misc' : 'the main list'}.`
-      : `Delete section "${sec.name}"?`
+      ? fill(t('Delete section "{name}"? Its tasks will move to {dest}.'),
+        { name: sec.name, dest: project.classId ? t('Misc') : t('the main list') })
+      : fill(t('Delete section "{name}"?'), { name: sec.name })
     if (!window.confirm(msg)) return
     dispatch({ type: 'deleteTaskSection', id: sec.id })
   }
   const addSection = () => {
-    const name = window.prompt('Section name:')
+    const name = window.prompt(t('Section name:'))
     if (name && name.trim()) dispatch({ type: 'addTaskSection', projectId: project.id, name: name.trim() })
   }
 
@@ -296,7 +303,7 @@ export function ProjectNode({ project }: { project: Project }) {
     return (
     <div key={`h-${sec.id}`}
       className={`task-section-head sec-drag${sec.collapsed ? ' collapsed' : ''}${secOver === sec.id && dragSec !== sec.id ? ' sec-drop-above' : ''}`}
-      title={sec.collapsed ? 'Click to expand · drag to move the section' : 'Click to collapse · drag to move the section'}
+      title={sec.collapsed ? t('Click to expand · drag to move the section') : t('Click to collapse · drag to move the section')}
       draggable={renaming !== sec.id}
       onDragStart={(e) => { setSectionDrag(e, sec.id); setDragSec(sec.id) }}
       onDragEnd={() => { setDragSec(null); setSecOver(null) }}
@@ -333,26 +340,26 @@ export function ProjectNode({ project }: { project: Project }) {
         <>
           <span className={`caret ${sec.collapsed ? '' : 'open'}`}>▶</span>
           <span className="task-section-name">{sec.name}</span>
-          {sec.assignments && <span className="sec-tag">Assignments</span>}
+          {sec.assignments && <span className="sec-tag">{t('Assignments')}</span>}
           {/* The graded-work flag is a class-project idea (it feeds the grade
               tracker), so calendar projects don't offer it. */}
           {project.classId != null && (
             <>
               <button className={`hover-btn${sec.assignments ? ' on' : ''}`}
-                title={sec.assignments ? 'Remove the assignments flag' : 'Flag as an assignments section'}
+                title={sec.assignments ? t('Remove the assignments flag') : t('Flag as an assignments section')}
                 onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleSectionAssignments', id: sec.id }) }}>
                 {sec.assignments ? '⚑' : '⚐'}
               </button>
               <span className="sec-info">
-                <InfoIcon text="Flagged sections hold graded work and feed the grade tracker. A class can flag as many sections as it likes (Coursework and Lab Reports, say)." />
+                <InfoIcon text={t('Flagged sections hold graded work and feed the grade tracker. A class can flag as many sections as it likes (Coursework and Lab Reports, say).')} />
               </span>
             </>
           )}
-          <button className="hover-btn" title="Add task in this section"
+          <button className="hover-btn" title={t('Add task in this section')}
             onClick={(e) => { e.stopPropagation(); ui.openTask({ projectId: project.id, sectionId: sec.id, date: null }) }}>＋</button>
-          <button className="hover-btn" title="Rename section"
+          <button className="hover-btn" title={t('Rename section')}
             onClick={(e) => { e.stopPropagation(); startRename(sec) }}>✎</button>
-          <button className="hover-btn" title="Delete section"
+          <button className="hover-btn" title={t('Delete section')}
             onClick={(e) => { e.stopPropagation(); removeSection(sec) }}>×</button>
           <span className="sec-count">{secDone}/{list.length}</span>
         </>
@@ -372,11 +379,11 @@ export function ProjectNode({ project }: { project: Project }) {
         <span className={`caret ${open ? 'open' : ''}`}>▶</span>
         <span className="swatch" style={{ background: project.color }} />
         <span className="pname">{project.name}</span>
-        <button className="hover-btn" title="Add task"
+        <button className="hover-btn" title={t('Add task')}
           onClick={(e) => { e.stopPropagation(); ui.openTask({ projectId: project.id, date: null }) }}>＋</button>
-        <button className="hover-btn" title="Add recurring task"
+        <button className="hover-btn" title={t('Add recurring task')}
           onClick={(e) => { e.stopPropagation(); ui.openRecurring({ projectId: project.id }) }}>↻</button>
-        <button className="hover-btn" title="Add section"
+        <button className="hover-btn" title={t('Add section')}
           onClick={(e) => { e.stopPropagation(); addSection() }}>§</button>
         <span className="count">{doneCount}/{total}</span>
         <Ring done={doneCount} total={total} color={project.color} />
@@ -389,7 +396,7 @@ export function ProjectNode({ project }: { project: Project }) {
               named sections too — otherwise its tasks render bare. */}
           {sections.length > 0 &&
             main.active.length + main.archived.length + recurringOf(null).length > 0 && (
-            <div className="task-section-head"><span className="task-section-name">Main</span></div>
+            <div className="task-section-head"><span className="task-section-name">{t('Main')}</span></div>
           )}
           {recurringOf(null).map(recurringRow)}
           {main.active.map((t) => <TaskRow key={t.id} task={t} planned />)}
@@ -415,7 +422,10 @@ export function ProjectNode({ project }: { project: Project }) {
 
           <div className="quick-add">
             <input
-              placeholder={state.nlQuickAdd ? 'Add a task…  (try: essay tue 4pm p:PHIL due fri 17:00)' : 'Add a task… (unscheduled)'}
+              placeholder={state.nlQuickAdd
+                // The example keeps its English keywords: the parser only reads English.
+                ? t('Add a task…  (try: essay tue 4pm p:PHIL due fri 17:00)')
+                : t('Add a task… (unscheduled)')}
               value={quickAdd}
               onChange={(e) => setQuickAdd(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitQuickAdd()}
@@ -480,7 +490,9 @@ export default function ProjectTree() {
         {calGroups.map((g) =>
           g.project ? (
             <div key={g.id} className="cal-group">
-              <div className="cal-group-title">{g.name}</div>
+              {/* Only the built-in Personal calendar has a translatable name —
+                  the rest are whatever the user called them. */}
+              <div className="cal-group-title">{g.id === 'personal' ? t(g.name) : g.name}</div>
               <ProjectNode project={g.project} />
             </div>
           ) : null,
@@ -489,13 +501,13 @@ export default function ProjectTree() {
         {unfiled.length > 0 ? (
           <div className={`date-group unfiled-group${overUnfiled ? ' drop-into' : ''}`}
             style={{ marginTop: 14 }} {...unfiledDrop}>
-            <div className="dg-title">Unfiled</div>
+            <div className="dg-title">{t('Unfiled')}</div>
             {unfiledPinned.length > 0 && (
               <div className="pin-box">
                 <div className="pin-box-head" onClick={() => setUnfiledPinOpen((v) => !v)}>
                   <span className={`caret ${unfiledPinOpen ? 'open' : ''}`}>▶</span>
                   <span className="pin-glyph">⚲</span>
-                  Pinned <span className="dg-count">{unfiledPinned.length}</span>
+                  {t('Pinned')} <span className="dg-count">{unfiledPinned.length}</span>
                 </div>
                 {unfiledPinOpen && (
                   <div className="pin-box-body">
@@ -513,8 +525,8 @@ export default function ProjectTree() {
           dragId != null && (
             <div className={`date-group unfiled-group empty${overUnfiled ? ' drop-into' : ''}`}
               style={{ marginTop: 14 }} {...unfiledDrop}>
-              <div className="dg-title">Unfiled</div>
-              <div className="empty-hint">Drop here to take a task out of its project</div>
+              <div className="dg-title">{t('Unfiled')}</div>
+              <div className="empty-hint">{t('Drop here to take a task out of its project')}</div>
             </div>
           )
         )}

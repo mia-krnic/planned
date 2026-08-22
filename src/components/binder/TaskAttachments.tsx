@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import type { BinderUpload, ID } from '../../types'
 import { fmtFriendly } from '../../utils/date'
@@ -64,24 +65,24 @@ export default function TaskAttachments({ classId, value, onChange }: {
   return (
     <div className="attach-box">
       {attached.length === 0 ? (
-        <div className="attach-empty">Nothing attached.</div>
+        <div className="attach-empty">{t('Nothing attached.')}</div>
       ) : (
         <div className="attach-list">
           {attached.map((u) => (
             <div key={u.id} className="attach-row" title={uploadChipTitle(u)}>
               <span className="attach-glyph">{uploadGlyph(u.files)}</span>
               <span className="attach-title">{u.title}</span>
-              <button type="button" className="attach-x" title="Detach from this task"
+              <button type="button" className="attach-x" title={t('Detach from this task')}
                 onClick={() => toggle(u.id)}>×</button>
             </div>
           ))}
         </div>
       )}
 
-      <PickerPopover label="+ Attach from binder" placeholder="Search the binder…"
+      <PickerPopover label={t('+ Attach from binder')} placeholder={t('Search the binder…')}
         footer={(close) => (
           <button type="button" className="pk-foot-btn" onClick={() => openUploadModal(close)}>
-            + Upload new to binder
+            {t('+ Upload new to binder')}
           </button>
         )}>
         {(needle) => {
@@ -89,7 +90,7 @@ export default function TaskAttachments({ classId, value, onChange }: {
           if (!shown.length) {
             return (
               <div className="st-empty">
-                {uploads.length ? 'No uploads match.' : 'This class has no binder uploads yet.'}
+                {uploads.length ? t('No uploads match.') : t('This class has no binder uploads yet.')}
               </div>
             )
           }

@@ -1,3 +1,4 @@
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import { moonIllumination, moonPhase } from '../../utils/moon'
 
@@ -34,8 +35,8 @@ export default function MoonIcon({ date, size = 13 }: Props) {
   const mirror = (frac >= 0.5) !== south
 
   return (
-    <svg className="moon-icon" width={size} height={size} viewBox="0 0 16 16" role="img" aria-label={name}>
-      <title>{name}</title>
+    <svg className="moon-icon" width={size} height={size} viewBox="0 0 16 16" role="img" aria-label={t(name)}>
+      <title>{t(name)}</title>
       <g transform={mirror ? `translate(${2 * c},0) scale(-1,1)` : undefined}>
         <circle cx={c} cy={c} r={r} className="moon-dark" />
         <path d={lit} className="moon-lit" />

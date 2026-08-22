@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useUI } from '../../App'
+import { t } from '../../i18n'
 import AmbientWallpaper from '../AmbientWallpaper'
 import { folderNameOf, groupedClasses, uid, useStore } from '../../store'
 import type { BinderPost, BinderSection, BinderUpload, ClassInfo, ClassMeta, ID } from '../../types'
@@ -25,6 +26,11 @@ import UploadModal, { type UploadModalInit } from './UploadModal'
  * handler (navigation/selection) — this module-level flag suppresses exactly
  * one click right after a drag completes.
  */
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
+
 let suppressClickAfterDrag = false
 function markDragStart() {
   suppressClickAfterDrag = true
@@ -176,14 +182,14 @@ export default function BinderPage() {
   return (
     <div className="binder-layout">
       <div className={`binder-nav ${navCollapsed ? 'collapsed' : ''}`}>
-        <button className="binder-nav-toggle" title={navCollapsed ? 'Expand class list' : 'Collapse class list'}
+        <button className="binder-nav-toggle" title={navCollapsed ? t('Expand class list') : t('Collapse class list')}
           onClick={() => setNavCollapsed((c) => !c)}>
           {navCollapsed ? '»' : '«'}
         </button>
         <button className={`binder-nav-row ${openClassId === null ? 'active' : ''}`}
-          title="All classes" onClick={() => setOpenClassId(null)}>
+          title={t('All classes')} onClick={() => setOpenClassId(null)}>
           <span className="swatch" style={{ background: 'var(--text-faint)' }}>≡</span>
-          {!navCollapsed && <span className="name">All classes</span>}
+          {!navCollapsed && <span className="name">{t('All classes')}</span>}
         </button>
 
         {/* Pinned to the top of the binder (kept even when foldered) */}
@@ -195,7 +201,7 @@ export default function BinderPage() {
               <div className="pin-box-head" onClick={() => setNavPinOpen((v) => !v)}>
                 <span className={`caret ${navPinOpen ? 'open' : ''}`}>▶</span>
                 <span className="pin-glyph">⚲</span>
-                Pinned <span className="dg-count">{pinnedBinder.length}</span>
+                {t('Pinned')} <span className="dg-count">{pinnedBinder.length}</span>
               </div>
               {navPinOpen && (
                 <div className="pin-box-body">
@@ -234,9 +240,9 @@ export default function BinderPage() {
       ) : (
         <div className="binder-page">
           <AmbientWallpaper variant="full" />
-          <h2 className="binder-title">My binder</h2>
+          <h2 className="binder-title">{t('My binder')}</h2>
           <p className="binder-sub">
-            Posts, notes, handouts and resources — one page per class. Drag cards to rearrange or refolder.
+            {t('Posts, notes, handouts and resources — one page per class. Drag cards to rearrange or refolder.')}
           </p>
 
           {pinnedBinder.length > 0 && (
@@ -244,7 +250,7 @@ export default function BinderPage() {
               <div className="pin-box-head" onClick={() => setIndexPinOpen((v) => !v)}>
                 <span className={`caret ${indexPinOpen ? 'open' : ''}`}>▶</span>
                 <span className="pin-glyph">⚲</span>
-                Pinned <span className="dg-count">{pinnedBinder.length}</span>
+                {t('Pinned')} <span className="dg-count">{pinnedBinder.length}</span>
               </div>
               {indexPinOpen && (
                 <div className="pin-box-body">
@@ -264,7 +270,7 @@ export default function BinderPage() {
                 folder={!!g.folder} self={!!g.folder && dragFolder === g.folder.id}
                 onDropHere={dropOnFolder(g.folder?.id ?? null)}>
                 {g.folder && (
-                  <div className="binder-group-head folder" title="Drag to reorder folders"
+                  <div className="binder-group-head folder" title={t('Drag to reorder folders')}
                     {...folderDrag(g.folder.id)}>{g.folder.name}</div>
                 )}
                 {folderPinned.length > 0 && (
@@ -292,15 +298,15 @@ export default function BinderPage() {
                 setDragFolder(null)
                 const p = getDragPayload(e)
                 if (p?.kind === 'folder') dispatch({ type: 'reorderFolder', id: p.id, beforeId: null })
-              }}>Move to the end</div>
+              }}>{t('Move to the end')}</div>
           )}
 
           {state.classes.length === 0 && (
             <div className="empty-hint">
-              No classes yet — add one in the calendar sidebar and its binder page appears here.
+              {t('No classes yet — add one in the calendar sidebar and its binder page appears here.')}
             </div>
           )}
-          <button className="add-inline" onClick={() => ui.openClass({})}>+ Add class</button>
+          <button className="add-inline" onClick={() => ui.openClass({})}>{t('+ Add class')}</button>
         </div>
       )}
     </div>
@@ -322,6 +328,7 @@ function IndexCards({ classes, hint, onOpen, onDropClass }: {
         const uploads = state.binderUploads.filter((u) => u.classId === c.id)
         const posts = state.binderPosts.filter((p) => p.classId === c.id)
         const fileCount = uploads.reduce((n, u) => n + u.files.length, 0)
+        const postCount = posts.length + uploads.length
         return (
           <div key={c.id} className="binder-card" role="button" tabIndex={0} draggable
             onDragStart={(e) => { markDragStart(); setDragPayload(e, { kind: 'class', id: c.id }) }}
@@ -333,11 +340,11 @@ function IndexCards({ classes, hint, onOpen, onDropClass }: {
             style={{ borderTopColor: c.color, background: `color-mix(in srgb, ${c.color} 7%, var(--bg-raised))` }}>
             <div className="corner-pins">
               <button className={`corner-pin ${c.pinnedBinder ? 'on' : ''}`}
-                title={c.pinnedBinder ? 'Unpin from top of binder' : 'Pin to top of binder'}
+                title={c.pinnedBinder ? t('Unpin from top of binder') : t('Pin to top of binder')}
                 onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleClassPin', id: c.id, scope: 'binder' }) }}>⚲</button>
               {c.folderId && (
                 <button className={`corner-pin ${c.pinnedFolder ? 'on' : ''}`}
-                  title={c.pinnedFolder ? 'Unpin from top of folder' : 'Pin to top of its folder'}
+                  title={c.pinnedFolder ? t('Unpin from top of folder') : t('Pin to top of its folder')}
                   onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleClassPin', id: c.id, scope: 'folder' }) }}>
                   <svg className="folder-glyph" width="14" height="12" viewBox="0 0 15 13" aria-hidden="true">
                     <path d="M1.5 2.5 h4 l1.5 1.7 h6.5 a1 1 0 0 1 1 1 v6.3 a1 1 0 0 1 -1 1 h-12 a1 1 0 0 1 -1 -1 v-8 a1 1 0 0 1 1 -1 z"
@@ -353,7 +360,7 @@ function IndexCards({ classes, hint, onOpen, onDropClass }: {
             {c.meta?.professor && <span className="binder-card-meta">{c.meta.professor}</span>}
             {c.meta?.room && <span className="binder-card-meta">{c.meta.room}</span>}
             <span className="binder-card-count">
-              {posts.length + uploads.length} post{posts.length + uploads.length === 1 ? '' : 's'} · {fileCount} file{fileCount === 1 ? '' : 's'}
+              {postCount} {postCount === 1 ? t('post') : t('posts')} · {fileCount} {fileCount === 1 ? t('file') : t('files')}
             </span>
           </div>
         )
@@ -399,11 +406,11 @@ function ClassBinder({ cls }: { cls: ClassInfo }) {
         <h2 className="binder-title" style={{ color: cls.color }}>{cls.name}</h2>
         {folderNameOf(state, cls) && <span className="folder-hint big">{folderNameOf(state, cls)}</span>}
         <button className={`btn icon pin-btn ${cls.pinnedBinder ? 'on' : ''}`}
-          title={cls.pinnedBinder ? 'Unpin from top of binder' : 'Pin to top of binder'}
+          title={cls.pinnedBinder ? t('Unpin from top of binder') : t('Pin to top of binder')}
           onClick={() => dispatch({ type: 'toggleClassPin', id: cls.id, scope: 'binder' })}>⚲</button>
         {cls.folderId && (
           <button className={`btn icon pin-btn ${cls.pinnedFolder ? 'on' : ''}`}
-            title={cls.pinnedFolder ? 'Unpin from top of folder' : 'Pin to top of its folder'}
+            title={cls.pinnedFolder ? t('Unpin from top of folder') : t('Pin to top of its folder')}
             onClick={() => dispatch({ type: 'toggleClassPin', id: cls.id, scope: 'folder' })}>
             <svg className="folder-glyph" width="14" height="12" viewBox="0 0 15 13" aria-hidden="true">
               <path d="M1.5 2.5 h4 l1.5 1.7 h6.5 a1 1 0 0 1 1 1 v6.3 a1 1 0 0 1 -1 1 h-12 a1 1 0 0 1 -1 -1 v-8 a1 1 0 0 1 1 -1 z"
@@ -412,28 +419,28 @@ function ClassBinder({ cls }: { cls: ClassInfo }) {
           </button>
         )}
         <div className="binder-tabs">
-          <button className={tab === 'stream' ? 'active' : ''} onClick={() => setTab('stream')}>Stream</button>
-          <button className={tab === 'collation' ? 'active' : ''} onClick={() => setTab('collation')}>Collation</button>
-          <button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}>Tasks</button>
-          <button className={tab === 'grades' ? 'active' : ''} onClick={() => setTab('grades')}>Grades</button>
+          <button className={tab === 'stream' ? 'active' : ''} onClick={() => setTab('stream')}>{t('Stream')}</button>
+          <button className={tab === 'collation' ? 'active' : ''} onClick={() => setTab('collation')}>{t('Collation')}</button>
+          <button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}>{t('Tasks')}</button>
+          <button className={tab === 'grades' ? 'active' : ''} onClick={() => setTab('grades')}>{t('Grades')}</button>
         </div>
         <div className="spacer" />
-        <button className="btn primary" onClick={() => setUploadModal({ classId: cls.id })}>+ Upload</button>
+        <button className="btn primary" onClick={() => setUploadModal({ classId: cls.id })}>{t('+ Upload')}</button>
       </div>
 
       {/* Class details — all optional, saved as you type */}
       <div className="binder-meta">
         {META_FIELDS.map((f) => (
           <label key={f.key} className="binder-meta-field">
-            <span>{f.label}</span>
-            <input type="text" value={cls.meta?.[f.key] ?? ''} placeholder={f.placeholder}
+            <span>{t(f.label)}</span>
+            <input type="text" value={cls.meta?.[f.key] ?? ''} placeholder={t(f.placeholder)}
               onChange={(e) => setMeta(f.key, e.target.value)} />
           </label>
         ))}
         <label className="binder-meta-field wide">
-          <span>Other important info</span>
+          <span>{t('Other important info')}</span>
           <textarea value={cls.meta?.other ?? ''} rows={2}
-            placeholder="Anything else worth keeping at the top — office hours, textbook, marking scheme…"
+            placeholder={t('Anything else worth keeping at the top — office hours, textbook, marking scheme…')}
             onChange={(e) => setMeta('other', e.target.value)} />
         </label>
       </div>
@@ -449,7 +456,7 @@ function ClassBinder({ cls }: { cls: ClassInfo }) {
             const proj = state.projects.find((p) => p.classId === cls.id)
             return proj
               ? <ProjectNode project={proj} />
-              : <div className="empty-hint">This class has no project yet.</div>
+              : <div className="empty-hint">{t('This class has no project yet.')}</div>
           })()}
         </div>
       ) : tab === 'stream' ? (
@@ -462,7 +469,7 @@ function ClassBinder({ cls }: { cls: ClassInfo }) {
               <div className="pin-box-head" onClick={() => setClassPinOpen((v) => !v)}>
                 <span className={`caret ${classPinOpen ? 'open' : ''}`}>▶</span>
                 <span className="pin-glyph">⚲</span>
-                Pinned <span className="dg-count">{classPinned.length}</span>
+                {t('Pinned')} <span className="dg-count">{classPinned.length}</span>
               </div>
               {classPinOpen && (
                 <div className="pin-box-body">
@@ -483,10 +490,10 @@ function ClassBinder({ cls }: { cls: ClassInfo }) {
           ))}
 
           <div className="binder-add-section">
-            <input type="text" value={newSection} placeholder="New section name…"
+            <input type="text" value={newSection} placeholder={t('New section name…')}
               onChange={(e) => setNewSection(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addSection()} />
-            <button className="btn" onClick={addSection}>+ Add section</button>
+            <button className="btn" onClick={addSection}>{t('+ Add section')}</button>
           </div>
         </>
       )}
@@ -546,19 +553,20 @@ function StreamTab({ cls, posts, uploads, sections, onEditUpload }: {
   return (
     <div className="stream">
       <div className="stream-composer">
-        <textarea rows={2} value={draft} placeholder={`Post to the ${cls.name} stream — a reminder, a thought, anything…`}
+        <textarea rows={2} value={draft}
+          placeholder={fill(t('Post to the {class} stream — a reminder, a thought, anything…'), { class: cls.name })}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && submitPost()} />
-        <button className="btn primary" onClick={submitPost} disabled={!draft.trim()}>Post</button>
+        <button className="btn primary" onClick={submitPost} disabled={!draft.trim()}>{t('Post')}</button>
       </div>
 
-      {items.length === 0 && <div className="empty-hint">Nothing in the stream yet — post a note or add an upload.</div>}
+      {items.length === 0 && <div className="empty-hint">{t('Nothing in the stream yet — post a note or add an upload.')}</div>}
       {pinnedItems.length > 0 && (
         <div className="pin-box">
           <div className="pin-box-head" onClick={() => setStreamPinOpen((v) => !v)}>
             <span className={`caret ${streamPinOpen ? 'open' : ''}`}>▶</span>
             <span className="pin-glyph">⚲</span>
-            Pinned <span className="dg-count">{pinnedItems.length}</span>
+            {t('Pinned')} <span className="dg-count">{pinnedItems.length}</span>
           </div>
           {streamPinOpen && <div className="pin-box-body">{pinnedItems.map(renderItem)}</div>}
         </div>
@@ -585,7 +593,7 @@ function PostCard({ post }: { post: BinderPost }) {
     <div className="upload-card post-card">
       <div className="corner-pins">
         <button className={`corner-pin ${post.pinned ? 'on' : ''}`}
-          title={post.pinned ? 'Unpin from stream' : 'Pin to top of stream'}
+          title={post.pinned ? t('Unpin from stream') : t('Pin to top of stream')}
           onClick={() => dispatch({ type: 'updateBinderPost', post: { ...post, pinned: !post.pinned } })}>⚲</button>
       </div>
       <div className="upload-head">
@@ -600,9 +608,9 @@ function PostCard({ post }: { post: BinderPost }) {
         )}
         <div className="spacer" />
         <div className="upload-actions">
-          <button className="hover-btn" title="Edit post" onClick={() => setEditing(post.text)}>✎</button>
-          <button className="hover-btn" title="Delete post"
-            onClick={() => window.confirm('Delete this post?') && dispatch({ type: 'deleteBinderPost', id: post.id })}>🗑</button>
+          <button className="hover-btn" title={t('Edit post')} onClick={() => setEditing(post.text)}>✎</button>
+          <button className="hover-btn" title={t('Delete post')}
+            onClick={() => window.confirm(t('Delete this post?')) && dispatch({ type: 'deleteBinderPost', id: post.id })}>🗑</button>
         </div>
       </div>
       <div className="upload-created">{fmtAt(post.createdAt)}</div>
@@ -650,8 +658,9 @@ function SectionBlock({ section, uploads, canDelete, onAdd, onEdit }: {
   const remove = () => {
     if (!canDelete) return
     const msg = uploads.length
-      ? `Delete section "${section.name}"? Its ${uploads.length} upload(s) move to another section.`
-      : `Delete section "${section.name}"?`
+      ? fill(t('Delete section "{name}"? Its {n} upload(s) move to another section.'),
+        { name: section.name, n: uploads.length })
+      : fill(t('Delete section "{name}"?'), { name: section.name })
     if (window.confirm(msg)) dispatch({ type: 'deleteBinderSection', id: section.id })
   }
 
@@ -666,18 +675,18 @@ function SectionBlock({ section, uploads, canDelete, onAdd, onEdit }: {
         ) : (
           <span className="sec-name">{section.name}</span>
         )}
-        <button className="hover-btn" title="Rename section" onClick={() => setRenaming(section.name)}>✎</button>
-        {canDelete && <button className="hover-btn" title="Delete section" onClick={remove}>🗑</button>}
+        <button className="hover-btn" title={t('Rename section')} onClick={() => setRenaming(section.name)}>✎</button>
+        {canDelete && <button className="hover-btn" title={t('Delete section')} onClick={remove}>🗑</button>}
         <div className="spacer" />
-        <button className="btn small" onClick={onAdd}>+ Upload here</button>
+        <button className="btn small" onClick={onAdd}>{t('+ Upload here')}</button>
       </div>
-      {uploads.length === 0 && <div className="empty-hint">Nothing here yet.</div>}
+      {uploads.length === 0 && <div className="empty-hint">{t('Nothing here yet.')}</div>}
       {pinnedUploads.length > 0 && (
         <div className="pin-box">
           <div className="pin-box-head" onClick={() => setPinOpen((v) => !v)}>
             <span className={`caret ${pinOpen ? 'open' : ''}`}>▶</span>
             <span className="pin-glyph">⚲</span>
-            Pinned <span className="dg-count">{pinnedUploads.length}</span>
+            {t('Pinned')} <span className="dg-count">{pinnedUploads.length}</span>
           </div>
           {pinOpen && (
             <div className="pin-box-body">
@@ -711,15 +720,15 @@ function UploadCard({ upload, sectionName, stream, onEdit }: {
       <div className="corner-pins">
         {stream ? (
           <button className={`corner-pin ${upload.pinnedStream ? 'on' : ''}`}
-            title={upload.pinnedStream ? 'Unpin from stream' : 'Pin to top of stream'}
+            title={upload.pinnedStream ? t('Unpin from stream') : t('Pin to top of stream')}
             onClick={() => patch({ pinnedStream: !upload.pinnedStream })}>⚲</button>
         ) : (
           <>
             <button className={`corner-pin ${upload.pinned === 'section' ? 'on' : ''}`}
-              title={upload.pinned === 'section' ? 'Unpin from top of section' : 'Pin to top of section'}
+              title={upload.pinned === 'section' ? t('Unpin from top of section') : t('Pin to top of section')}
               onClick={() => patch({ pinned: upload.pinned === 'section' ? undefined : 'section' })}>⚲</button>
             <button className={`corner-pin ${upload.pinned === 'class' ? 'on' : ''}`}
-              title={upload.pinned === 'class' ? 'Unpin from the collation tab' : 'Pin to top of the collation tab'}
+              title={upload.pinned === 'class' ? t('Unpin from the collation tab') : t('Pin to top of the collation tab')}
               onClick={() => patch({ pinned: upload.pinned === 'class' ? undefined : 'class' })}>★</button>
           </>
         )}
@@ -728,13 +737,14 @@ function UploadCard({ upload, sectionName, stream, onEdit }: {
         <span className="upload-title">{upload.title}</span>
         {sectionName && <span className="upload-sec-tag">{sectionName}</span>}
         {upload.attach && (
-          <span className="upload-attach" title={`Attached to ${upload.attach.kind}`}>
+          <span className="upload-attach"
+            title={upload.attach.kind === 'event' ? t('Attached to an event') : t('Attached to a task')}>
             🔗 {upload.attach.label}{upload.attach.date ? ` · ${fmtFriendly(upload.attach.date)}` : ''}
           </span>
         )}
         <div className="spacer" />
         <div className="upload-actions">
-          <button className="hover-btn" title="Edit upload" onClick={onEdit}>✎</button>
+          <button className="hover-btn" title={t('Edit upload')} onClick={onEdit}>✎</button>
         </div>
       </div>
       {upload.caption && <div className="upload-caption">{upload.caption}</div>}
@@ -743,7 +753,7 @@ function UploadCard({ upload, sectionName, stream, onEdit }: {
           {upload.files.map((f) => <FileChip key={f.id} file={f} />)}
         </div>
       )}
-      <div className="upload-created">added {fmtFriendly(upload.createdAt.slice(0, 10))}</div>
+      <div className="upload-created">{t('added')} {fmtFriendly(upload.createdAt.slice(0, 10))}</div>
     </div>
   )
 }

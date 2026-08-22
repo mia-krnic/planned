@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import InfoIcon from '../InfoIcon'
 import { todayISO } from '../../utils/date'
 import { fmtWeight } from '../../utils/daylog'
 import { shortDate } from './chartsData'
 import { heatmapRangeNoun, type HeatmapRange } from './heatmapGrid'
-import { intervalMeta, type IntervalKey } from './insightsData'
+import { fill, intervalMeta, type IntervalKey } from './insightsData'
 import { dayLabel, fmtHourTick, fmtSleep, journalSpan, sleepStats } from './journalData'
 
 /**
@@ -69,15 +70,12 @@ export default function SleepChart({ ival, range }: { ival: IntervalKey; range: 
   }, [state, days])
 
   const note = mode === 'sleep'
-    ? `Hours slept the night into each day over ${heatmapRangeNoun(range)} — the span follows the `
-      + `interval at the top of the page ("${intervalMeta(ival).label}"), so a single day shows the last `
-      + '30 nights instead of one dot. Nights you did not log break the line and are left out of the '
-      + 'average, rather than counting as zero. Always drawn in hours: the hrs/mins toggle applies to '
-      + 'study durations only. Sleep is recorded in the daily log — this chart just reads it.'
-    : `Morning weight over ${heatmapRangeNoun(range)}, from the scale field beside the sleep input in `
-      + 'the daily log. The axis hugs your numbers a couple of kilos either side — against a zero axis '
-      + 'the line would be flat, and the drift is what this chart is for. Unlogged days break the line '
-      + 'and are left out of the average.'
+    ? fill(t('Hours slept the night into each day over {span} — the span follows the interval at the top of the page ("{ival}"), so a single day shows the last 30 nights instead of one dot.'),
+        { span: heatmapRangeNoun(range), ival: t(intervalMeta(ival).label) }) + ' '
+      + t('Nights you did not log break the line and are left out of the average, rather than counting as zero. Always drawn in hours: the hrs/mins toggle applies to study durations only. Sleep is recorded in the daily log — this chart just reads it.')
+    : fill(t('Morning weight over {span}, from the scale field beside the sleep input in the daily log.'),
+        { span: heatmapRangeNoun(range) }) + ' '
+      + t('The axis hugs your numbers a couple of kilos either side — against a zero axis the line would be flat, and the drift is what this chart is for. Unlogged days break the line and are left out of the average.')
 
   // One shape for both series: a value per day (null = unlogged) and a y-domain.
   const series = mode === 'sleep' ? sleep.series : weight.series
@@ -127,13 +125,13 @@ export default function SleepChart({ ival, range }: { ival: IntervalKey; range: 
   return (
     <section className="ins2-card">
       <div className="ins2-card-head">
-        <h2 className="ins2-h2">{mode === 'sleep' ? 'Sleep' : 'Weight'}</h2>
+        <h2 className="ins2-h2">{t(mode === 'sleep' ? 'Sleep' : 'Body weight')}</h2>
         <InfoIcon text={note} />
-        <div className="ins2-tabs" role="tablist" aria-label="Sleep or weight">
+        <div className="ins2-tabs" role="tablist" aria-label={t('Sleep or weight')}>
           {(['sleep', 'weight'] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m}
               className={mode === m ? 'active' : ''} onClick={() => setMode(m)}>
-              {m === 'sleep' ? 'Sleep' : 'Weight'}
+              {t(m === 'sleep' ? 'Sleep' : 'Body weight')}
             </button>
           ))}
         </div>
@@ -142,20 +140,20 @@ export default function SleepChart({ ival, range }: { ival: IntervalKey; range: 
       {mode === 'sleep' ? (
         <div className="ins2-tiles ins2-tiles-two">
           <div className="ins2-tile">
-            <div className="ins2-tile-label">Average night</div>
+            <div className="ins2-tile-label">{t('Average night')}</div>
             <div className={`ins2-tile-value ${sleep.logged ? '' : 'na'}`}>
-              {sleep.logged ? fmtSleep(sleep.avgMin) : 'n/a'}
+              {sleep.logged ? fmtSleep(sleep.avgMin) : t('n/a')}
             </div>
             <div className="ins2-tile-sub">
               {sleep.logged
-                ? `over ${sleep.logged} logged ${sleep.logged === 1 ? 'night' : 'nights'}`
-                : 'no nights logged yet'}
+                ? fill(t('over {n} logged {nights}'), { n: sleep.logged, nights: t(sleep.logged === 1 ? 'night' : 'nights') })
+                : t('no nights logged yet')}
             </div>
           </div>
           <div className="ins2-tile">
-            <div className="ins2-tile-label">Shortest / longest</div>
+            <div className="ins2-tile-label">{t('Shortest / longest')}</div>
             <div className={`ins2-tile-value ${sleep.logged ? '' : 'na'}`}>
-              {sleep.logged ? `${fmtSleep(sleep.minMin)} – ${fmtSleep(sleep.maxMin)}` : 'n/a'}
+              {sleep.logged ? `${fmtSleep(sleep.minMin)} – ${fmtSleep(sleep.maxMin)}` : t('n/a')}
             </div>
             <div className="ins2-tile-sub">{heatmapRangeNoun(range)}</div>
           </div>
@@ -163,20 +161,20 @@ export default function SleepChart({ ival, range }: { ival: IntervalKey; range: 
       ) : (
         <div className="ins2-tiles ins2-tiles-two">
           <div className="ins2-tile">
-            <div className="ins2-tile-label">Average</div>
+            <div className="ins2-tile-label">{t('Average')}</div>
             <div className={`ins2-tile-value ${weight.logged ? '' : 'na'}`}>
-              {weight.logged ? `${fmtWeight(weight.avg)} kg` : 'n/a'}
+              {weight.logged ? `${fmtWeight(weight.avg)} kg` : t('n/a')}
             </div>
             <div className="ins2-tile-sub">
               {weight.logged
-                ? `over ${weight.logged} logged ${weight.logged === 1 ? 'day' : 'days'}`
-                : 'no weigh-ins logged yet'}
+                ? fill(t('over {n} logged {days}'), { n: weight.logged, days: t(weight.logged === 1 ? 'day' : 'days') })
+                : t('no weigh-ins logged yet')}
             </div>
           </div>
           <div className="ins2-tile">
-            <div className="ins2-tile-label">Lightest / heaviest</div>
+            <div className="ins2-tile-label">{t('Lightest / heaviest')}</div>
             <div className={`ins2-tile-value ${weight.logged ? '' : 'na'}`}>
-              {weight.logged ? `${fmtWeight(weight.min)} – ${fmtWeight(weight.max)} kg` : 'n/a'}
+              {weight.logged ? `${fmtWeight(weight.min)} – ${fmtWeight(weight.max)} kg` : t('n/a')}
             </div>
             <div className="ins2-tile-sub">{heatmapRangeNoun(range)}</div>
           </div>
@@ -185,15 +183,15 @@ export default function SleepChart({ ival, range }: { ival: IntervalKey; range: 
 
       {logged === 0 ? (
         <div className="ins2-empty">
-          {mode === 'sleep'
+          {t(mode === 'sleep'
             ? 'No sleep logged in this range yet — add hours under ☾ in the daily log and the line appears here.'
-            : 'No weigh-ins in this range yet — add kilograms beside the ☾ sleep field in the daily log.'}
+            : 'No weigh-ins in this range yet — add kilograms beside the ☾ sleep field in the daily log.')}
         </div>
       ) : (
         <div className={`ins2-sleep-wrap ${wide ? 'ins2-xscroll' : ''}`}>
           <svg className="ins2-line" viewBox={`0 0 ${W} ${H}`} role="img"
             style={wide ? { width: `${W}px` } : undefined}
-            aria-label={mode === 'sleep' ? 'Hours slept per night' : 'Weight per day'}>
+            aria-label={t(mode === 'sleep' ? 'Hours slept per night' : 'Weight per day')}>
             {[0, 0.5, 1].map((f) => {
               const gy = PAD_T + INNER_H - f * INNER_H
               return (
@@ -210,7 +208,7 @@ export default function SleepChart({ ival, range }: { ival: IntervalKey; range: 
                 be read against rather than just the axis. */}
             <line x1={PAD_L} y1={avgY} x2={W - PAD_R} y2={avgY} className="ins2-sleep-avg" />
             <text x={PAD_L + 4} y={avgLabelY} className="ins2-sleep-avg-label">
-              avg {fmtVal(avg)}
+              {t('avg')} {fmtVal(avg)}
             </text>
 
             {runs.map((run, ri) => (

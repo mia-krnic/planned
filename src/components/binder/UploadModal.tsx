@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { deleteFiles, putFile } from '../../api/files'
+import { t } from '../../i18n'
 import { uid, useStore } from '../../store'
 import type { BinderAttach, BinderFile, BinderUpload, ID } from '../../types'
 import { addDays, fmtFriendly, fmtTime, todayISO, toISO, fromISO } from '../../utils/date'
@@ -59,10 +60,12 @@ export default function UploadModal({ init, onClose }: { init: UploadModalInit; 
     }
     const classProject = state.projects.find((p) => p.classId === init.classId)
     if (classProject) {
+      // Resolved before the loop, whose `t` parameter shadows the translation helper.
+      const taskPrefix = t('Task:')
       for (const t of state.tasks.filter((t) => t.projectId === classProject.id)) {
         out.push({
           value: `task|${t.id}`,
-          label: `Task: ${t.title}${t.date ? ' — ' + fmtFriendly(t.date) : ''}`,
+          label: `${taskPrefix} ${t.title}${t.date ? ' — ' + fmtFriendly(t.date) : ''}`,
           attach: { kind: 'task', id: t.id, date: t.date, label: t.title },
         })
       }
@@ -103,35 +106,38 @@ export default function UploadModal({ init, onClose }: { init: UploadModalInit; 
 
   const remove = () => {
     if (!existing) return
-    if (!window.confirm(`Delete "${existing.title}" and its ${existing.files.length} file(s)?`)) return
+    const msg = t('Delete "{name}" and its {n} file(s)?')
+      .replace('{name}', existing.title)
+      .replace('{n}', String(existing.files.length))
+    if (!window.confirm(msg)) return
     void deleteFiles(existing.files.map((f) => f.id))
     dispatch({ type: 'deleteBinderUpload', id: existing.id })
     onClose()
   }
 
   return (
-    <Modal title={existing ? 'Edit upload' : 'New upload'} onClose={onClose}>
+    <Modal title={existing ? t('Edit upload') : t('New upload')} onClose={onClose}>
       <div className="field">
-        <label>Title</label>
+        <label>{t('Title')}</label>
         <input type="text" autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder='e.g. "Week 2 resources", "Seminar 5 notes"' />
+          placeholder={t('e.g. "Week 2 resources", "Seminar 5 notes"')} />
       </div>
 
       <div className="field">
-        <label>Section</label>
+        <label>{t('Section')}</label>
         <select value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
           {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
       <div className="field">
-        <label>Files</label>
+        <label>{t('Files')}</label>
         {keptFiles.length > 0 && (
           <div className="upload-file-list">
             {keptFiles.map((f) => (
               <div key={f.id} className="upload-file-row">
                 <span className="file-name">{f.name}</span>
-                <button className="btn icon" title="Remove file" onClick={() => removeKept(f.id)}>×</button>
+                <button className="btn icon" title={t('Remove file')} onClick={() => removeKept(f.id)}>×</button>
               </div>
             ))}
           </div>
@@ -141,13 +147,13 @@ export default function UploadModal({ init, onClose }: { init: UploadModalInit; 
             {newFiles.map((f, i) => (
               <div key={i} className="upload-file-row">
                 <span className="file-name">{f.name}</span>
-                <button className="btn icon" title="Remove file"
+                <button className="btn icon" title={t('Remove file')}
                   onClick={() => setNewFiles((fs) => fs.filter((_, j) => j !== i))}>×</button>
               </div>
             ))}
           </div>
         )}
-        <button className="btn" onClick={() => fileRef.current?.click()}>+ Add files…</button>
+        <button className="btn" onClick={() => fileRef.current?.click()}>{t('+ Add files…')}</button>
         <input
           ref={fileRef} type="file" multiple hidden
           onChange={(e) => {
@@ -161,25 +167,25 @@ export default function UploadModal({ init, onClose }: { init: UploadModalInit; 
       </div>
 
       <div className="field">
-        <label>Caption / notes (optional)</label>
+        <label>{t('Caption / notes (optional)')}</label>
         <textarea value={caption} onChange={(e) => setCaption(e.target.value)}
-          placeholder="e.g. Make sure to bring textbook X!" />
+          placeholder={t('e.g. Make sure to bring textbook X!')} />
       </div>
 
       <div className="field">
-        <label>Attach to an event or task (optional — dates the upload)</label>
+        <label>{t('Attach to an event or task (optional — dates the upload)')}</label>
         <select value={attachValue} onChange={(e) => setAttachValue(e.target.value)}>
-          <option value="">Not attached</option>
+          <option value="">{t('Not attached')}</option>
           {attachOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
 
       <div className="modal-actions">
-        {existing && <button className="btn danger" onClick={remove}>Delete</button>}
+        {existing && <button className="btn danger" onClick={remove}>{t('Delete')}</button>}
         <div className="spacer" />
-        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn" onClick={onClose}>{t('Cancel')}</button>
         <button className="btn primary" onClick={() => void save()} disabled={saving}>
-          {saving ? 'Saving…' : existing ? 'Save' : 'Add upload'}
+          {saving ? t('Saving…') : existing ? t('Save') : t('Add upload')}
         </button>
       </div>
     </Modal>

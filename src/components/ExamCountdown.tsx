@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useUI } from '../App'
+import { t } from '../i18n'
 import { useStore } from '../store'
 import type { CalEvent } from '../types'
 import { eventColor } from '../utils/agenda'
@@ -8,14 +9,20 @@ import { addDays, fromISO, todayISO, toISO } from '../utils/date'
 
 const LOOKAHEAD_DAYS = 120
 
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
+
 /** Compact per-exam countdown rows ("D-3 · 14h 22m") under the mini month. */
 export default function ExamCountdown() {
   const { state } = useStore()
   const ui = useUI()
   const [, setTick] = useState(0)
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 30_000)
-    return () => clearInterval(t)
+    // Named `timer`, not `t`: `t` is the translation function imported above.
+    const timer = setInterval(() => setTick((n) => n + 1), 30_000)
+    return () => clearInterval(timer)
   }, [])
 
   const now = new Date()
@@ -39,7 +46,7 @@ export default function ExamCountdown() {
 
   return (
     <div className="exam-countdown">
-      <h3>Exams</h3>
+      <h3>{t('Exams')}</h3>
       {upcoming.map(({ ev, target }) => {
         const ms = target.getTime() - now.getTime()
         const days = Math.floor(ms / 86_400_000)
@@ -50,7 +57,12 @@ export default function ExamCountdown() {
             <span className="swatch" style={{ background: eventColor(state, ev) }} />
             <span className="exam-title">{ev.title}</span>
             <span className="exam-dday">
-              {days > 0 ? `D-${days}` : 'Today'} · {days > 0 ? `${hours}h` : hours > 0 ? `${hours}h ${mins}m` : `${mins}m`}
+              {days > 0 ? `D-${days}` : t('Today')} ·{' '}
+              {days > 0
+                ? fill(t('{h}h'), { h: hours })
+                : hours > 0
+                  ? fill(t('{h}h {m}m'), { h: hours, m: mins })
+                  : fill(t('{m}m'), { m: mins })}
             </span>
           </button>
         )

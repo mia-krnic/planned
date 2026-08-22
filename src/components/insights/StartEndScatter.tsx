@@ -1,6 +1,7 @@
+import { t } from '../../i18n'
 import { fmtTime } from '../../utils/date'
 import InfoIcon from '../InfoIcon'
-import { fmtMins, intervalIn, type IntervalData, type IntervalKey, type Unit } from './insightsData'
+import { fill, fmtMins, intervalIn, type IntervalData, type IntervalKey, type Unit } from './insightsData'
 import { dayExtents, meanOf, shortDate } from './chartsData'
 
 /**
@@ -52,18 +53,18 @@ export default function StartEndScatter({ data, ival, unit }: {
   return (
     <>
       <div className="ins2-sub-head">
-        <h3>Start &amp; end times</h3>
-        <InfoIcon text={NOTE} />
+        <h3>{t('Start & end times')}</h3>
+        <InfoIcon text={t(NOTE)} />
       </div>
 
       {!pts.length ? (
         <div className="ins2-empty">
-          No day {intervalIn(ival)} has study time on it yet, so there are no start or end times to plot.
+          {fill(t('No day {span} has study time on it yet, so there are no start or end times to plot.'), { span: intervalIn(ival) })}
         </div>
       ) : (
         <>
           <svg className="ins2-line" viewBox={`0 0 ${W} ${H}`} role="img"
-            aria-label="First session start and last session end per day, against that day's study time">
+            aria-label={t("First session start and last session end per day, against that day's study time")}>
             {[0, 0.5, 1].map((f) => {
               const gy = PAD_T + INNER_H - f * INNER_H
               return (
@@ -78,8 +79,8 @@ export default function StartEndScatter({ data, ival, unit }: {
 
             {/* Mean guides. Their labels hug the side of the line with more room. */}
             {[
-              { at: avgStart, cls: 'start', text: (t: string) => `avg start ${t}`, ty: PAD_T - 13 },
-              { at: avgEnd, cls: 'end', text: (t: string) => `avg end ${t}`, ty: PAD_T - 3 },
+              { at: avgStart, cls: 'start', text: (v: string) => `${t('avg start')} ${v}`, ty: PAD_T - 13 },
+              { at: avgEnd, cls: 'end', text: (v: string) => `${t('avg end')} ${v}`, ty: PAD_T - 3 },
             ].map((g, i) =>
               g.at === null ? null : (
                 <g key={i}>
@@ -100,13 +101,13 @@ export default function StartEndScatter({ data, ival, unit }: {
             {pts.map((p) => (
               <circle key={`s-${p.date}`} cx={x(p.firstStartMin)} cy={y(p.studiedMin)} r="3.4"
                 className="ins2-sc-dot start">
-                <title>{`${shortDate(p.date)} — started ${fmtTime(p.firstStartMin)} · ${fmtMins(p.studiedMin, unit)} studied`}</title>
+                <title>{`${shortDate(p.date)} — ${t('started')} ${fmtTime(p.firstStartMin)} · ${fmtMins(p.studiedMin, unit)} ${t('studied')}`}</title>
               </circle>
             ))}
             {pts.map((p) => (
               <circle key={`e-${p.date}`} cx={x(p.lastEndMin)} cy={y(p.studiedMin)} r="3.4"
                 className="ins2-sc-dot end">
-                <title>{`${shortDate(p.date)} — ended ${fmtTime(p.lastEndMin)} · ${fmtMins(p.studiedMin, unit)} studied`}</title>
+                <title>{`${shortDate(p.date)} — ${t('ended')} ${fmtTime(p.lastEndMin)} · ${fmtMins(p.studiedMin, unit)} ${t('studied')}`}</title>
               </circle>
             ))}
 
@@ -120,10 +121,10 @@ export default function StartEndScatter({ data, ival, unit }: {
           </svg>
 
           <div className="ins2-wm-legend">
-            <span className="ins2-wm-key"><i className="k-sc-start" />First start</span>
-            <span className="ins2-wm-key"><i className="k-sc-end" />Last end</span>
+            <span className="ins2-wm-key"><i className="k-sc-start" />{t('First start')}</span>
+            <span className="ins2-wm-key"><i className="k-sc-end" />{t('Last end')}</span>
             <span className="ins2-wm-key">
-              {pts.length} {pts.length === 1 ? 'day' : 'days'} with study time
+              {pts.length} {t(pts.length === 1 ? 'day' : 'days')} {t('with study time')}
             </span>
           </div>
         </>

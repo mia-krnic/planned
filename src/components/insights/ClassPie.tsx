@@ -1,3 +1,4 @@
+import { t } from '../../i18n'
 import type { ID } from '../../types'
 import { fmtMins, type Unit } from './insightsData'
 
@@ -53,7 +54,7 @@ export default function ClassPie({ slices, total, unit }: {
   unit: Unit
 }) {
   if (!slices.length || total <= 0) {
-    return <div className="ins2-empty">No study time to break down yet.</div>
+    return <div className="ins2-empty">{t('No study time to break down yet.')}</div>
   }
 
   const placed: Placed[] = []
@@ -90,7 +91,7 @@ export default function ClassPie({ slices, total, unit }: {
   }
 
   return (
-    <svg className="ins2-pie" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Study time per class">
+    <svg className="ins2-pie" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('Study time per class')}>
       {placed.map((p) => {
         const s = p.slice
         const frac = s.mins / total

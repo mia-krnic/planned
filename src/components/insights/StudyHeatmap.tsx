@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../../i18n'
 import { classById, classColorGroups, useStore } from '../../store'
 import ColorSelect, { type ColorGroup } from '../ColorSelect'
 import InfoIcon from '../InfoIcon'
 import { fromISO, MONTHS, nowMinutes, addDays, toISO, todayISO, WEEKDAYS } from '../../utils/date'
 import { hexToRgba } from '../../utils/color'
-import { dailyClassMinutes, earliestStudyDate, fmtMins, type Unit } from './insightsData'
+import { dailyClassMinutes, earliestStudyDate, fill, fmtMins, type Unit } from './insightsData'
 import {
   daysBetween, heatmapRangeDays, LEVELS, level, monthChunks, monthLabels, streakOf, weekColumns,
   type HeatmapRange,
@@ -96,14 +97,18 @@ export default function StudyHeatmap({ unit, range }: { unit: Unit; range: Heatm
   const streak = useMemo(() => streakOf(counts, today), [counts, today])
 
   const scopeGroups: ColorGroup[] = [
-    { options: [{ value: OVERALL_KEY, label: 'Overall' }] },
+    { options: [{ value: OVERALL_KEY, label: t('Overall') }] },
     ...classColorGroups(state),
   ]
 
   const tooltip = (iso: string, n: number) => {
     const d = fromISO(iso)
-    const when = `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`
-    return n > 0 ? `${when} — ${fmtMins(n, unit)}` : `${when} — no study time`
+    const when = fill(t('{dow} {day} {mon}'), {
+      dow: t(WEEKDAYS[d.getDay()]),
+      day: d.getDate(),
+      mon: t(MONTHS[d.getMonth()].slice(0, 3)),
+    })
+    return n > 0 ? `${when} — ${fmtMins(n, unit)}` : `${when} — ${t('no study time')}`
   }
 
   const cell = (iso: string | null, key: string) => {
@@ -127,12 +132,12 @@ export default function StudyHeatmap({ unit, range }: { unit: Unit; range: Heatm
   return (
     <div className="ins2-hm">
       <div className="ak-stats">
-        <div className="ak-stat"><b>{fmtMins(stats.total, unit)}</b><span>studied</span></div>
-        <div className="ak-stat"><b>{streak}</b><span>day streak</span></div>
+        <div className="ak-stat"><b>{fmtMins(stats.total, unit)}</b><span>{t('studied')}</span></div>
+        <div className="ak-stat"><b>{streak}</b><span>{t('day streak')}</span></div>
         <div className="ak-stat" title={stats.bestDay ? tooltip(stats.bestDay, stats.best) : undefined}>
-          <b>{fmtMins(stats.best, unit)}</b><span>best day</span>
+          <b>{fmtMins(stats.best, unit)}</b><span>{t('best day')}</span>
         </div>
-        <div className="ak-stat"><b>{fmtMins(stats.avg, unit)}</b><span>daily avg</span></div>
+        <div className="ak-stat"><b>{fmtMins(stats.avg, unit)}</b><span>{t('daily avg')}</span></div>
       </div>
 
       {/* No range pills: the span follows the page interval. Only the layout
@@ -140,9 +145,9 @@ export default function StudyHeatmap({ unit, range }: { unit: Unit; range: Heatm
       <div className="ak-controls">
         <div className="ak-pills right">
           <button type="button" className={layout === 'strip' ? 'active' : ''}
-            title="Continuous strip" onClick={() => setLayout('strip')}>▤ Strip</button>
+            title={t('Continuous strip')} onClick={() => setLayout('strip')}>{t('▤ Strip')}</button>
           <button type="button" className={layout === 'months' ? 'active' : ''}
-            title="Separate month blocks" onClick={() => setLayout('months')}>▥ Months</button>
+            title={t('Separate month blocks')} onClick={() => setLayout('months')}>{t('▥ Months')}</button>
         </div>
       </div>
 
@@ -150,7 +155,7 @@ export default function StudyHeatmap({ unit, range }: { unit: Unit; range: Heatm
         {layout === 'strip' ? (
           <div className="ak-strip">
             <div className="ak-dows">
-              <span />{['Mon', 'Wed', 'Fri'].map((d) => <span key={d}>{d}</span>)}
+              <span />{['Mon', 'Wed', 'Fri'].map((d) => <span key={d}>{t(d)}</span>)}
             </div>
             <div className="ak-cols">
               <div className="ak-months" style={{ gridTemplateColumns: `repeat(${weeks.length}, 13px)` }}>
@@ -177,25 +182,25 @@ export default function StudyHeatmap({ unit, range }: { unit: Unit; range: Heatm
 
       <div className="ak-legend">
         <div className="ak-filter">
-          <ColorSelect value={scope} groups={scopeGroups} onChange={setScope} title="Scope" />
+          <ColorSelect value={scope} groups={scopeGroups} onChange={setScope} title={t('Scope')} />
         </div>
         <span className="ak-scale">
-          less
+          {t('less')}
           <span className="ak-cell tiny" />
           {LEVELS.map((a, i) => (
             <span key={i} className="ak-cell tiny" style={{ background: rampFill(scopeColor, a) }} />
           ))}
-          more
+          {t('more')}
         </span>
       </div>
 
       <div className="ak-hint">
-        Minutes studied per day, breaks excluded.
-        <InfoIcon text="Built from your study sessions only — a session split across classes counts towards each class for the part it covered. Pick a class above to shade the grid in its colour." />
+        {t('Minutes studied per day, breaks excluded.')}
+        <InfoIcon text={t('Built from your study sessions only — a session split across classes counts towards each class for the part it covered. Pick a class above to shade the grid in its colour.')} />
       </div>
 
       {stats.total === 0 && (
-        <div className="ins2-empty">No study time in this range yet — the grid fills in as you use the timer.</div>
+        <div className="ins2-empty">{t('No study time in this range yet — the grid fills in as you use the timer.')}</div>
       )}
     </div>
   )

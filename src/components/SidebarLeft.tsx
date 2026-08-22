@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useUI } from '../App'
 import { exportBackup, importBackup } from '../api/backup'
 import { clearFiles } from '../api/files'
+import { t } from '../i18n'
 import { blankState, exampleState, groupedClasses, migrate, useStore } from '../store'
 import type { Birthday, ClassFolder, ClassInfo } from '../types'
 import { BIRTHDAY_CAL_ID } from '../types'
@@ -82,13 +83,13 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
 
   const onImportFile = async (file: File | undefined) => {
     if (!file) return
-    if (!window.confirm('Importing a backup replaces ALL current data. Continue?')) return
+    if (!window.confirm(t('Importing a backup replaces ALL current data. Continue?'))) return
     try {
       const restored = await importBackup(file)
       // An imported backup is real user data — never auto-replaced by a reseed.
       dispatch({ type: 'replaceState', state: { ...migrate(restored), userOwned: true } })
     } catch (err) {
-      window.alert(`Import failed: ${err instanceof Error ? err.message : err}`)
+      window.alert(`${t('Import failed')}: ${err instanceof Error ? err.message : err}`)
     }
   }
 
@@ -97,7 +98,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
     if (!file) return
     const events = parseIcs(await file.text())
     if (!events.length) {
-      window.alert("No events found in that file — are you sure it's an .ics calendar?")
+      window.alert(t("No events found in that file — are you sure it's an .ics calendar?"))
       return
     }
     ui.openStaticImport({ events, fileName: file.name })
@@ -115,7 +116,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
         {editable && (
           <button
             className="edit-btn"
-            title="Edit class"
+            title={t('Edit class')}
             onClick={(e) => {
               e.stopPropagation()
               ui.openClass({ cls: state.classes.find((c) => c.id === id) })
@@ -146,7 +147,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           {hidden ? '' : '✓'}
         </span>
         <span className="name">{c.name}</span>
-        <button className="edit-btn" title="Edit class"
+        <button className="edit-btn" title={t('Edit class')}
           onClick={(e) => { e.stopPropagation(); ui.openClass({ cls: c }) }}>✎</button>
       </div>
     )
@@ -182,14 +183,14 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           <span className="name folder-name">{f.name}</span>
         )}
         <span className="folder-count">{classes.length}</span>
-        <button className="edit-btn" title={`Add class to ${f.name}`}
+        <button className="edit-btn" title={`${t('Add class to')} ${f.name}`}
           onClick={(e) => { e.stopPropagation(); ui.openClass({ folderId: f.id }) }}>＋</button>
-        <button className="edit-btn" title="Rename folder"
+        <button className="edit-btn" title={t('Rename folder')}
           onClick={(e) => { e.stopPropagation(); setRenamingFolder({ id: f.id, name: f.name }) }}>✎</button>
-        <button className="edit-btn" title="Delete folder (classes stay)"
+        <button className="edit-btn" title={t('Delete folder (classes stay)')}
           onClick={(e) => {
             e.stopPropagation()
-            if (window.confirm(`Delete folder "${f.name}"? Its classes stay, just unfoldered.`)) {
+            if (window.confirm(`${t('Delete folder')} "${f.name}"? ${t('Its classes stay, just unfoldered.')}`)) {
               dispatch({ type: 'deleteFolder', id: f.id })
             }
           }}>🗑</button>
@@ -205,11 +206,11 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
 
       <div className="cal-list">
         <div className="cal-list-head">
-          <h3>My calendars</h3>
+          <h3>{t('My calendars')}</h3>
           <span className="spacer" />
-          <button className="head-icon" title="Add calendar" onClick={() => ui.openCalendar({})}>＋</button>
+          <button className="head-icon" title={t('Add calendar')} onClick={() => ui.openCalendar({})}>＋</button>
         </div>
-        {row('personal', 'Personal', PERSONAL_COLOR, false)}
+        {row('personal', t('Personal'), PERSONAL_COLOR, false)}
         {/* Built-in Birthdays calendar: ＋ adds one, ✎ browses what's there.
             Both open the same little popup (see BirthdayPopover). */}
         {(() => {
@@ -220,10 +221,10 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
               <span className="swatch bday-swatch" style={hidden ? { background: 'var(--border-strong)' } : undefined}>
                 {hidden ? '' : <GiftMark size={11} />}
               </span>
-              <span className="name">Birthdays</span>
-              <button className="edit-btn" title="Add a birthday"
+              <span className="name">{t('Birthdays')}</span>
+              <button className="edit-btn" title={t('Add a birthday')}
                 onClick={(e) => { e.stopPropagation(); setBdayPop({ x: e.clientX, y: e.clientY }) }}>＋</button>
-              <button className="edit-btn" title="Edit birthdays"
+              <button className="edit-btn" title={t('Edit birthdays')}
                 onClick={(e) => { e.stopPropagation(); setBdayPop({ x: e.clientX, y: e.clientY, browse: true }) }}>✎</button>
             </div>
           )
@@ -233,7 +234,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           <span className="swatch" style={{ background: state.showTasksOnCalendar ? 'var(--accent)' : 'var(--border-strong)' }}>
             {state.showTasksOnCalendar ? '✓' : ''}
           </span>
-          <span className="name">Tasks</span>
+          <span className="name">{t('Tasks')}</span>
         </div>
         {state.customCalendars.map((c) => (
           <div key={c.id} className={`cal-row ${state.hiddenCalendars.includes(c.id) ? 'hidden-cal' : ''}`}
@@ -242,7 +243,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
               {state.hiddenCalendars.includes(c.id) ? '' : '✓'}
             </span>
             <span className="name">{c.name}</span>
-            <button className="edit-btn" title="Edit calendar"
+            <button className="edit-btn" title={t('Edit calendar')}
               onClick={(e) => { e.stopPropagation(); ui.openCalendar({ cal: c }) }}>✎</button>
           </div>
         ))}
@@ -256,12 +257,12 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
             const p = getDragPayload(e)
             if (p?.kind === 'class') dispatch({ type: 'moveClass', id: p.id, folderId: null })
           }}
-          title="Drop a class here to remove it from its folder">
-          <h3>Classes</h3>
+          title={t('Drop a class here to remove it from its folder')}>
+          <h3>{t('Classes')}</h3>
           <span className="spacer" />
           <PaletteBundles />
-          <button className="head-icon" title="Add class" onClick={() => ui.openClass({})}>＋</button>
-          <button className="head-icon" title="Add folder" onClick={() => setAddingFolder(true)}>
+          <button className="head-icon" title={t('Add class')} onClick={() => ui.openClass({})}>＋</button>
+          <button className="head-icon" title={t('Add folder')} onClick={() => setAddingFolder(true)}>
             <svg width="15" height="13" viewBox="0 0 15 13" aria-hidden="true">
               <path d="M1.5 2.5 h4 l1.5 1.7 h6.5 a1 1 0 0 1 1 1 v6.3 a1 1 0 0 1 -1 1 h-12 a1 1 0 0 1 -1 -1 v-8 a1 1 0 0 1 1 -1 z"
                 fill="none" stroke="currentColor" strokeWidth="1.3" />
@@ -270,7 +271,7 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           </button>
         </div>
         {addingFolder && (
-          <input className="folder-rename" autoFocus value={newFolder} placeholder="Folder name…"
+          <input className="folder-rename" autoFocus value={newFolder} placeholder={t('Folder name…')}
             onChange={(e) => setNewFolder(e.target.value)}
             onBlur={submitFolder}
             onKeyDown={(e) => e.key === 'Enter' && submitFolder()} />
@@ -291,20 +292,20 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
               setDragFolder(null)
               const p = getDragPayload(e)
               if (p?.kind === 'folder') dispatch({ type: 'reorderFolder', id: p.id, beforeId: null })
-            }}>Move to the end</div>
+            }}>{t('Move to the end')}</div>
         )}
       </div>
 
       <div className="cal-list backup-block">
-        <h3>Backup</h3>
+        <h3>{t('Backup')}</h3>
 
-        <div className="backup-label">Calendars</div>
+        <div className="backup-label">{t('Calendars')}</div>
         <div className="backup-row">
-          <button className="backup-btn" title="Import live ICS" onClick={() => ui.openLiveIcs()}>
-            <span className="backup-glyph">⇣</span>Live ICS
+          <button className="backup-btn" title={t('Import live ICS')} onClick={() => ui.openLiveIcs()}>
+            <span className="backup-glyph">⇣</span>{t('Live ICS')}
           </button>
-          <button className="backup-btn" title="Import ICS file" onClick={() => icsRef.current?.click()}>
-            <span className="backup-glyph">⇣</span>ICS file
+          <button className="backup-btn" title={t('Import ICS file')} onClick={() => icsRef.current?.click()}>
+            <span className="backup-glyph">⇣</span>{t('ICS file')}
           </button>
         </div>
         <input
@@ -315,13 +316,13 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
           }}
         />
 
-        <div className="backup-label">App data</div>
+        <div className="backup-label">{t('App data')}</div>
         <div className="backup-row">
-          <button className="backup-btn" title="Export data" onClick={() => void exportBackup(state)}>
-            <span className="backup-glyph">⬇</span>Export
+          <button className="backup-btn" title={t('Export data')} onClick={() => void exportBackup(state)}>
+            <span className="backup-glyph">⬇</span>{t('Export')}
           </button>
-          <button className="backup-btn" title="Import data" onClick={() => importRef.current?.click()}>
-            <span className="backup-glyph">⬆</span>Import
+          <button className="backup-btn" title={t('Import data')} onClick={() => importRef.current?.click()}>
+            <span className="backup-glyph">⬆</span>{t('Import')}
           </button>
         </div>
         <input
@@ -334,22 +335,22 @@ export default function SidebarLeft({ anchor, setAnchor }: Props) {
 
         <button
           className="backup-btn"
-          title="Replace everything with the example data"
+          title={t('Replace everything with the example data')}
           onClick={() => {
-            if (!window.confirm('Load the example data? Everything currently here is replaced — export a backup first if you might want it back.')) return
+            if (!window.confirm(t('Load the example data? Everything currently here is replaced — export a backup first if you might want it back.'))) return
             void clearFiles()
             dispatch({ type: 'replaceState', state: exampleState() })
           }}
-        ><span className="backup-glyph">↻</span>Example data</button>
+        ><span className="backup-glyph">↻</span>{t('Example data')}</button>
         <button
           className="backup-btn backup-danger"
-          title="Delete all data"
+          title={t('Delete all data')}
           onClick={() => {
-            if (!window.confirm('Are you sure you want to clear all data? This removes every event, task, project, class and binder file. Export a backup first if you might want it back.')) return
+            if (!window.confirm(t('Are you sure you want to clear all data? This removes every event, task, project, class and binder file. Export a backup first if you might want it back.'))) return
             void clearFiles()
             dispatch({ type: 'replaceState', state: blankState(state.theme) })
           }}
-        ><span className="backup-glyph">✕</span>Delete all data</button>
+        ><span className="backup-glyph">✕</span>{t('Delete all data')}</button>
       </div>
 
       {bdayPop && (

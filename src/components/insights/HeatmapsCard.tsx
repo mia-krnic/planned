@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { t } from '../../i18n'
 import AnkiTracker from '../AnkiTracker'
 import InfoIcon from '../InfoIcon'
 import StudyHeatmap from './StudyHeatmap'
 import { heatmapRangeFor, heatmapRangeNoun } from './heatmapGrid'
-import { intervalMeta, type IntervalKey, type Unit } from './insightsData'
+import { fill, intervalMeta, type IntervalKey, type Unit } from './insightsData'
 
 /**
  * Section 5 — the two contribution grids, one card and two tabs. The card owns
@@ -30,26 +31,25 @@ export default function HeatmapsCard({ ival, unit }: { ival: IntervalKey; unit: 
 
   const range = heatmapRangeFor(ival)
   const note =
-    `Both grids follow the interval chosen at the top of the page — "${intervalMeta(ival).label}" ` +
-    `shows ${heatmapRangeNoun(range)}. Past day and Past week share the 30-day grid, since a ` +
-    'heatmap of a single day would be one square. Layout, class scope and deck filter are ' +
-    'per-tab and stay where you left them.'
+    fill(t('Both grids follow the interval chosen at the top of the page — "{ival}" shows {span}.'),
+      { ival: t(intervalMeta(ival).label), span: heatmapRangeNoun(range) }) + ' ' +
+    t('Past day and Past week share the 30-day grid, since a heatmap of a single day would be one square. Layout, class scope and deck filter are per-tab and stay where you left them.')
 
   return (
     <section className="ins2-card">
       <div className="ins2-card-head">
         <button type="button" className="ins2-collapse" onClick={() => setOpen((o) => !o)}
-          title={open ? 'Collapse' : 'Expand'} aria-label={open ? 'Collapse' : 'Expand'}>
+          title={t(open ? 'Collapse' : 'Expand')} aria-label={t(open ? 'Collapse' : 'Expand')}>
           <span className="ins2-collapse-glyph">{open ? '⊖' : '⊕'}</span>
         </button>
-        <h2 className="ins2-h2">Heatmaps</h2>
+        <h2 className="ins2-h2">{t('Heatmaps')}</h2>
         <InfoIcon text={note} />
         {open && (
           <div className="ins2-tabs" role="tablist">
-            {TABS.map((t) => (
-              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
-                className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
-                {t.label}
+            {TABS.map((tb) => (
+              <button key={tb.key} type="button" role="tab" aria-selected={tab === tb.key}
+                className={tab === tb.key ? 'active' : ''} onClick={() => setTab(tb.key)}>
+                {t(tb.label)}
               </button>
             ))}
           </div>

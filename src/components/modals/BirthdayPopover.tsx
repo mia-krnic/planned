@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { uid, useStore } from '../../store'
 import type { Birthday } from '../../types'
 import { MONTHS } from '../../utils/date'
+import { t } from '../../i18n'
 import { useClampedPos } from '../../utils/popover'
 import InfoIcon from '../InfoIcon'
 
@@ -43,7 +44,7 @@ function BirthdayList({ list, onPick, onAdd }: {
             <GiftMark size={12} />
             <span className="bday-list-name">{b.name}</span>
             <span className="bday-list-date">
-              {MONTHS[b.month - 1].slice(0, 3)} {b.day}{b.year ? ` · ${b.year}` : ''}
+              {t(MONTHS[b.month - 1].slice(0, 3))} {b.day}{b.year ? ` · ${b.year}` : ''}
             </span>
           </button>
         ))}
@@ -101,7 +102,8 @@ function BirthdayForm({ birthday, onSave, onCancel, onDelete }: {
         <div className="field">
           <label>Month</label>
           <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-            {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            {/* key and value stay the English name / month number. */}
+            {MONTHS.map((m, i) => <option key={m} value={i + 1}>{t(m)}</option>)}
           </select>
         </div>
         <div className="field">

@@ -6,6 +6,7 @@ import { addDays, fromISO, toISO } from '../../utils/date'
 import { earliestUserDate } from '../../utils/daylog'
 import { homePicks, mantraPool, quotePool, type HomeMantra, type HomeQuote } from '../../data/homePicks'
 import { WALLPAPERS, wallpaperUrl } from '../../data/wallpapers'
+import { lang, t } from '../../i18n'
 
 /**
  * The Home page's library: everything the page can show, with the user's
@@ -30,13 +31,19 @@ export type FavKind = 'wallpapers' | 'quotes' | 'mantras'
 export function FavHeart({ kind, itemKey, label }: { kind: FavKind; itemKey: string; label: string }) {
   const { state, dispatch } = useStore()
   const on = (state.homeFavs?.[kind] ?? []).includes(itemKey)
+  // `label` arrives as English ("this mantra") from both call sites; the verb
+  // wraps round it in Chinese instead of bracketing it, so the sentence is
+  // written per language rather than assembled from translated halves.
+  const what = lang() === 'zh'
+    ? (on ? `取消收藏${t(label)}` : `收藏${t(label)}`)
+    : (on ? `Remove ${label} from favourites` : `Add ${label} to favourites`)
   return (
     <button
       type="button"
       className={`home-fav${on ? ' on' : ''}`}
       aria-pressed={on}
-      title={on ? `Remove ${label} from favourites` : `Add ${label} to favourites`}
-      aria-label={on ? `Remove ${label} from favourites` : `Add ${label} to favourites`}
+      title={what}
+      aria-label={what}
       onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleHomeFav', kind, key: itemKey }) }}
     >
       {on ? '♥' : '♡'}
@@ -131,8 +138,8 @@ export default function HomeLibrary({ date, onClose }: { date: string; onClose: 
     if (!known) return null
     return (
       <div className={`hl-wp${flash === file ? ' applied' : ''}`} key={`${keySuffix}-${file}`}>
-        <button type="button" className="hl-wp-pick" title="Show this today"
-          aria-label="Show this wallpaper today"
+        <button type="button" className="hl-wp-pick" title={t('Show this today')}
+          aria-label={t('Show this wallpaper today')}
           onClick={() => apply({ wallpaper: file }, file)}>
           <img src={wallpaperUrl(file)} alt="" loading="lazy" decoding="async" />
         </button>
@@ -156,16 +163,18 @@ export default function HomeLibrary({ date, onClose }: { date: string; onClose: 
     const mine = item.customId
     return (
       <div className={`hl-row${flash === item.text ? ' applied' : ''}`} key={`${keySuffix}-${item.text}`}>
-        <button type="button" className="hl-row-pick" title="Show this today"
+        <button type="button" className="hl-row-pick" title={t('Show this today')}
           onClick={() => apply(kind === 'mantras' ? { mantra: item.text } : { quote: item.text }, item.text)}>
           <span className="hl-row-text">{item.text}</span>
-          {author && <span className="hl-row-author">— {author}</span>}
-          {mine && <span className="hl-mine">yours</span>}
+          {author && (
+            <span className="hl-row-author">{lang() === 'zh' ? `——${author}` : `— ${author}`}</span>
+          )}
+          {mine && <span className="hl-mine">{t('yours')}</span>}
         </button>
         <FavHeart kind={kind} itemKey={item.text} label={kind === 'mantras' ? 'this mantra' : 'this quote'} />
         {mine && (
-          <button type="button" className="hl-del" title="Delete this — it is yours"
-            aria-label="Delete"
+          <button type="button" className="hl-del" title={t('Delete this — it is yours')}
+            aria-label={t('Delete')}
             onClick={() => dispatch(
               kind === 'mantras'
                 ? { type: 'deleteCustomMantra', id: mine }
@@ -183,34 +192,34 @@ export default function HomeLibrary({ date, onClose }: { date: string; onClose: 
   const byText = (text: string): HomeMantra | HomeQuote => pool.find((p) => p.text === text) ?? { text }
 
   const textList = (texts: string[], keySuffix: string) => (
-    <div className="hl-list">{texts.map((t) => textRow(byText(t), keySuffix))}</div>
+    <div className="hl-list">{texts.map((text) => textRow(byText(text), keySuffix))}</div>
   )
 
   return createPortal(
     <div className="scrim home-lib-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="home-lib" role="dialog" aria-modal="true" aria-label="Home library">
+      <div className="home-lib" role="dialog" aria-modal="true" aria-label={t('Home library')}>
         <header className="hl-top">
           <div className="hl-tabs" role="tablist">
-            {(['wallpapers', 'quotes', 'mantras'] as FavKind[]).map((t) => (
-              <button key={t} type="button" role="tab" aria-selected={tab === t}
-                className={`hl-tab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-                {t === 'wallpapers' ? 'Wallpapers' : t === 'quotes' ? 'Quotes' : 'Mantras'}
+            {(['wallpapers', 'quotes', 'mantras'] as FavKind[]).map((k) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k}
+                className={`hl-tab${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>
+                {k === 'wallpapers' ? t('Wallpapers') : k === 'quotes' ? t('Quotes') : t('Mantras')}
               </button>
             ))}
           </div>
-          <button type="button" className="hl-close" onClick={onClose} aria-label="Close">×</button>
+          <button type="button" className="hl-close" onClick={onClose} aria-label={t('Close')}>×</button>
         </header>
 
         <div className="hl-body">
-          <Section title="Favourites" count={favs.length}>
+          <Section title={t('Favourites')} count={favs.length}>
             {favs.length === 0
-              ? <Empty text="Nothing yet — tap a ♡ anywhere to keep it." />
+              ? <Empty text={t('Nothing yet — tap a ♡ anywhere to keep it.')} />
               : tab === 'wallpapers' ? wpGrid(favs, 'fav') : textList(favs, 'fav')}
           </Section>
 
-          <Section title="Recently shown">
+          <Section title={t('Recently shown')}>
             {history.length === 0
-              ? <Empty text="Nothing shown yet." />
+              ? <Empty text={t('Nothing shown yet.')} />
               : tab === 'wallpapers'
                 ? <div className="hl-wp-strip">{history.map((f) => wpCell(f, 'hist'))}</div>
                 : textList(history, 'hist')}
@@ -218,7 +227,7 @@ export default function HomeLibrary({ date, onClose }: { date: string; onClose: 
 
           {tab !== 'wallpapers' && <AddForm kind={tab} />}
 
-          <Section title="All" count={tab === 'wallpapers' ? WALLPAPERS.length : pool.length}>
+          <Section title={t('All')} count={tab === 'wallpapers' ? WALLPAPERS.length : pool.length}>
             {tab === 'wallpapers'
               ? wpGrid(WALLPAPERS.map((w) => w.file), 'all')
               : <div className="hl-list">{pool.map((p) => textRow(p, 'all'))}</div>}
@@ -251,7 +260,7 @@ function AddForm({ kind }: { kind: 'quotes' | 'mantras' }) {
   if (!open) {
     return (
       <button type="button" className="hl-add-open" onClick={() => setOpen(true)}>
-        + Add your own
+        {t('+ Add your own')}
       </button>
     )
   }
@@ -262,8 +271,8 @@ function AddForm({ kind }: { kind: 'quotes' | 'mantras' }) {
         type="text"
         autoFocus
         value={text}
-        placeholder={kind === 'quotes' ? 'The quotation' : 'Two to four words'}
-        aria-label={kind === 'quotes' ? 'Quotation' : 'Mantra'}
+        placeholder={kind === 'quotes' ? t('The quotation') : t('Two to four words')}
+        aria-label={kind === 'quotes' ? t('Quotation') : t('Mantra')}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
       />
@@ -271,14 +280,14 @@ function AddForm({ kind }: { kind: 'quotes' | 'mantras' }) {
         <input
           type="text"
           value={author}
-          placeholder="Author (optional)"
-          aria-label="Author"
+          placeholder={t('Author (optional)')}
+          aria-label={t('Author')}
           onChange={(e) => setAuthor(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
         />
       )}
-      <button type="submit" className="btn primary" disabled={!text.trim()}>Add</button>
-      <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
+      <button type="submit" className="btn primary" disabled={!text.trim()}>{t('Add')}</button>
+      <button type="button" className="btn" onClick={() => setOpen(false)}>{t('Cancel')}</button>
     </form>
   )
 }

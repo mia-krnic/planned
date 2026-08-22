@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
+import { t } from '../../i18n'
 import type { WeatherKind } from '../../types'
 
 /**
@@ -174,7 +175,7 @@ const MOUTH: Record<MoodLevel, string> = {
 export function MoodFace({ level, size = 14, className }: GlyphProps & { level: MoodLevel }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" className={className}
-      role="img" aria-label={MOOD_LABEL[level]}
+      role="img" aria-label={t(MOOD_LABEL[level])}
       fill="none" stroke="currentColor" strokeWidth={1.2} strokeLinecap="round">
       <circle className="mf-disc" cx="8" cy="8" r="6.3" />
       <circle cx="5.8" cy="6.3" r="0.85" fill="currentColor" stroke="none" />

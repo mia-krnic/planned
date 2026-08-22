@@ -5,6 +5,7 @@
  * tabs stay pixel-identical.
  */
 
+import { t } from '../../i18n'
 import { addDays, fromISO, MONTHS, toISO } from '../../utils/date'
 import type { IntervalKey } from './insightsData'
 
@@ -54,10 +55,10 @@ export function heatmapRangeFor(ival: IntervalKey): HeatmapRange {
 /** Prose for the card's ⓘ — what the grids are currently covering. */
 export function heatmapRangeNoun(range: HeatmapRange): string {
   switch (range) {
-    case '30': return 'the last 30 days'
-    case '100': return 'the last 100 days'
-    case 'year': return 'the last 365 days'
-    case 'all': return 'everything you have logged'
+    case '30': return t('the last 30 days')
+    case '100': return t('the last 100 days')
+    case 'year': return t('the last 365 days')
+    case 'all': return t('everything you have logged')
   }
 }
 
@@ -93,7 +94,7 @@ export function monthLabels(weeks: (string | null)[][]): (string | null)[] {
     lastMonth = m
     if (i - lastAt < 2) return null
     lastAt = i
-    return MONTHS[m].slice(0, 3)
+    return t(MONTHS[m].slice(0, 3))
   })
 }
 
@@ -104,7 +105,7 @@ export function monthChunks(days: string[]): { key: string; label: string; weeks
     const d = fromISO(iso)
     const key = iso.slice(0, 7)
     if (!out.length || out[out.length - 1].key !== key) {
-      out.push({ key, label: `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`, weeks: [] })
+      out.push({ key, label: `${t(MONTHS[d.getMonth()].slice(0, 3))} ${d.getFullYear()}`, weeks: [] })
     }
   }
   for (const m of out) m.weeks = weekColumns(days.filter((d) => d.startsWith(m.key)))

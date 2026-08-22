@@ -1,5 +1,11 @@
 import type { CalEvent, RecurException, RecurRule, RecurringTask } from '../types'
 import { fromISO, toISO, addDays, daysBetween } from './date'
+import { t } from '../i18n'
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fillTpl(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /**
  * Which occurrences of a repeating event an edit applies to. 'one' detaches the
@@ -196,16 +202,20 @@ export function splitsRecurring(rt: RecurringTask, occurrence: string, scope: Ed
 /** Human summary of a recurrence rule, e.g. "every other week · Mon, Wed". */
 export function describeRule(rt: RecurringTask): string {
   const rule = rt.rule
+  // Display only — `names` is this function's own array and nothing parses or
+  // compares what it returns, so it is translated here rather than at the
+  // single call site in ProjectTree.
   const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  if (!rule) return rt.freq === 'weekly' ? `weekly · ${names[rt.weekday]}` : rt.freq
-  const days = (rule.weekdays?.length ? rule.weekdays : [rt.weekday]).map((d) => names[d]).join(', ')
+  if (!rule) return rt.freq === 'weekly' ? `${t('weekly')} · ${t(names[rt.weekday])}` : t(rt.freq)
+  const days = (rule.weekdays?.length ? rule.weekdays : [rt.weekday]).map((d) => t(names[d])).join(', ')
   switch (rule.kind) {
-    case 'daily': return 'daily'
-    case 'weekdays': return 'weekdays'
-    case 'weekly': return `weekly · ${days}`
-    case 'biweekly': return `every other week · ${days}`
-    case 'monthly': return `monthly · day ${rule.day ?? fromISO(rt.startDate).getDate()}`
-    case 'timesPerDay': return `${recurringTimes(rt)}× a day`
+    case 'daily': return t('daily')
+    case 'weekdays': return t('weekdays')
+    case 'weekly': return `${t('weekly')} · ${days}`
+    case 'biweekly': return `${t('every other week')} · ${days}`
+    // "day 15" inverts in Chinese ("15日"), so the whole tail is one template.
+    case 'monthly': return `${t('monthly')} · ${fillTpl(t('day {n}'), { n: rule.day ?? fromISO(rt.startDate).getDate() })}`
+    case 'timesPerDay': return `${recurringTimes(rt)}${t('× a day')}`
   }
 }
 

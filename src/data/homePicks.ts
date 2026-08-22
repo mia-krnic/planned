@@ -12,8 +12,10 @@
  * A pick the user applied from the library (state.homeOverrides) wins over the
  * draw, per slot, so choosing a wallpaper for today leaves today's words alone.
  */
-import { MANTRAS, QUOTES } from './quotes'
+import { MANTRAS, QUOTES, type Quote } from './quotes'
+import { MANTRAS_ZH, QUOTES_ZH } from './quotesZh'
 import { WALLPAPERS, type Wallpaper } from './wallpapers'
+import { lang } from '../i18n'
 import type { AppState, ID } from '../types'
 
 /** FNV-1a over the string, then an xorshift-multiply finaliser. */
@@ -38,6 +40,24 @@ export function pickIndex(seed: string, len: number): number {
   return len > 0 ? hashStr(seed) % len : 0
 }
 
+/**
+ * The built-in pools for the language the app is in. The Chinese lists are
+ * separate works, not translations (see quotesZh), so switching language
+ * switches the day's words as well as the page's labels — and switching back
+ * restores them, because the draw below is still a pure function of the date
+ * and nothing about the pick is stored.
+ *
+ * Read at call time, never hoisted into a module const: `lang()` is only
+ * correct during render.
+ */
+function builtinMantras(): string[] {
+  return lang() === 'zh' ? MANTRAS_ZH : MANTRAS
+}
+
+function builtinQuotes(): Quote[] {
+  return lang() === 'zh' ? QUOTES_ZH : QUOTES
+}
+
 /** A mantra from either pool. `customId` marks one the user wrote (deletable). */
 export interface HomeMantra {
   text: string
@@ -53,14 +73,14 @@ export interface HomeQuote {
 
 export function mantraPool(state: AppState): HomeMantra[] {
   return [
-    ...MANTRAS.map((text) => ({ text })),
+    ...builtinMantras().map((text) => ({ text })),
     ...(state.customMantras ?? []).map((m) => ({ text: m.text, customId: m.id })),
   ]
 }
 
 export function quotePool(state: AppState): HomeQuote[] {
   return [
-    ...QUOTES.map((q) => ({ text: q.text, author: q.author })),
+    ...builtinQuotes().map((q) => ({ text: q.text, author: q.author })),
     ...(state.customQuotes ?? []).map((q) => ({ text: q.text, author: q.author, customId: q.id })),
   ]
 }
@@ -91,11 +111,19 @@ export function homePicks(state: AppState, iso: string): HomePicks {
   // everyone on the same version — half the charm of a daily pick is knowing
   // someone else is looking at it too. Custom entries live in the library, to
   // favourite or apply as an override by hand.
+  //
+  // The seed strings stay the same in either language: the index is drawn from
+  // the date alone and only then taken modulo the active pool's length, so
+  // everyone reading the app in Chinese shares today's line just as everyone
+  // reading it in English shares theirs.
+  const mantraPicks = builtinMantras()
+  const quotePicks = builtinQuotes()
+
   const mantra = ov?.mantra
     ? mantras.find((m) => m.text === ov.mantra) ?? { text: ov.mantra }
-    : { text: MANTRAS[pickIndex(`${iso}mantra`, MANTRAS.length)] }
+    : { text: mantraPicks[pickIndex(`${iso}mantra`, mantraPicks.length)] }
 
-  const drawn = QUOTES[pickIndex(`${iso}quote`, QUOTES.length)]
+  const drawn = quotePicks[pickIndex(`${iso}quote`, quotePicks.length)]
   const quote = ov?.quote
     ? quotes.find((q) => q.text === ov.quote) ?? { text: ov.quote }
     : { text: drawn.text, author: drawn.author }

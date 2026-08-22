@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import InfoIcon from '../InfoIcon'
 import { todayISO } from '../../utils/date'
 import { PencilGlyph } from '../daylog/glyphs'
 import { LEVELS, heatmapRangeNoun, monthLabels, weekColumns, type HeatmapRange } from './heatmapGrid'
-import { intervalMeta, type IntervalKey } from './insightsData'
+// `fill` is already the name of this file's cell-shading helper below.
+import { fill as fillTpl, intervalMeta, type IntervalKey } from './insightsData'
 import { dayLabel, journalSpan, journalStats } from './journalData'
 
 /**
@@ -35,17 +37,15 @@ export default function JournallingCard({ ival, range }: { ival: IntervalKey; ra
   const stats = useMemo(() => journalStats(state, days), [state, days])
 
   const note =
-    `One cell per day over ${heatmapRangeNoun(range)} — the span follows the interval at the top of ` +
-    `the page ("${intervalMeta(ival).label}"). The shade is how LONG that day's entry is in ` +
-    'characters, not just whether you wrote one, so a run of one-liners still reads differently ' +
-    'from a run of long entries. A day with other log data but no written entry takes the faintest ' +
-    'shade; a day with nothing logged at all stays empty.'
+    fillTpl(t('One cell per day over {span} — the span follows the interval at the top of the page ("{ival}").'),
+      { span: heatmapRangeNoun(range), ival: t(intervalMeta(ival).label) }) + ' ' +
+    t("The shade is how LONG that day's entry is in characters, not just whether you wrote one, so a run of one-liners still reads differently from a run of long entries. A day with other log data but no written entry takes the faintest shade; a day with nothing logged at all stays empty.")
 
   const tooltip = (iso: string) => {
     const n = stats.chars.get(iso)
-    if (n) return `${dayLabel(iso)} — ${n} ${n === 1 ? 'character' : 'characters'}`
-    if (stats.loggedDays.has(iso)) return `${dayLabel(iso)} — logged, no journal entry`
-    return `${dayLabel(iso)} — nothing logged`
+    if (n) return `${dayLabel(iso)} — ${n} ${t(n === 1 ? 'character' : 'characters')}`
+    if (stats.loggedDays.has(iso)) return `${dayLabel(iso)} — ${t('logged, no journal entry')}`
+    return `${dayLabel(iso)} — ${t('nothing logged')}`
   }
 
   const cell = (iso: string | null, key: string) => {
@@ -70,28 +70,28 @@ export default function JournallingCard({ ival, range }: { ival: IntervalKey; ra
   return (
     <section className="ins2-card">
       <div className="ins2-card-head">
-        <h2 className="ins2-h2">Journalling</h2>
+        <h2 className="ins2-h2">{t('Journalling')}</h2>
         <InfoIcon text={note} />
       </div>
 
       <div className="ins2-hm">
         <div className="ak-stats">
           <div className="ak-stat">
-            <b>{stats.journalled}<span className="ins2-of"> of {days.length}</span></b>
-            <span>days journalled</span>
+            <b>{stats.journalled}<span className="ins2-of"> {t('of')} {days.length}</span></b>
+            <span>{t('days journalled')}</span>
           </div>
           <div className="ak-stat">
-            <b>{stats.journalled ? Math.round(stats.avgChars) : '—'}</b><span>avg characters</span>
+            <b>{stats.journalled ? Math.round(stats.avgChars) : '—'}</b><span>{t('avg characters')}</span>
           </div>
           <div className="ak-stat">
-            <b>{stats.maxChars || '—'}</b><span>longest entry</span>
+            <b>{stats.maxChars || '—'}</b><span>{t('longest entry')}</span>
           </div>
         </div>
 
         <div className="ak-scroll">
           <div className="ak-strip">
             <div className="ak-dows">
-              <span />{['Mon', 'Wed', 'Fri'].map((d) => <span key={d}>{d}</span>)}
+              <span />{['Mon', 'Wed', 'Fri'].map((d) => <span key={d}>{t(d)}</span>)}
             </div>
             <div className="ak-cols">
               <div className="ak-months" style={{ gridTemplateColumns: `repeat(${weeks.length}, 13px)` }}>
@@ -107,24 +107,24 @@ export default function JournallingCard({ ival, range }: { ival: IntervalKey; ra
         <div className="ak-legend">
           <span className="ins2-jr-key">
             <span className="ak-cell tiny" style={{ background: fill(LEVELS[0]) }} />
-            logged, no entry
+            {t('logged, no entry')}
           </span>
           <span className="ak-scale">
-            shorter
+            {t('shorter')}
             {LEVELS.slice(1).map((a, i) => (
               <span key={i} className="ak-cell tiny" style={{ background: fill(a) }} />
             ))}
-            longer
+            {t('longer')}
           </span>
         </div>
 
         <div className="ak-hint">
-          <PencilGlyph size={11} /> Entries are written in the daily log at the bottom of each day.
+          <PencilGlyph size={11} /> {t('Entries are written in the daily log at the bottom of each day.')}
         </div>
 
         {stats.journalled === 0 && (
           <div className="ins2-empty">
-            Nothing written in this range yet — the grid fills in as you journal.
+            {t('Nothing written in this range yet — the grid fills in as you journal.')}
           </div>
         )}
       </div>

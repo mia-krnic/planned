@@ -13,11 +13,13 @@
  * about the same stretch of time.
  */
 
+import { t } from '../../i18n'
 import type { AppState, WeatherKind } from '../../types'
 import { MONTHS, WEEKDAYS, addDays, fromISO, toISO, todayISO } from '../../utils/date'
 import type { MoodLevel } from '../daylog/glyphs'
 import { WEATHER_KINDS } from '../daylog/glyphs'
 import { daysBetween, heatmapRangeDays, type HeatmapRange } from './heatmapGrid'
+import { fill } from './insightsData'
 
 /** The mood scale's own colours, rough day → great day. */
 export const MOOD_COLOR: Record<MoodLevel, string> = {
@@ -61,7 +63,11 @@ export function journalSpan(state: AppState, range: HeatmapRange, today = todayI
 /** "Wed 12 Aug" — the tooltip prefix every card shares. */
 export function dayLabel(iso: string): string {
   const d = fromISO(iso)
-  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`
+  return fill(t('{dow} {day} {mon}'), {
+    dow: t(WEEKDAYS[d.getDay()]),
+    day: d.getDate(),
+    mon: t(MONTHS[d.getMonth()].slice(0, 3)),
+  })
 }
 
 /**

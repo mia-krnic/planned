@@ -1,5 +1,7 @@
 /** Date helpers. All dates are local; ISO date strings are 'YYYY-MM-DD'. */
 
+import { t } from '../i18n'
+
 export function toISO(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -79,17 +81,21 @@ export const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
+/* fmtDayHeader and fmtFriendly are display-only — nothing compares their
+   output — so they translate in place rather than at each of their many call
+   sites. WEEKDAYS itself stays English: it is the source array, and quickAdd
+   keeps its own private copy for parsing. */
 export function fmtDayHeader(d: Date): { dow: string; date: string } {
-  return { dow: WEEKDAYS[d.getDay()], date: `${d.getMonth() + 1}/${d.getDate()}` }
+  return { dow: t(WEEKDAYS[d.getDay()]), date: `${d.getMonth() + 1}/${d.getDate()}` }
 }
 
 export function fmtFriendly(iso: string): string {
   const d = fromISO(iso)
   const today = new Date()
-  if (isSameDay(d, today)) return 'Today'
-  if (isSameDay(d, addDays(today, 1))) return 'Tomorrow'
-  if (isSameDay(d, addDays(today, -1))) return 'Yesterday'
-  return `${WEEKDAYS[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()}`
+  if (isSameDay(d, today)) return t('Today')
+  if (isSameDay(d, addDays(today, 1))) return t('Tomorrow')
+  if (isSameDay(d, addDays(today, -1))) return t('Yesterday')
+  return `${t(WEEKDAYS[d.getDay()])} ${d.getMonth() + 1}/${d.getDate()}`
 }
 
 /** 6 rows x 7 cols of dates covering the month of `anchor`. */

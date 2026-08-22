@@ -6,6 +6,7 @@ import AmbientWallpaper from '../AmbientWallpaper'
 import { useStore } from '../../store'
 import type { DayLog } from '../../types'
 import { earliestUserDate, fmtSleep, fmtWeight } from '../../utils/daylog'
+import { t } from '../../i18n'
 import { addDays, fromISO, MONTHS, toISO, todayISO, WEEKDAYS } from '../../utils/date'
 import { DayLogBlock, JournalBox } from '../daylog/DayLogControls'
 import { MOOD_LABEL, MOOD_LEVELS, MoodFace, PencilGlyph } from '../daylog/glyphs'
@@ -23,6 +24,11 @@ import { MOOD_LABEL, MOOD_LEVELS, MoodFace, PencilGlyph } from '../daylog/glyphs
  */
 
 const monthKey = (iso: string) => iso.slice(0, 7)
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /** Every 'YYYY-MM' from `from` up to `to`, inclusive, newest first. */
 function monthsDescending(from: string, to: string): string[] {
@@ -179,9 +185,14 @@ export default function JournalPage() {
         <AmbientWallpaper variant="sides" />
         <header className="jp-head">
           <div className="jp-title">
-            <h1><PencilGlyph size={18} /> Journal</h1>
+            <h1><PencilGlyph size={18} /> {t('Journal')}</h1>
             <span className="jp-sub">
-              {totalEntries} day{totalEntries === 1 ? '' : 's'} logged · {totalWritten} written up
+              {fill(
+                t(totalEntries === 1
+                  ? '{n} day logged · {w} written up'
+                  : '{n} days logged · {w} written up'),
+                { n: totalEntries, w: totalWritten },
+              )}
             </span>
           </div>
           <div className="jp-tools">
@@ -190,21 +201,23 @@ export default function JournalPage() {
               <input
                 type="search"
                 value={query}
-                placeholder="Search meals and entries"
-                aria-label="Search the journal"
+                placeholder={t('Search meals and entries')}
+                aria-label={t('Search the journal')}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Escape') setQuery('') }}
               />
             </div>
-            <button type="button" className="btn" onClick={jumpToToday}>Today</button>
+            <button type="button" className="btn" onClick={jumpToToday}>{t('Today')}</button>
           </div>
         </header>
 
         {/* This month at a glance: how the days felt. */}
         <div className="jp-moodstrip">
-          <span className="jp-moodstrip-label">{MONTHS[Number(thisMonth.slice(5, 7)) - 1]} moods</span>
+          <span className="jp-moodstrip-label">
+            {fill(t('{month} moods'), { month: t(MONTHS[Number(thisMonth.slice(5, 7)) - 1]) })}
+          </span>
           {MOOD_LEVELS.map((m) => (
-            <span key={m} className={`jp-moodcount ${moodCounts[m] ? 'has' : ''}`} title={MOOD_LABEL[m]}>
+            <span key={m} className={`jp-moodcount ${moodCounts[m] ? 'has' : ''}`} title={t(MOOD_LABEL[m])}>
               <MoodFace level={m} size={15} />
               <b>{moodCounts[m]}</b>
             </span>
@@ -213,21 +226,22 @@ export default function JournalPage() {
 
         {totalEntries === 0 && !searching && (
           <div className="jp-empty">
-            <p><b>Nothing written down yet.</b></p>
+            <p><b>{t('Nothing written down yet.')}</b></p>
             <p>
-              Every day in the week and day calendar views carries a small log at the foot of its
-              header: tap the weather, jot what you ate, pick a face for how it went. Scroll past
-              the last hour of a day for its journal box.
+              {t('Every day in the week and day calendar views carries a small log at the foot of its header: tap the weather, jot what you ate, pick a face for how it went. Scroll past the last hour of a day for its journal box.')}
             </p>
-            <p>It all lands here, newest first — the rows below are editable too.</p>
+            <p>{t('It all lands here, newest first — the rows below are editable too.')}</p>
           </div>
         )}
 
         {searching && (
           <div className="jp-searchnote">
             {hits === 0
-              ? <>No entries match “{query.trim()}”.</>
-              : <>{hits} day{hits === 1 ? '' : 's'} match “{query.trim()}”.</>}
+              ? fill(t('No entries match “{q}”.'), { q: query.trim() })
+              : fill(
+                t(hits === 1 ? '{n} day match “{q}”.' : '{n} days match “{q}”.'),
+                { n: hits, q: query.trim() },
+              )}
           </div>
         )}
 
@@ -247,14 +261,15 @@ export default function JournalPage() {
                 <span className="jp-year-name">{year}</span>
                 <span className="jp-year-count">
                   {searching
-                    ? <>{yearRows} day{yearRows === 1 ? '' : 's'}</>
-                    : <>{yearLogged} logged</>}
+                    ? <>{yearRows} {t(yearRows === 1 ? 'day' : 'days')}</>
+                    : fill(t('{n} logged'), { n: yearLogged })}
                 </span>
               </button>
 
               {yearOpen && months.map((m) => {
                 const rows = rowsOf(m)
-                const name = MONTHS[Number(m.slice(5, 7)) - 1]
+                // Display only — the month group is keyed by `m`, the 'YYYY-MM'.
+                const name = t(MONTHS[Number(m.slice(5, 7)) - 1])
                 if (searching && rows.length === 0) return null
                 // A month with nothing in it is a slim marker, not a control.
                 if (rows.length === 0) {
@@ -431,11 +446,11 @@ function SleepColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: n
   return (
     <div className="jp-sleepcol" style={{ height: h }}>
       <svg ref={svgRef} className="jp-sleepsvg" width={COL_W} height={h}
-        viewBox={`0 0 ${COL_W} ${h}`} role="img" aria-label="Hours slept">
+        viewBox={`0 0 ${COL_W} ${h}`} role="img" aria-label={t('Hours slept')}>
         {/* A quiet eight-hour mark to read the dots against. */}
         <line className="jp-sleep-grid" x1={xOf(8 * 60)} y1={14} x2={xOf(8 * 60)} y2={h} />
-        <text className="jp-col-label" x={COL_PAD} y={9}>☾ sleep</text>
-        <text className="jp-col-mark" x={xOf(8 * 60)} y={22} textAnchor="middle">8h</text>
+        <text className="jp-col-label" x={COL_PAD} y={9}>{t('☾ sleep')}</text>
+        <text className="jp-col-mark" x={xOf(8 * 60)} y={22} textAnchor="middle">{t('8h')}</text>
         {runs.map((pts, i) => (
           <polyline key={i} className="jp-sleep-line" points={pts.join(' ')} />
         ))}
@@ -456,7 +471,7 @@ function SleepColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: n
               <rect className="jp-sleep-hit" x={0} y={bands[i].top} width={COL_W} height={bands[i].h}
                 onPointerDown={down(i)} onPointerMove={move(i)}
                 onPointerUp={up(i)} onPointerCancel={up(i)}>
-                <title>{`${iso} · ${m > 0 ? `${fmtSleep(m)} slept` : 'no sleep logged'} — drag to set`}</title>
+                <title>{`${iso} · ${m > 0 ? `${fmtSleep(m)} ${t('slept')}` : t('no sleep logged')} ${t('— drag to set')}`}</title>
               </rect>
             </g>
           )
@@ -537,8 +552,8 @@ function WeightColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: 
   return (
     <div className="jp-sleepcol jp-weightcol" style={{ height: h }}>
       <svg ref={svgRef} className="jp-sleepsvg" width={WEIGHT_COL_W} height={h}
-        viewBox={`0 0 ${WEIGHT_COL_W} ${h}`} role="img" aria-label="Morning weight">
-        <text className="jp-col-label" x={COL_PAD} y={9}>⚖ kg</text>
+        viewBox={`0 0 ${WEIGHT_COL_W} ${h}`} role="img" aria-label={t('Morning weight')}>
+        <text className="jp-col-label" x={COL_PAD} y={9}>{t('⚖ kg')}</text>
         {Number.isFinite(mn) && (
           <>
             {/* The month's own span, so the drift has numbers to hang off. */}
@@ -562,13 +577,13 @@ function WeightColumn({ dates, bands, h }: { dates: string[]; bands: Band[]; h: 
               )}
               {dragging && (
                 <text className="jp-sleep-label" x={WEIGHT_COL_W / 2} y={cyOf(i) - 8} textAnchor="middle">
-                  {fmtWeight(v)} kg
+                  {fmtWeight(v)} {t('kg')}
                 </text>
               )}
               <rect className="jp-sleep-hit" x={0} y={bands[i].top} width={WEIGHT_COL_W} height={bands[i].h}
                 onPointerDown={down(i)} onPointerMove={move(i)}
                 onPointerUp={up(i)} onPointerCancel={up(i)}>
-                <title>{`${iso} · ${v > 0 ? `${fmtWeight(v)} kg` : 'no weigh-in'} — drag to set`}</title>
+                <title>{`${iso} · ${v > 0 ? `${fmtWeight(v)} ${t('kg')}` : t('no weigh-in')} ${t('— drag to set')}`}</title>
               </rect>
             </g>
           )
@@ -593,9 +608,11 @@ function DayRow({ iso, today, q, rowRef }: {
   return (
     <div ref={rowRef} className={`jp-row ${isToday ? 'is-today' : ''}`}>
       <div className="jp-date">
-        <span className="jp-dow">{WEEKDAYS[d.getDay()]}</span>
-        <span className="jp-dnum">{d.getDate()} {MONTHS[d.getMonth()].slice(0, 3)}</span>
-        {isToday && <span className="jp-today-pill">today</span>}
+        <span className="jp-dow">{t(WEEKDAYS[d.getDay()])}</span>
+        <span className="jp-dnum">
+          {fill(t('{day} {month}'), { day: d.getDate(), month: t(MONTHS[d.getMonth()].slice(0, 3)) })}
+        </span>
+        {isToday && <span className="jp-today-pill">{t('today')}</span>}
       </div>
       <div className="jp-mid">
         <DayLogBlock date={iso} variant="journal" />
@@ -606,7 +623,7 @@ function DayRow({ iso, today, q, rowRef }: {
           <div className="jp-matches">
             {matches.map((mt, i) => (
               <div key={i} className="jp-match">
-                <span className="jp-match-label">{mt.label}</span>
+                <span className="jp-match-label">{t(mt.label)}</span>
                 <span className="jp-match-text"><Highlight text={mt.text} q={q} /></span>
               </div>
             ))}

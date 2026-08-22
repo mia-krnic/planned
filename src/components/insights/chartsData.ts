@@ -7,6 +7,7 @@
  * of an already-built IntervalData), so no number can drift from its source.
  */
 
+import { t } from '../../i18n'
 import type { AppState, ID } from '../../types'
 import { MONTHS, WEEKDAYS, addDays, fromISO, startOfWeek, toISO, todayISO } from '../../utils/date'
 import { sessionPieces, type IntervalData, type IntervalKey, type StudyPiece } from './insightsData'
@@ -91,7 +92,7 @@ export interface StackBucket {
 
 /** Weekday abbreviation for an ISO day. */
 function dowOf(iso: string): string {
-  return WEEKDAYS[fromISO(iso).getDay()]
+  return t(WEEKDAYS[fromISO(iso).getDay()])
 }
 
 /** "8/17" for an ISO day. */
@@ -145,7 +146,7 @@ export function buildClassStacks(data: IntervalData, ival: IntervalKey): StackBu
     // always carries a label whatever the interval's length happens to be.
     if (monthly) {
       if (ival === 'year' || (n - 1 - i) % monthStep === 0) {
-        label = MONTHS[Number(k.slice(5, 7)) - 1].slice(0, 3)
+        label = t(MONTHS[Number(k.slice(5, 7)) - 1].slice(0, 3))
       }
     } else if (ival === 'week') label = dowOf(k)
     // Past month: label every fifth bar.

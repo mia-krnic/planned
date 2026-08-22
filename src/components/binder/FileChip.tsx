@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fileUrl } from '../../api/files'
+import { t } from '../../i18n'
 import type { BinderFile } from '../../types'
 
 function iconFor(type: string): string {
@@ -53,11 +54,11 @@ export default function FileChip({ file }: { file: BinderFile }) {
   }
 
   return (
-    <button className="file-chip" onClick={open} title={`Open ${file.name}`}>
+    <button className="file-chip" onClick={open} title={`${t('Open')} ${file.name}`}>
       <span className="file-icon">{iconFor(file.type)}</span>
       <span className="file-name">{file.name}</span>
       <span className="file-size">{fmtSize(file.size)}</span>
-      <span className="file-dl" title="Download" onClick={download}>⬇</span>
+      <span className="file-dl" title={t('Download')} onClick={download}>⬇</span>
     </button>
   )
 }

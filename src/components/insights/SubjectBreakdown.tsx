@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { t } from '../../i18n'
 import type { AppState } from '../../types'
 import InfoIcon from '../InfoIcon'
 import ClassDayBars from './ClassDayBars'
 import ClassDonut from './ClassDonut'
 import ClassPie, { type PieSlice } from './ClassPie'
 import {
-  classColorOf, classLabelOf, fmtMins, intervalIn, pct,
+  classColorOf, classLabelOf, fill, fmtMins, intervalIn, pct,
   type IntervalData, type IntervalKey, type Unit,
 } from './insightsData'
 
@@ -44,12 +45,12 @@ export default function SubjectBreakdown({ state, data, ival, unit }: {
   return (
     <section className="ins2-card">
       <div className="ins2-card-head">
-        <h2 className="ins2-h2">Subject &amp; Task Breakdown</h2>
-        <div className="ins2-tabs" role="tablist" aria-label="Chart style">
+        <h2 className="ins2-h2">{t('Subject & Task Breakdown')}</h2>
+        <div className="ins2-tabs" role="tablist" aria-label={t('Chart style')}>
           {CHARTS.map((c) => (
             <button key={c.key} type="button" role="tab" aria-selected={chart === c.key}
               className={chart === c.key ? 'active' : ''} onClick={() => setChart(c.key)}>
-              {c.label}
+              {t(c.label)}
             </button>
           ))}
         </div>
@@ -64,10 +65,10 @@ export default function SubjectBreakdown({ state, data, ival, unit }: {
       {slices.length > 0 && (
         <div className="ins2-rows">
           <div className="ins2-row ins2-row-head">
-            <span className="ins2-row-name">Class</span>
-            <span className="ins2-row-num">Total</span>
-            <span className="ins2-row-num">Daily avg</span>
-            <span className="ins2-row-num">Share</span>
+            <span className="ins2-row-name">{t('Class')}</span>
+            <span className="ins2-row-num">{t('Total')}</span>
+            <span className="ins2-row-num">{t('Daily avg')}</span>
+            <span className="ins2-row-num">{t('Share')}</span>
           </div>
           {slices.map((s) => (
             <div key={String(s.id)} className="ins2-row">
@@ -88,14 +89,14 @@ export default function SubjectBreakdown({ state, data, ival, unit }: {
       <div className="ins2-tiles ins2-tiles-one">
         <div className="ins2-tile">
           <div className="ins2-tile-label">
-            To-do completion rate
-            <InfoIcon text={`Tasks scheduled on a day ${intervalIn(ival)} — how many of them are ticked off. Tasks with no date, and tasks scheduled outside the interval, are not counted.`} />
+            {t('To-do completion rate')}
+            <InfoIcon text={fill(t('Tasks scheduled on a day {span} — how many of them are ticked off. Tasks with no date, and tasks scheduled outside the interval, are not counted.'), { span: intervalIn(ival) })} />
           </div>
           <div className={`ins2-tile-value ${todo ? '' : 'na'}`}>
-            {todo ? `${data.tasksDone} / ${todo} (${pct(data.tasksDone, todo)}%)` : 'n/a'}
+            {todo ? `${data.tasksDone} / ${todo} (${pct(data.tasksDone, todo)}%)` : t('n/a')}
           </div>
           <div className="ins2-tile-sub">
-            {todo ? 'planned tasks checked off' : 'no tasks planned in this interval'}
+            {todo ? t('planned tasks checked off') : t('no tasks planned in this interval')}
           </div>
         </div>
       </div>

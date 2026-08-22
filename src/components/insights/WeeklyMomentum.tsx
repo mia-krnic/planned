@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
+import { t } from '../../i18n'
 import type { AppState } from '../../types'
 import { fmtTime } from '../../utils/date'
 import InfoIcon from '../InfoIcon'
 import QuarterWeeks from './QuarterWeeks'
 import {
-  buildWeekMomentum, fmtDelta, fmtMins,
+  buildWeekMomentum, fill, fmtDelta, fmtMins,
   type Unit, type WeekMomentum,
 } from './insightsData'
 
@@ -31,37 +32,36 @@ export default function WeeklyMomentum({ state, unit, nowMin }: {
   return (
     <section className="ins2-card">
       <div className="ins2-wm-head">
-        <h2 className="ins2-h2">Weekly momentum</h2>
+        <h2 className="ins2-h2">{t('Weekly momentum')}</h2>
         <span className="ins2-wm-range">
           {m.rangeLabel}
-          <InfoIcon text={WEEK_NOTE} />
+          <InfoIcon text={t(WEEK_NOTE)} />
         </span>
       </div>
 
       {empty ? (
         <div className="ins2-empty">
-          Nothing logged this calendar week or the one before it — start a session in the study
-          timer and this week's progress will show up here.
+          {t("Nothing logged this calendar week or the one before it — start a session in the study timer and this week's progress will show up here.")}
         </div>
       ) : (
         <>
           <div className="ins2-tiles ins2-tiles-two ins2-wm-tiles">
             <div className="ins2-tile">
               <div className="ins2-tile-label">
-                Total time
-                <InfoIcon text="Time studied so far this calendar week, breaks excluded. Time not assigned to a class still counts." />
+                {t('Total time')}
+                <InfoIcon text={t('Time studied so far this calendar week, breaks excluded. Time not assigned to a class still counts.')} />
               </div>
               <div className="ins2-tile-value">{fmtMins(m.totalMin, unit)}</div>
-              <div className="ins2-tile-sub">so far this week</div>
+              <div className="ins2-tile-sub">{t('so far this week')}</div>
             </div>
             <div className="ins2-tile">
               <div className="ins2-tile-label">
-                Daily average
-                <InfoIcon text={`This week's total divided by the ${m.daysElapsed} ${m.daysElapsed === 1 ? 'day' : 'days'} elapsed so far — today included, the days still to come are not.`} />
+                {t('Daily average')}
+                <InfoIcon text={fill(t("This week's total divided by the {n} {days} elapsed so far — today included, the days still to come are not."), { n: m.daysElapsed, days: t(m.daysElapsed === 1 ? 'day' : 'days') })} />
               </div>
               <div className="ins2-tile-value">{fmtMins(m.dailyAvgMin, unit)}</div>
               <div className="ins2-tile-sub">
-                over {m.daysElapsed} {m.daysElapsed === 1 ? 'day' : 'days'} so far
+                {fill(t('over {n} {days} so far'), { n: m.daysElapsed, days: t(m.daysElapsed === 1 ? 'day' : 'days') })}
               </div>
             </div>
           </div>
@@ -115,20 +115,20 @@ function CumulativeCompare({ m, unit }: { m: WeekMomentum; unit: Unit }) {
   return (
     <>
       <div className="ins2-sub-head">
-        <h3>Cumulative vs last week</h3>
-        <InfoIcon text={CUM_NOTE} />
+        <h3>{t('Cumulative vs last week')}</h3>
+        <InfoIcon text={t(CUM_NOTE)} />
       </div>
 
       <div className="ins2-wm-delta">
-        <span className="ins2-wm-delta-label">As of {m.todayName}</span>
+        <span className="ins2-wm-delta-label">{fill(t('As of {day}'), { day: t(m.todayName) })}</span>
         <span className="ins2-wm-delta-row">
           <span className={`ins2-wm-delta-value ${up ? 'up' : 'down'}`}>{fmtDelta(m.deltaMin, unit)}</span>
-          <span className="ins2-wm-delta-note">vs last week</span>
+          <span className="ins2-wm-delta-note">{t('vs last week')}</span>
         </span>
       </div>
 
       <svg className="ins2-line" viewBox={`0 0 ${C_W} ${C_H}`} role="img"
-        aria-label="Cumulative study time this calendar week compared with last week">
+        aria-label={t('Cumulative study time this calendar week compared with last week')}>
         {[0, 0.5, 1].map((f) => {
           const gy = C_T + C_IH - f * C_IH
           return (
@@ -155,8 +155,8 @@ function CumulativeCompare({ m, unit }: { m: WeekMomentum; unit: Unit }) {
       </svg>
 
       <div className="ins2-wm-legend">
-        <span className="ins2-wm-key"><i className="k-this" />This week</span>
-        <span className="ins2-wm-key"><i className="k-prev" />Last week</span>
+        <span className="ins2-wm-key"><i className="k-this" />{t('This week')}</span>
+        <span className="ins2-wm-key"><i className="k-prev" />{t('Last week')}</span>
       </div>
     </>
   )
@@ -232,12 +232,12 @@ function DailyBars({ m, unit }: { m: WeekMomentum; unit: Unit }) {
   return (
     <>
       <div className="ins2-sub-head">
-        <h3>Daily total, start &amp; finish</h3>
-        <InfoIcon text={BARS_NOTE} />
+        <h3>{t('Daily total, start & finish')}</h3>
+        <InfoIcon text={t(BARS_NOTE)} />
       </div>
 
       <svg className="ins2-line" viewBox={`0 0 ${B_W} ${B_H}`} role="img"
-        aria-label="Study minutes per day this calendar week, with each day's first start and last finish time">
+        aria-label={t("Study minutes per day this calendar week, with each day's first start and last finish time")}>
         {[0, 0.5, 1].map((f) => {
           const gy = B_T + B_IH - f * B_IH
           return (
@@ -295,12 +295,12 @@ function DailyBars({ m, unit }: { m: WeekMomentum; unit: Unit }) {
       </svg>
 
       <div className="ins2-wm-legend">
-        <span className="ins2-wm-key"><i className="k-start" />Start time</span>
-        <span className="ins2-wm-key"><i className="k-end" />Finish time</span>
-        <span className="ins2-wm-key"><i className="k-bar" />Studied</span>
+        <span className="ins2-wm-key"><i className="k-start" />{t('Start time')}</span>
+        <span className="ins2-wm-key"><i className="k-end" />{t('Finish time')}</span>
+        <span className="ins2-wm-key"><i className="k-bar" />{t('Studied')}</span>
       </div>
       {!anyTimes && (
-        <div className="ins2-empty">No sessions logged yet this calendar week, so there are no start or finish times to plot.</div>
+        <div className="ins2-empty">{t('No sessions logged yet this calendar week, so there are no start or finish times to plot.')}</div>
       )}
     </>
   )

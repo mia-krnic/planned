@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Drawer, Page, View } from '../App'
 import { useUI } from '../App'
 import { useStore } from '../store'
+import { t } from '../i18n'
 import type { AppState } from '../types'
 import { addDays, fromISO, MONTHS, startOfWeek, toISO, todayISO } from '../utils/date'
 import { useClampedPos } from '../utils/popover'
@@ -89,7 +90,7 @@ function AddMenu({ anchor }: { anchor: string }) {
 
   return (
     <div className="tb-group tb-add-mob">
-      <button ref={btnRef} className="tb-add tb-add-plus" aria-label="Add" aria-expanded={open}
+      <button ref={btnRef} className="tb-add tb-add-plus" aria-label={t('Add')} aria-expanded={open}
         onClick={() => {
           const r = btnRef.current?.getBoundingClientRect()
           // Right-aligned under the button; useClampedPos pulls it back on if
@@ -101,9 +102,9 @@ function AddMenu({ anchor }: { anchor: string }) {
       </button>
       {open && createPortal(
         <div className="add-menu" ref={popRef} style={{ left: pos.x, top: pos.y }} role="menu">
-          <button type="button" onClick={pick(() => ui.openEvent({ date: anchor }))}>Event</button>
-          <button type="button" onClick={pick(() => ui.openTask({ date: todayISO() }))}>Task</button>
-          <button type="button" onClick={pick(() => ui.openLogStudy({ date: anchor }))}>Log study</button>
+          <button type="button" onClick={pick(() => ui.openEvent({ date: anchor }))}>{t('Event')}</button>
+          <button type="button" onClick={pick(() => ui.openTask({ date: todayISO() }))}>{t('Task')}</button>
+          <button type="button" onClick={pick(() => ui.openLogStudy({ date: anchor }))}>{t('Log study')}</button>
         </div>,
         document.body,
       )}
@@ -114,18 +115,34 @@ function AddMenu({ anchor }: { anchor: string }) {
 /** Kept in step with `.add-menu { width }` in the mobile CSS block. */
 const ADD_MENU_W = 176
 
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
+
+/* Date ranges are the one place piecewise translation breaks down: Chinese
+   puts the year first and hangs 年/月/日 off the numbers, so each shape is a
+   whole-template entry. In English `t` returns the key unchanged and `fill`
+   rebuilds exactly the string that used to be written inline. */
 function rangeLabel(view: View, anchor: string, weekStart: AppState['weekStart']): string {
   const d = fromISO(anchor)
-  if (view === 'year') return String(d.getFullYear())
-  if (view === 'month') return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-  if (view === 'day') return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+  if (view === 'year') return fill(t('{year}'), { year: d.getFullYear() })
+  if (view === 'month') {
+    return fill(t('{month} {year}'), { month: t(MONTHS[d.getMonth()]), year: d.getFullYear() })
+  }
+  if (view === 'day') {
+    return fill(t('{month} {day}, {year}'),
+      { month: t(MONTHS[d.getMonth()]), day: d.getDate(), year: d.getFullYear() })
+  }
   const start = startOfWeek(d, weekStart)
   const end = addDays(start, 6)
-  const sm = MONTHS[start.getMonth()].slice(0, 3)
-  const em = MONTHS[end.getMonth()].slice(0, 3)
+  const sm = t(MONTHS[start.getMonth()].slice(0, 3))
+  const em = t(MONTHS[end.getMonth()].slice(0, 3))
   return sm === em
-    ? `${sm} ${start.getDate()} – ${end.getDate()}, ${end.getFullYear()}`
-    : `${sm} ${start.getDate()} – ${em} ${end.getDate()}, ${end.getFullYear()}`
+    ? fill(t('{m1} {d1} – {d2}, {year}'),
+      { m1: sm, d1: start.getDate(), d2: end.getDate(), year: end.getFullYear() })
+    : fill(t('{m1} {d1} – {m2} {d2}, {year}'),
+      { m1: sm, d1: start.getDate(), m2: em, d2: end.getDate(), year: end.getFullYear() })
 }
 
 export default function TopBar({
@@ -157,7 +174,7 @@ export default function TopBar({
     <div className={`topbar${page === 'calendar' ? ' tb-cal' : ''}`}>
       {/* Drawer toggles: narrow screens only, one per side. */}
       {narrow && page === 'calendar' && (
-        <button className="drawer-btn db-left" title="Calendars" aria-label="Calendars"
+        <button className="drawer-btn db-left" title={t('Calendars')} aria-label={t('Calendars')}
           aria-expanded={drawer === 'left'} onClick={() => toggleDrawer('left')}>
           <BurgerGlyph />
         </button>
@@ -169,7 +186,7 @@ export default function TopBar({
           thin dividers split the list into home · doing · reflecting. */}
       <div className="page-tabs">
         <button className={`tab-home ${page === 'home' ? 'active' : ''}`}
-          title="Home" aria-label="Home" onClick={() => setPage('home')}>
+          title={t('Home')} aria-label={t('Home')} onClick={() => setPage('home')}>
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2.6 7.6 8 2.8 l5.4 4.8 M4.2 6.9 V13 a0.6 0.6 0 0 0 0.6 0.6 h2 V10 h2.4 v3.6 h2 a0.6 0.6 0 0 0 0.6 -0.6 V6.9"
               fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -178,42 +195,42 @@ export default function TopBar({
         <span className="tab-sep" aria-hidden="true" />
         <button className={page === 'calendar' ? 'active' : ''} onClick={() => setPage('calendar')}>
           <TabGlyph d="M3 3.6 h10 a1 1 0 0 1 1 1 V13 a1 1 0 0 1 -1 1 H3 a1 1 0 0 1 -1 -1 V4.6 a1 1 0 0 1 1 -1 Z M2 6.8 h12 M5.4 2 v2.6 M10.6 2 v2.6" />
-          Calendar
+          {t('Calendar')}
         </button>
         <button className={page === 'tasks' ? 'active' : ''} onClick={() => setPage('tasks')}>
           <TabGlyph d="M3.4 2.6 h9.2 a1 1 0 0 1 1 1 v8.8 a1 1 0 0 1 -1 1 H3.4 a1 1 0 0 1 -1 -1 V3.6 a1 1 0 0 1 1 -1 Z M5.2 8 l2 2 3.6 -4" />
-          Tasks
+          {t('Tasks')}
         </button>
         <button className={page === 'timer' ? 'active' : ''} onClick={() => setPage('timer')}>
           <TabGlyph d="M8 14 a5.4 5.4 0 1 1 0 -10.8 a5.4 5.4 0 0 1 0 10.8 Z M8 5.6 V8.6 l2.2 1.3 M6.6 1.6 h2.8" />
-          Timer
+          {t('Timer')}
         </button>
         <button className={page === 'binder' ? 'active' : ''} onClick={() => setPage('binder')}>
           <TabGlyph d="M4.4 2 h8 a1 1 0 0 1 1 1 v10 a1 1 0 0 1 -1 1 h-8 a1.8 1.8 0 0 1 -1.8 -1.8 V3.8 A1.8 1.8 0 0 1 4.4 2 Z M4.4 2 v12 M2.6 11.4 h1.8" />
-          Binder
+          {t('Binder')}
         </button>
         <span className="tab-sep" aria-hidden="true" />
         <button className={page === 'insights' ? 'active' : ''} onClick={() => setPage('insights')}>
           <TabGlyph d="M3.2 13.4 V9 M8 13.4 V5 M12.8 13.4 V7.4 M2 13.4 h12" />
-          Insights
+          {t('Insights')}
         </button>
         <button className={page === 'journal' ? 'active' : ''} onClick={() => setPage('journal')}>
           <TabGlyph d="M3.6 2.4 h8.8 a0.8 0.8 0 0 1 0.8 0.8 v9.6 a0.8 0.8 0 0 1 -0.8 0.8 H3.6 a0.8 0.8 0 0 1 -0.8 -0.8 V3.2 a0.8 0.8 0 0 1 0.8 -0.8 Z M5.4 5.4 h5.2 M5.4 8 h5.2 M5.4 10.6 h3" />
-          Journal
+          {t('Journal')}
         </button>
       </div>
 
       {page === 'calendar' && (
         <>
-          <button className="btn primary" onClick={() => setAnchor(todayISO())}>Today</button>
-          <button className="btn icon" onClick={() => step(-1)} aria-label="Previous">‹</button>
-          <button className="btn icon" onClick={() => step(1)} aria-label="Next">›</button>
+          <button className="btn primary" onClick={() => setAnchor(todayISO())}>{t('Today')}</button>
+          <button className="btn icon" onClick={() => step(-1)} aria-label={t('Previous')}>‹</button>
+          <button className="btn icon" onClick={() => step(1)} aria-label={t('Next')}>›</button>
           <span className="range-label">{rangeLabel(view, anchor, state.weekStart)}</span>
           <select className="view-select" value={view} onChange={(e) => setView(e.target.value as View)}>
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="year">Year</option>
+            <option value="day">{t('Day')}</option>
+            <option value="week">{t('Week')}</option>
+            <option value="month">{t('Month')}</option>
+            <option value="year">{t('Year')}</option>
           </select>
         </>
       )}
@@ -224,24 +241,24 @@ export default function TopBar({
           Home, Insights and Journal keep a quiet bar (search/bell/settings).
           Narrow screens swap the three add buttons for the single ＋ menu. */}
       {!quiet && (
-        <div className="tb-group tb-adds" role="group" aria-label="Add">
-          <button className="tb-add" onClick={() => ui.openEvent({ date: anchor })}>+ Event</button>
-          <button className="tb-add" onClick={() => ui.openTask({ date: todayISO() })}>+ Task</button>
+        <div className="tb-group tb-adds" role="group" aria-label={t('Add')}>
+          <button className="tb-add" onClick={() => ui.openEvent({ date: anchor })}>{t('+ Event')}</button>
+          <button className="tb-add" onClick={() => ui.openTask({ date: todayISO() })}>{t('+ Task')}</button>
           {/* The trailing word is dropped at tablet widths, leaving "+ Log". */}
           <button className="tb-add tb-add-log" onClick={() => ui.openLogStudy({ date: anchor })}>
-            + Log<span className="tb-add-word"> study</span>
+            {t('+ Log')}<span className="tb-add-word"> {t('study')}</span>
           </button>
         </div>
       )}
       {narrow && !quiet && <AddMenu anchor={anchor} />}
-      <div className="tb-group tb-tools" role="group" aria-label="Tools">
-        <button className="btn icon" title="Search (⌘K)" aria-label="Search" onClick={() => ui.openSearch()}>⌕</button>
+      <div className="tb-group tb-tools" role="group" aria-label={t('Tools')}>
+        <button className="btn icon" title={t('Search (⌘K)')} aria-label={t('Search')} onClick={() => ui.openSearch()}>⌕</button>
         {!quiet && (
           <>
             <button
               className="btn icon history-btn"
-              title="Undo (⌘Z)"
-              aria-label="Undo"
+              title={t('Undo (⌘Z)')}
+              aria-label={t('Undo')}
               disabled={!canUndo}
               onClick={() => dispatch({ type: 'undo' })}
             >
@@ -252,8 +269,8 @@ export default function TopBar({
             </button>
             <button
               className="btn icon history-btn"
-              title="Redo (⌘Y)"
-              aria-label="Redo"
+              title={t('Redo (⌘Y)')}
+              aria-label={t('Redo')}
               disabled={!canRedo}
               onClick={() => dispatch({ type: 'redo' })}
             >
@@ -269,7 +286,7 @@ export default function TopBar({
       </div>
 
       {narrow && (page === 'calendar' || page === 'timer') && (
-        <button className="drawer-btn db-right" title="Tasks" aria-label="Tasks"
+        <button className="drawer-btn db-right" title={t('Tasks')} aria-label={t('Tasks')}
           aria-expanded={drawer === 'tasks'} onClick={() => toggleDrawer('tasks')}>
           <TasksGlyph />
         </button>
@@ -282,6 +299,13 @@ const WEEK_START_OPTIONS: { value: AppState['weekStart']; label: string }[] = [
   { value: 0, label: 'Sunday' },
   { value: 1, label: 'Monday' },
   { value: 6, label: 'Saturday' },
+]
+
+/* Each option is written in its own language — the row must stay findable by
+   someone who cannot read the language the app is currently in. */
+const LANGUAGE_OPTIONS: { value: 'en' | 'zh'; label: string }[] = [
+  { value: 'en', label: 'English' },
+  { value: 'zh', label: '中文' },
 ]
 
 const THEME_MODE_OPTIONS: { value: AppState['themeConfig']['mode']; label: string }[] = [
@@ -330,7 +354,7 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
 
   return (
     <div className="settings-wrap" ref={wrapRef}>
-      <button className="btn icon" title="View settings" aria-label="View settings" onClick={() => setOpen((o) => !o)}>
+      <button className="btn icon" title={t('View settings')} aria-label={t('View settings')} onClick={() => setOpen((o) => !o)}>
         ⚙︎
       </button>
 
@@ -340,24 +364,24 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
               where they go, rather than off the edge of a cramped header. */}
           {narrow && (
             <div className="settings-section">
-              <div className="proj-section-label">Editing</div>
+              <div className="proj-section-label">{t('Editing')}</div>
               <div className="pill-row">
                 <button type="button" className="pill" disabled={!canUndo}
-                  onClick={() => dispatch({ type: 'undo' })}>↶ Undo</button>
+                  onClick={() => dispatch({ type: 'undo' })}>↶ {t('Undo')}</button>
                 <button type="button" className="pill" disabled={!canRedo}
-                  onClick={() => dispatch({ type: 'redo' })}>↷ Redo</button>
+                  onClick={() => dispatch({ type: 'redo' })}>↷ {t('Redo')}</button>
               </div>
             </div>
           )}
 
           <div className="settings-section">
-            <div className="proj-section-label">Week starts on</div>
+            <div className="proj-section-label">{t('Week starts on')}</div>
             <div className="pill-row">
               {WEEK_START_OPTIONS.map((o) => (
                 <button key={o.value} type="button"
                   className={`pill ${state.weekStart === o.value ? 'active' : ''}`}
                   onClick={() => dispatch({ type: 'setWeekStart', weekStart: o.value })}>
-                  {o.label}
+                  {t(o.label)}
                 </button>
               ))}
             </div>
@@ -365,15 +389,15 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
 
           <div className="settings-section">
             <div className="proj-section-label">
-              Task checking
-              <InfoIcon text="Checkbox is the classic tick. YPT-style replaces it with a three-step glyph — □ not started, ◺ half done, ⊘ done — that you click to cycle. Half-done states survive switching modes: a task you tick off in checkbox mode shows as done here, and anything left half done comes back as ◺. Recurring tasks keep a plain checkbox, since they are ticked off per day." />
+              {t('Task checking')}
+              <InfoIcon text={t('Checkbox is the classic tick. YPT-style replaces it with a three-step glyph — □ not started, ◺ half done, ⊘ done — that you click to cycle. Half-done states survive switching modes: a task you tick off in checkbox mode shows as done here, and anything left half done comes back as ◺. Recurring tasks keep a plain checkbox, since they are ticked off per day.')} />
             </div>
             <div className="pill-row">
               {CHECK_STYLE_OPTIONS.map((o) => (
                 <button key={o.value} type="button"
                   className={`pill ${(state.taskCheckStyle ?? 'checkbox') === o.value ? 'active' : ''}`}
                   onClick={() => dispatch({ type: 'setTaskCheckStyle', style: o.value })}>
-                  {o.label}
+                  {t(o.label)}
                 </button>
               ))}
             </div>
@@ -381,15 +405,15 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
 
           <div className="settings-section">
             <div className="proj-section-label">
-              Reschedule ghosts
-              <InfoIcon text="When a scheduled task moves to another day, the slot it left keeps a faint → marker so you can see what slipped. Dismiss single ghosts with their ×; switching this back on brings every dismissed ghost back." />
+              {t('Reschedule ghosts')}
+              <InfoIcon text={t('When a scheduled task moves to another day, the slot it left keeps a faint → marker so you can see what slipped. Dismiss single ghosts with their ×; switching this back on brings every dismissed ghost back.')} />
             </div>
             <div className="pill-row">
               {GHOST_OPTIONS.map((o) => (
                 <button key={String(o.value)} type="button"
                   className={`pill ${(state.showGhosts ?? true) === o.value ? 'active' : ''}`}
                   onClick={() => dispatch({ type: 'setShowGhosts', on: o.value })}>
-                  {o.label}
+                  {t(o.label)}
                 </button>
               ))}
             </div>
@@ -397,15 +421,15 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
 
           <div className="settings-section">
             <div className="proj-section-label">
-              Location
-              <InfoIcon text="Only used for the moon-phase icon on the daily log: south of the equator the moon is seen the other way round, so the lit side is mirrored. The place name is just a note to yourself — nothing is sent anywhere." />
+              {t('Location')}
+              <InfoIcon text={t('Only used for the moon-phase icon on the daily log: south of the equator the moon is seen the other way round, so the lit side is mirrored. The place name is just a note to yourself — nothing is sent anywhere.')} />
             </div>
             <div className="settings-loc-row">
               <input
                 type="text"
                 className="settings-loc-input"
-                placeholder="Where you are"
-                aria-label="Location"
+                placeholder={t('Where you are')}
+                aria-label={t('Location')}
                 value={loc}
                 onChange={(e) => setLoc(e.target.value)}
                 onBlur={commitLoc}
@@ -417,7 +441,7 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
               <div className="pill-row">
                 {HEMISPHERE_OPTIONS.map((o) => (
                   <button key={o.value} type="button"
-                    title={o.value === 'N' ? 'Northern hemisphere' : 'Southern hemisphere'}
+                    title={o.value === 'N' ? t('Northern hemisphere') : t('Southern hemisphere')}
                     className={`pill ${(state.location?.hemisphere ?? 'N') === o.value ? 'active' : ''}`}
                     onClick={() => dispatch({ type: 'setLocation', location: { ...state.location, hemisphere: o.value } })}>
                     {o.label}
@@ -428,30 +452,43 @@ function ViewSettings({ narrow }: { narrow: boolean }) {
           </div>
 
           <div className="settings-section">
-            <div className="proj-section-label">Theme</div>
+            <div className="proj-section-label">{t('Theme')}</div>
             <div className="pill-row">
               {THEME_MODE_OPTIONS.map((o) => (
                 <button key={o.value} type="button"
                   className={`pill ${state.themeConfig.mode === o.value ? 'active' : ''}`}
                   onClick={() => setThemeMode(o.value)}>
-                  {o.label}
+                  {t(o.label)}
                 </button>
               ))}
             </div>
             {state.themeConfig.mode === 'auto' && (
               <div className="settings-time-row">
                 <div className="field">
-                  <label>Light from</label>
+                  <label>{t('Light from')}</label>
                   <TimeSelect value={state.themeConfig.lightStart}
                     onChange={(v) => dispatch({ type: 'setThemeConfig', config: { ...state.themeConfig, lightStart: v } })} />
                 </div>
                 <div className="field">
-                  <label>Dark from</label>
+                  <label>{t('Dark from')}</label>
                   <TimeSelect value={state.themeConfig.darkStart}
                     onChange={(v) => dispatch({ type: 'setThemeConfig', config: { ...state.themeConfig, darkStart: v } })} />
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="settings-section">
+            <div className="proj-section-label">{t('Language')}</div>
+            <div className="pill-row">
+              {LANGUAGE_OPTIONS.map((o) => (
+                <button key={o.value} type="button"
+                  className={`pill ${(state.language ?? 'en') === o.value ? 'active' : ''}`}
+                  onClick={() => dispatch({ type: 'setLanguage', language: o.value })}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

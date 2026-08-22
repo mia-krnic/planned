@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ColorSelect, { type ColorGroup } from './ColorSelect'
+import { t } from '../i18n'
 import { classById, classColorGroups, useStore } from '../store'
 import type { AnkiLog, ID } from '../types'
 import { addDays, fromISO, MONTHS, startOfWeek, toISO, todayISO, WEEKDAYS } from '../utils/date'
@@ -44,6 +45,11 @@ type Layout = 'strip' | 'months'
 
 /* ---------- pure helpers ---------- */
 
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
+
 const deckKey = (classId: ID | null) => classId ?? GENERAL_KEY
 
 /** date → total cards, for the decks the current filter lets through. */
@@ -58,8 +64,10 @@ function dayCounts(logs: AnkiLog[], filter: string): Map<string, number> {
 
 function tooltip(iso: string, n: number): string {
   const d = fromISO(iso)
-  const when = `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`
-  return n > 0 ? `${when} — ${n} card${n === 1 ? '' : 's'}` : `${when} — no reviews`
+  const when = `${t(WEEKDAYS[d.getDay()])} ${d.getDate()} ${t(MONTHS[d.getMonth()].slice(0, 3))}`
+  return n > 0
+    ? fill(t(n === 1 ? '{when} — {n} card' : '{when} — {n} cards'), { when, n })
+    : fill(t('{when} — no reviews'), { when })
 }
 
 const fmtNum = (n: number) => n.toLocaleString()
@@ -141,14 +149,14 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
       <button
         type="button"
         className="anki-mini"
-        title={`Flashcard reviews — last ${MINI_WEEKS} weeks. Click to open the tracker.`}
+        title={fill(t('Flashcard reviews — last {n} weeks. Click to open the tracker.'), { n: MINI_WEEKS })}
         onClick={onExpand}
       >
         <div className="am-line">
           <span className="am-glyph">{GLYPH}</span>
-          {fmtNum(stats.total)} cards
+          {fill(t('{n} cards'), { n: fmtNum(stats.total) })}
           <span className="am-sep">·</span>
-          {streak}-day streak
+          {fill(t('{n}-day streak'), { n: streak })}
         </div>
         <div className="am-strip" style={{ gridTemplateColumns: `repeat(${weeks.length}, 1fr)` }}>
           {weeks.map((wk, wi) =>
@@ -172,11 +180,11 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
   /* ----- full / tab variant ----- */
 
   const deckGroups: ColorGroup[] = [
-    { options: [{ value: GENERAL_KEY, label: 'General', color: GENERAL_COLOR }] },
+    { options: [{ value: GENERAL_KEY, label: t('General'), color: GENERAL_COLOR }] },
     ...classColorGroups(state),
   ]
   const filterGroups: ColorGroup[] = [
-    { options: [{ value: ALL_KEY, label: 'All decks' }, { value: GENERAL_KEY, label: 'General', color: GENERAL_COLOR }] },
+    { options: [{ value: ALL_KEY, label: t('All decks') }, { value: GENERAL_KEY, label: t('General'), color: GENERAL_COLOR }] },
     ...classColorGroups(state),
   ]
 
@@ -220,12 +228,14 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
       {!bare && (
         <div className="ak-head">
           <button type="button" className="ak-toggle" onClick={toggleCollapsed}
-            title={collapsed ? 'Show the review tracker' : 'Hide the review tracker'}>
+            title={collapsed ? t('Show the review tracker') : t('Hide the review tracker')}>
             <span className="ak-caret">{collapsed ? '▸' : '▾'}</span>
-            <span className="ak-title">{GLYPH} Flashcard reviews</span>
+            <span className="ak-title">{GLYPH} {t('Flashcard reviews')}</span>
           </button>
           {collapsed && (
-            <span className="ak-head-sum">{fmtNum(stats.total)} cards · {streak}-day streak</span>
+            <span className="ak-head-sum">
+              {fill(t('{n} cards · {streak}-day streak'), { n: fmtNum(stats.total), streak })}
+            </span>
           )}
         </div>
       )}
@@ -233,12 +243,12 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
       {(bare || !collapsed) && (
         <>
           <div className="ak-stats">
-            <div className="ak-stat"><b>{fmtNum(stats.total)}</b><span>cards</span></div>
-            <div className="ak-stat"><b>{streak}</b><span>day streak</span></div>
+            <div className="ak-stat"><b>{fmtNum(stats.total)}</b><span>{t('cards')}</span></div>
+            <div className="ak-stat"><b>{streak}</b><span>{t('day streak')}</span></div>
             <div className="ak-stat" title={stats.bestDay ? tooltip(stats.bestDay, stats.best) : undefined}>
-              <b>{fmtNum(stats.best)}</b><span>best day</span>
+              <b>{fmtNum(stats.best)}</b><span>{t('best day')}</span>
             </div>
-            <div className="ak-stat"><b>{fmtNum(stats.avg)}</b><span>daily avg</span></div>
+            <div className="ak-stat"><b>{fmtNum(stats.avg)}</b><span>{t('daily avg')}</span></div>
           </div>
 
           <div className="ak-controls">
@@ -247,15 +257,15 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
               <div className="ak-pills">
                 {HEATMAP_RANGES.map((r) => (
                   <button key={r.key} type="button" className={range === r.key ? 'active' : ''}
-                    onClick={() => setOwnRange(r.key)}>{r.label}</button>
+                    onClick={() => setOwnRange(r.key)}>{t(r.label)}</button>
                 ))}
               </div>
             )}
             <div className="ak-pills right">
               <button type="button" className={layout === 'strip' ? 'active' : ''}
-                title="Continuous strip" onClick={() => setLayout('strip')}>▤ Strip</button>
+                title={t('Continuous strip')} onClick={() => setLayout('strip')}>▤ {t('Strip')}</button>
               <button type="button" className={layout === 'months' ? 'active' : ''}
-                title="Separate month blocks" onClick={() => setLayout('months')}>▥ Months</button>
+                title={t('Separate month blocks')} onClick={() => setLayout('months')}>▥ {t('Months')}</button>
             </div>
           </div>
 
@@ -263,7 +273,7 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
             {layout === 'strip' ? (
               <div className="ak-strip">
                 <div className="ak-dows">
-                  <span />{['Mon', 'Wed', 'Fri'].map((d) => <span key={d}>{d}</span>)}
+                  <span />{['Mon', 'Wed', 'Fri'].map((d) => <span key={d}>{t(d)}</span>)}
                 </div>
                 <div className="ak-cols">
                   <div className="ak-months" style={{ gridTemplateColumns: `repeat(${weeks.length}, 13px)` }}>
@@ -290,42 +300,42 @@ export default function AnkiTracker({ mode, onExpand, range: fixedRange }: {
 
           <div className="ak-legend">
             <div className="ak-filter">
-              <ColorSelect value={filter} groups={filterGroups} onChange={setFilter} title="Filter by deck" />
+              <ColorSelect value={filter} groups={filterGroups} onChange={setFilter} title={t('Filter by deck')} />
             </div>
             <span className="ak-scale">
-              less
+              {t('less')}
               <span className="ak-cell tiny" />
               {LEVELS.map((a, i) => (
                 <span key={i} className="ak-cell tiny" style={{ background: hexToRgba(filterColor, a) }} />
               ))}
-              more
+              {t('more')}
             </span>
           </div>
 
           <div className="ak-input">
             <input type="date" value={logDate} max={today} onChange={(e) => setLogDate(e.target.value)}
-              title="Day to log" />
+              title={t('Day to log')} />
             <div className="ak-deck">
-              <ColorSelect value={logDeck} groups={deckGroups} onChange={setLogDeck} title="Deck" />
+              <ColorSelect value={logDeck} groups={deckGroups} onChange={setLogDeck} title={t('Deck')} />
             </div>
             <div className="ak-num">
               <input
                 type="text" inputMode="numeric" placeholder={existing ? String(existing) : '0'}
-                value={logCount} title="Cards reviewed"
+                value={logCount} title={t('Cards reviewed')}
                 onChange={(e) => setLogCount(e.target.value.replace(/[^0-9]/g, ''))}
                 onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
               />
               <span className="ak-spin">
-                <button type="button" title="Increase" onClick={() => bump(1)}>▴</button>
-                <button type="button" title="Decrease" onClick={() => bump(-1)}>▾</button>
+                <button type="button" title={t('Increase')} onClick={() => bump(1)}>▴</button>
+                <button type="button" title={t('Decrease')} onClick={() => bump(-1)}>▾</button>
               </span>
             </div>
-            <button type="button" className="btn primary small" onClick={submit}>Log</button>
+            <button type="button" className="btn primary small" onClick={submit}>{t('Log')}</button>
           </div>
           <div className="ak-hint">
             {existing > 0
-              ? `Already logged: ${fmtNum(existing)} cards — logging replaces it (0 clears the day).`
-              : 'Logging sets the total for that day and deck.'}
+              ? fill(t('Already logged: {n} cards — logging replaces it (0 clears the day).'), { n: fmtNum(existing) })
+              : t('Logging sets the total for that day and deck.')}
           </div>
         </>
       )}

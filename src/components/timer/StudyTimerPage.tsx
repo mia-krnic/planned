@@ -2,6 +2,7 @@ import {
   useEffect, useMemo, useRef, useState,
   type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode,
 } from 'react'
+import { t } from '../../i18n'
 import { groupedClasses, uid, useStore } from '../../store'
 import type { ClassInfo, ID, StudyBreak, StudyMode, StudySession, Task } from '../../types'
 import { cbTint, hexToRgba, titleTint } from '../../utils/color'
@@ -20,6 +21,11 @@ import {
   derivedBreaks, fmtClock, fmtDuration, isPomodoro, modeLabel, openTasksForClass, runningSession, segmentSpans,
   sessionColor, sessionDuration, sessionsOnDay, withClassSwitch,
 } from '../../utils/study'
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /* ---------------- The set-up dial ---------------- */
 
@@ -103,11 +109,11 @@ function TimerDial({ focus, brk, popped, onFocus, onBreak }: {
     return {
       role: 'slider' as const,
       tabIndex: 0,
-      'aria-label': which === 'focus' ? 'Focus length' : 'Break length',
+      'aria-label': which === 'focus' ? t('Focus length') : t('Break length'),
       'aria-valuemin': DIAL_FLOOR,
       'aria-valuemax': lap,
       'aria-valuenow': value(),
-      'aria-valuetext': `${value()} minutes`,
+      'aria-valuetext': `${value()} ${t('minutes')}`,
       onPointerDown: (e: ReactPointerEvent<SVGCircleElement>) => {
         e.preventDefault()
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -174,9 +180,9 @@ function TimerDial({ focus, brk, popped, onFocus, onBreak }: {
         <circle className="dial-hit" cx={DIAL_MID} cy={DIAL_MID} r={R_BREAK} strokeWidth={24} {...ring('break')} />
       </svg>
       <div className="dial-read" aria-hidden="true">
-        <div className="dial-read-big">{focus}<span className="dial-read-unit">min</span></div>
-        <div className="dial-read-sub">focus</div>
-        <div className="dial-read-brk">+ {brk} min break</div>
+        <div className="dial-read-big">{focus}<span className="dial-read-unit">{t('min')}</span></div>
+        <div className="dial-read-sub">{t('focus')}</div>
+        <div className="dial-read-brk">+ {brk} {t('min break')}</div>
       </div>
     </div>
   )
@@ -211,7 +217,9 @@ function SessionMarks({ session, nowMin, color }: {
           </svg>
         ))}
       </span>
-      <span className="st-marks-lbl">session {idx + 1} of {SITTING}</span>
+      <span className="st-marks-lbl">
+        {fill(t('session {n} of {total}'), { n: idx + 1, total: SITTING })}
+      </span>
     </div>
   )
 }
@@ -224,7 +232,7 @@ function SessionMarks({ session, nowMin, color }: {
 function SegmentBar({ session, nowMin }: { session: StudySession; nowMin: number }) {
   const { state } = useStore()
   const spans = segmentSpans(session, nowMin)
-  const name = (id: ID | null) => (id && state.classes.find((c) => c.id === id)?.name) || 'Unassigned'
+  const name = (id: ID | null) => (id && state.classes.find((c) => c.id === id)?.name) || t('Unassigned')
   return (
     <div className="st-segbar">
       <div className="st-segbar-track">
@@ -371,16 +379,16 @@ function DailyGoal({ todayMin }: { todayMin: number }) {
   if (editing) {
     return (
       <div className="st-goal editing">
-        <span className="st-goal-lbl">Daily goal</span>
-        <input className="st-goal-input" autoFocus value={draft} placeholder="90 or 1:30"
-          title="Minutes (90) or hours:minutes (1:30)"
+        <span className="st-goal-lbl">{t('Daily goal')}</span>
+        <input className="st-goal-input" autoFocus value={draft} placeholder={t('90 or 1:30')}
+          title={t('Minutes (90) or hours:minutes (1:30)')}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commit()
             if (e.key === 'Escape') setEditing(false)
           }} />
-        <button type="button" className="btn st-goal-btn primary" onClick={commit}>Save</button>
-        <button type="button" className="btn st-goal-btn" onClick={() => setEditing(false)}>Cancel</button>
+        <button type="button" className="btn st-goal-btn primary" onClick={commit}>{t('Save')}</button>
+        <button type="button" className="btn st-goal-btn" onClick={() => setEditing(false)}>{t('Cancel')}</button>
       </div>
     )
   }
@@ -393,25 +401,25 @@ function DailyGoal({ todayMin }: { todayMin: number }) {
       {goal == null ? (
         <>
           <span className="st-goal-num">
-            <span className="st-goal-lbl">Daily goal</span>
-            <span className="st-goal-none">not set</span>
-            <InfoIcon text={GOAL_INFO} />
+            <span className="st-goal-lbl">{t('Daily goal')}</span>
+            <span className="st-goal-none">{t('not set')}</span>
+            <InfoIcon text={t(GOAL_INFO)} />
           </span>
           <span className="st-goal-acts bare">
-            <button type="button" className="btn st-goal-btn" onClick={beginEdit}>Set a goal</button>
+            <button type="button" className="btn st-goal-btn" onClick={beginEdit}>{t('Set a goal')}</button>
           </span>
         </>
       ) : (
         <>
           <span className="st-goal-num">
-            Today <strong>{fmtDuration(todayMin)}</strong> / {fmtDuration(goal)}
+            {t('Today')} <strong>{fmtDuration(todayMin)}</strong> / {fmtDuration(goal)}
             {hit ? ' ✓' : ''}
-            <InfoIcon text={GOAL_INFO} />
+            <InfoIcon text={t(GOAL_INFO)} />
           </span>
           <span className="st-goal-acts">
-            <button type="button" className="btn st-goal-btn" onClick={beginEdit}>Edit</button>
+            <button type="button" className="btn st-goal-btn" onClick={beginEdit}>{t('Edit')}</button>
             <button type="button" className="btn st-goal-btn"
-              onClick={() => dispatch({ type: 'setStudyGoal', minutes: null })}>Clear</button>
+              onClick={() => dispatch({ type: 'setStudyGoal', minutes: null })}>{t('Clear')}</button>
           </span>
           <div className="st-goal-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
             <div className={`st-goal-fill ${hit ? 'done' : ''}`} style={{ width: `${pct}%` }} />
@@ -445,21 +453,21 @@ function ClassSwitchStrip({ classes, current, onPick }: {
     return (
       <button key={key} type="button" className={`qs-chip ${on ? 'on' : ''}`} aria-pressed={on}
         title={on
-          ? `${label} — studying now`
-          : `Continue with ${label} from now — earlier time stays where it was`}
+          ? `${label} — ${t('studying now')}`
+          : fill(t('Continue with {label} from now — earlier time stays where it was'), { label })}
         style={on
           ? { background: hexToRgba(color, 0.24), borderColor: hexToRgba(color, 0.65), color: titleTint(color) }
           : undefined}
         onClick={() => onPick(id)}>
         <span className="qs-dot" style={{ background: color }} />
         <span className="qs-name">{label}</span>
-        {on && <span className="qs-live">now</span>}
+        {on && <span className="qs-live">{t('now')}</span>}
       </button>
     )
   }
   return (
-    <div className="qs-strip" role="group" aria-label="Switch class">
-      {chip('none', null, 'Unassigned', NEUTRAL_COLOR)}
+    <div className="qs-strip" role="group" aria-label={t('Switch class')}>
+      {chip('none', null, t('Unassigned'), NEUTRAL_COLOR)}
       {classes.map((c) => chip(c.id, c.id, c.name, c.color))}
     </div>
   )
@@ -539,24 +547,24 @@ function TaskQuickPicker({ groups, attached, color, onToggle, onToggleDone }: {
   return (
     <div className="qt-wrap" ref={wrapRef}>
       <div className="qt-chips">
-        {attached.map((t) => (
-          <span key={t.id} className="qt-chip" style={{ borderColor: hexToRgba(color, 0.5) }}>
-            <TaskCheck task={t} color={color} />
-            <span className={t.done ? 'done-strike' : ''}>{t.title}</span>
-            <button type="button" className="qt-x" title="Unlink from this session"
-              onClick={() => onToggle(t.id)}>×</button>
+        {attached.map((task) => (
+          <span key={task.id} className="qt-chip" style={{ borderColor: hexToRgba(color, 0.5) }}>
+            <TaskCheck task={task} color={color} />
+            <span className={task.done ? 'done-strike' : ''}>{task.title}</span>
+            <button type="button" className="qt-x" title={t('Unlink from this session')}
+              onClick={() => onToggle(task.id)}>×</button>
           </span>
         ))}
         <button type="button" className="qt-add" ref={btnRef} onClick={toggleOpen}>
-          + Link a to-do
+          {t('+ Link a to-do')}
         </button>
       </div>
       {open && (
         <div className="qt-pop" style={pos}>
-          <input className="qt-search" autoFocus placeholder="Search to-dos…" value={q}
+          <input className="qt-search" autoFocus placeholder={t('Search to-dos…')} value={q}
             onChange={(e) => setQ(e.target.value)} />
           <div className="qt-list">
-            {shown.length === 0 && <div className="st-empty">No open to-dos match.</div>}
+            {shown.length === 0 && <div className="st-empty">{t('No open to-dos match.')}</div>}
             {shown.map((g) => (
               <div key={g.key} className="qt-group">
                 <div className="qt-head">
@@ -655,7 +663,7 @@ export default function StudyTimerPage() {
       if (list.length) out.push({ key: c.id, heading: c.name, color: c.color, tasks: list })
     }
     const unfiled = openTasksForClass(state, null)
-    if (unfiled.length) out.push({ key: '_unfiled', heading: 'Unfiled', color: NEUTRAL_COLOR, tasks: unfiled })
+    if (unfiled.length) out.push({ key: '_unfiled', heading: t('Unfiled'), color: NEUTRAL_COLOR, tasks: unfiled })
     return out
   }, [state])
 
@@ -741,11 +749,11 @@ export default function StudyTimerPage() {
     <div className="scrim st-end-scrim">
       <div className={`modal modal-compact st-end-pop ${endStage === 'kept' ? 'open' : ''}`}>
         <div className="st-end-q">
-          {endStage === 'kept' ? '✓ Session ended' : 'End this study session?'}
+          {endStage === 'kept' ? t('✓ Session ended') : t('End this study session?')}
         </div>
         {endStage === 'confirm' && (
           <div className="st-end-actions">
-            <button className="btn" onClick={() => setEndStage(null)}>Cancel</button>
+            <button className="btn" onClick={() => setEndStage(null)}>{t('Cancel')}</button>
             <div className="spacer" />
             <button className="btn danger" onClick={() => {
               if (!running) return
@@ -754,22 +762,22 @@ export default function StudyTimerPage() {
               setReflection(running.reflection ?? '')
               setEndStage('kept')
             }}>
-              End session
+              {t('End session')}
             </button>
           </div>
         )}
         <div className="st-end-reveal">
-          <div className="st-end-q2">Session ended — keep this log?</div>
+          <div className="st-end-q2">{t('Session ended — keep this log?')}</div>
           <div className="st-end-actions">
             <button className="btn danger" onClick={() => {
               if (endedId) dispatch({ type: 'deleteStudySession', id: endedId })
               setEndedId(null)
               setEndStage(null)
             }}>
-              Delete log
+              {t('Delete log')}
             </button>
             <div className="spacer" />
-            <button className="btn primary" onClick={() => setEndStage(null)}>Keep log</button>
+            <button className="btn primary" onClick={() => setEndStage(null)}>{t('Keep log')}</button>
           </div>
         </div>
       </div>
@@ -838,8 +846,9 @@ export default function StudyTimerPage() {
           <SessionMarks session={running} nowMin={shownMin} color={color} />
 
           <div className="st-mode-line">
-            {modeLabel(running.mode)}
-            {running.mode === 'custom' && ratio ? ` ${ratio}` : ''} · started {fmtTime(running.startMin)}
+            {t(modeLabel(running.mode))}
+            {running.mode === 'custom' && ratio ? ` ${ratio}` : ''}
+            {' · '}{t('started')} {fmtTime(running.startMin)}
           </div>
 
           {ringed
@@ -848,12 +857,12 @@ export default function StudyTimerPage() {
 
           <div className={`st-phase ${paused ? 'paused' : ''}`}
             style={{ background: hexToRgba(color, 0.22), color: titleTint(color) }}>
-            <strong>{paused ? '⏸ Paused' : onBreak ? '◌ Break' : '◉ Work'}</strong>
+            <strong>{paused ? t('⏸ Paused') : onBreak ? t('◌ Break') : t('◉ Work')}</strong>
             {paused ? (
-              <span className="st-left">{fmtDuration(pauseMin)} so far</span>
+              <span className="st-left">{fmtDuration(pauseMin)} {t('so far')}</span>
             ) : phase.leftMin != null && (
               <span className="st-left">
-                {fmtClock(phase.leftMin * 60)} {onBreak ? 'until work' : 'until break'}
+                {fmtClock(phase.leftMin * 60)} {onBreak ? t('until work') : t('until break')}
               </span>
             )}
           </div>
@@ -868,18 +877,18 @@ export default function StudyTimerPage() {
 
           <div className="field">
             <label>
-              Now studying
-              <InfoIcon text="Picking a class continues this session with it from now on — the time before the switch stays where it was, with the class you were on. The bar shows the split so far; fine-tune the switch times under “Adjust times”." />
+              {t('Now studying')}
+              <InfoIcon text={t('Picking a class continues this session with it from now on — the time before the switch stays where it was, with the class you were on. The bar shows the split so far; fine-tune the switch times under “Adjust times”.')} />
             </label>
             <SegmentBar session={running} nowMin={shownMin} />
             <ClassSwitchStrip classes={sidebarClasses} current={curClassId} onPick={switchClass} />
-            <div className="st-seghint">Picking another class adds to the bar — earlier time stays where it was.</div>
+            <div className="st-seghint">{t('Picking another class adds to the bar — earlier time stays where it was.')}</div>
           </div>
 
           <div className="field">
             <label>
-              Working on
-              <InfoIcon text="To-dos you are working through this session. Tick one to mark it done, × to unlink it." />
+              {t('Working on')}
+              <InfoIcon text={t('To-dos you are working through this session. Tick one to mark it done, × to unlink it.')} />
             </label>
             <TaskQuickPicker groups={taskGroups} attached={attached} color={color}
               onToggle={toggleTaskLink}
@@ -887,7 +896,7 @@ export default function StudyTimerPage() {
           </div>
 
           <div className="field">
-            <label>Link binder files (optional) — notes you made or handouts you revised</label>
+            <label>{t('Link binder files (optional) — notes you made or handouts you revised')}</label>
             <UploadPicker classId={curClassId} linked={linked} color={color}
               onToggle={(id) => patch({
                 uploadIds: linked.includes(id) ? linked.filter((x) => x !== id) : [...linked, id],
@@ -896,11 +905,11 @@ export default function StudyTimerPage() {
 
           <div className="field st-adjust">
             <button type="button" className="st-adjust-toggle" onClick={() => setReflectOpen((v) => !v)}>
-              {reflectOpen ? '▾' : '▸'} ✎ Reflection
+              {reflectOpen ? '▾' : '▸'} ✎ {t('Reflection')}
             </button>
             {reflectOpen && (
               <div className="st-adjust-body">
-                <textarea value={running.reflection ?? ''} placeholder="How is it going? Notes for next time…"
+                <textarea value={running.reflection ?? ''} placeholder={t('How is it going? Notes for next time…')}
                   onChange={(e) => patch({ reflection: e.target.value || undefined })} />
               </div>
             )}
@@ -908,12 +917,12 @@ export default function StudyTimerPage() {
 
           <div className="field st-adjust">
             <button type="button" className="st-adjust-toggle" onClick={() => setAdjustOpen((v) => !v)}>
-              {adjustOpen ? '▾' : '▸'} ✎ Adjust times
+              {adjustOpen ? '▾' : '▸'} ✎ {t('Adjust times')}
             </button>
             {adjustOpen && (
               <div className="st-adjust-body">
                 <div className="field">
-                  <label>Start time</label>
+                  <label>{t('Start time')}</label>
                   <TimeSelect value={minToHm(running.startMin)} onChange={(v) => {
                     const nowFloor = Math.floor(nowMin)
                     const newStart = Math.max(0, Math.min(hmToMin(v), nowFloor - 1))
@@ -921,20 +930,20 @@ export default function StudyTimerPage() {
                   }} />
                 </div>
                 <div className="field">
-                  <label>Classes studied — start time of each switch</label>
+                  <label>{t('Classes studied — start time of each switch')}</label>
                   <SegmentsEditor session={running}
                     endMin={Math.max(running.startMin + 1, Math.floor(nowMin))}
                     onChange={(p: SegmentPatch) => patch(p)} />
                 </div>
                 <div className="field">
-                  <label>Breaks</label>
+                  <label>{t('Breaks')}</label>
                   {running.mode === 'normal' ? (
                     <BreaksEditor breaks={running.breaks}
                       bound={{ startMin: running.startMin, endMin: Math.floor(nowMin) }}
                       onChange={(next) => patch({ breaks: next })} />
                   ) : (
                     <div className="st-empty">
-                      Pomodoro breaks are automatic while running — editable after you end the session.
+                      {t('Pomodoro breaks are automatic while running — editable after you end the session.')}
                     </div>
                   )}
                 </div>
@@ -944,8 +953,10 @@ export default function StudyTimerPage() {
 
           <div className="st-play-wrap">
             <button type="button" className={`st-play ${paused ? 'is-paused' : ''}`}
-              aria-label={paused ? 'Resume studying' : 'Pause studying'}
-              title={paused ? 'Resume — the clock starts again' : 'Pause — the clock stops and the time counts as a break'}
+              aria-label={paused ? t('Resume studying') : t('Pause studying')}
+              title={paused
+                ? t('Resume — the clock starts again')
+                : t('Pause — the clock stops and the time counts as a break')}
               onClick={() => {
                 if (paused) {
                   dispatch({ type: 'resumeStudySession', id: running.id, tag: pauseTag })
@@ -957,19 +968,19 @@ export default function StudyTimerPage() {
               <span className={`st-play-glyph ${paused ? 'tri' : ''}`}>{paused ? '▶' : '⏸'}</span>
             </button>
             <div className="st-play-cap">
-              {paused ? `paused ${fmtDuration(pauseMin)} — tap to resume` : 'pause'}
+              {paused ? `${t('paused')} ${fmtDuration(pauseMin)} — ${t('tap to resume')}` : t('pause')}
             </div>
           </div>
 
           <div className="st-actions">
             <div className="spacer" />
             <button className="btn danger" onClick={() => setEndStage('confirm')}>
-              End session
+              {t('End session')}
             </button>
           </div>
 
           <p className="st-note">
-            The timer runs off the clock, not a countdown — switch pages or reload and it keeps going.
+            {t('The timer runs off the clock, not a countdown — switch pages or reload and it keeps going.')}
           </p>
         </div>
         {endPopup}
@@ -985,26 +996,26 @@ export default function StudyTimerPage() {
       <div className="study-page">
         <AmbientWallpaper variant="full" />
         <div className="study-card" style={{ borderColor: hexToRgba(color, 0.55) }}>
-          <h2 className="st-title">Session finished</h2>
+          <h2 className="st-title">{t('Session finished')}</h2>
           <div className="st-summary">
             {fmtTime(ended.startMin)} – {fmtTime(ended.endMin ?? ended.startMin)}
             {' · '}<strong>{fmtDuration(sessionDuration(ended, nowMin))}</strong>
-            {' · '}{modeLabel(ended.mode)}
+            {' · '}{t(modeLabel(ended.mode))}
           </div>
           <DailyGoal todayMin={todayMin} />
           <div className="field">
-            <label>How did it go? Notes for next time…</label>
-            <textarea value={reflection} placeholder="How did it go? Notes for next time…"
+            <label>{t('How did it go? Notes for next time…')}</label>
+            <textarea value={reflection} placeholder={t('How did it go? Notes for next time…')}
               onChange={(e) => setReflection(e.target.value)} />
           </div>
           <div className="st-actions">
             <div className="spacer" />
-            <button className="btn" onClick={() => setEndedId(null)}>Skip</button>
+            <button className="btn" onClick={() => setEndedId(null)}>{t('Skip')}</button>
             <button className="btn primary" onClick={() => {
               dispatch({ type: 'updateStudySession', session: { ...ended, reflection: reflection.trim() || undefined } })
               setEndedId(null)
             }}>
-              Save
+              {t('Save')}
             </button>
           </div>
         </div>
@@ -1019,7 +1030,7 @@ export default function StudyTimerPage() {
       <AmbientWallpaper variant="full" />
       <div className="study-card">
         <div className="st-head">
-          <h2 className="st-title">Study timer</h2>
+          <h2 className="st-title">{t('Study timer')}</h2>
           <DailyGoal todayMin={todayMin} />
         </div>
 
@@ -1027,10 +1038,10 @@ export default function StudyTimerPage() {
           {free ? (
             <div className="st-free">
               <div className="st-free-glyph" aria-hidden="true">∞</div>
-              <div className="st-free-name">Free-running</div>
-              <div className="st-free-hint">No set rhythm — pause whenever you say so.</div>
+              <div className="st-free-name">{t('Free-running')}</div>
+              <div className="st-free-hint">{t('No set rhythm — pause whenever you say so.')}</div>
               <button type="button" className="st-freelink" onClick={() => setFree(false)}>
-                ← back to the pomodoro dial
+                {t('← back to the pomodoro dial')}
               </button>
             </div>
           ) : (
@@ -1041,21 +1052,23 @@ export default function StudyTimerPage() {
                 {PRESETS.map((p) => (
                   <button key={p.work} type="button"
                     className={`dial-chip ${focusMin === p.work && breakMin === p.brk ? 'on' : ''}`}
-                    title={`${p.work} minutes of focus, ${p.brk} of break`}
+                    title={fill(t('{work} minutes of focus, {brk} of break'), { work: p.work, brk: p.brk })}
                     onClick={() => { setFocusMin(p.work); setBreakMin(p.brk); setPop((n) => n + 1) }}>
                     {p.work} · {p.brk}
                   </button>
                 ))}
                 <span className="dial-presets-hint">
-                  or drag the rings
-                  <InfoIcon text="The outer ring sets the focus length — one full lap is 2 hours. The inner ring sets the break — one lap is 1 hour. Both snap to 5 minutes, and arrow keys nudge whichever ring has keyboard focus." />
+                  {t('or drag the rings')}
+                  <InfoIcon text={t('The outer ring sets the focus length — one full lap is 2 hours. The inner ring sets the break — one lap is 1 hour. Both snap to 5 minutes, and arrow keys nudge whichever ring has keyboard focus.')} />
                 </span>
               </div>
               <div className="dial-sitting">
-                a sitting is {SITTING} focus sessions · {fmtDuration(SITTING * (focusMin + breakMin))} in all
+                {fill(t('a sitting is {n} focus sessions · {total} in all'), {
+                  n: SITTING, total: fmtDuration(SITTING * (focusMin + breakMin)),
+                })}
               </div>
               <button type="button" className="st-freelink" onClick={() => setFree(true)}>
-                or free-run, breaks when you say so →
+                {t('or free-run, breaks when you say so →')}
               </button>
             </>
           )}
@@ -1063,31 +1076,31 @@ export default function StudyTimerPage() {
 
         <div className="field">
           <label>
-            Class
-            <InfoIcon text="A study session belongs to a class, or to nothing at all. “Unassigned” time is still counted — it just isn't attributed to a class." />
+            {t('Class')}
+            <InfoIcon text={t('A study session belongs to a class, or to nothing at all. “Unassigned” time is still counted — it just isn\'t attributed to a class.')} />
           </label>
           <ColorSelect value={classId} groups={classGroups} onChange={pickClass} />
         </div>
 
         <div className="field">
-          <label>{classId ? 'Tasks to work on (optional)' : 'Unfiled tasks (optional)'}</label>
+          <label>{classId ? t('Tasks to work on (optional)') : t('Unfiled tasks (optional)')}</label>
           <TaskPicker tasks={formTasks} selected={taskIds} color={formColor}
-            empty={classId ? 'No open tasks in this class.' : 'No unfiled tasks.'}
+            empty={classId ? t('No open tasks in this class.') : t('No unfiled tasks.')}
             onToggle={toggle(taskIds, setTaskIds)} />
         </div>
 
         <div className="field">
-          <label>Link binder files (optional) — notes you made or handouts you revised</label>
+          <label>{t('Link binder files (optional) — notes you made or handouts you revised')}</label>
           <UploadPicker classId={classId || null} linked={uploadIds} color={formColor}
             onToggle={toggle(uploadIds, setUploadIds)} />
         </div>
 
         <div className="st-play-wrap">
           <button type="button" className="st-play" onClick={start}
-            aria-label="Start studying" title="Start studying">
+            aria-label={t('Start studying')} title={t('Start studying')}>
             <span className="st-play-glyph tri">▶</span>
           </button>
-          <div className="st-play-cap">start studying</div>
+          <div className="st-play-cap">{t('start studying')}</div>
         </div>
       </div>
     </div>

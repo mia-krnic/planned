@@ -10,6 +10,7 @@ import { derivedBreaks, fmtDuration, sessionDuration, sessionsOnDay } from '../.
 import { fetchArchive, fetchForecast, geocode, WX_SYNC_KEY, type GeoPoint, type TodayWeather } from '../../utils/weather'
 import { homePicks } from '../../data/homePicks'
 import { WALLPAPERS, wallpaperUrl } from '../../data/wallpapers'
+import { lang, t } from '../../i18n'
 import InfoIcon from '../InfoIcon'
 import { useDayLog, WATER_MAX } from '../daylog/DayLogControls'
 import { MEAL_KEYS, WeatherGlyph } from '../daylog/glyphs'
@@ -55,7 +56,7 @@ function Clock() {
   const hh = String(now.getHours()).padStart(2, '0')
   const mm = String(now.getMinutes()).padStart(2, '0')
   return (
-    <div className="home-clock" aria-label={`Time ${hh}:${mm}`}>
+    <div className="home-clock" aria-label={`${t('Time')} ${hh}:${mm}`}>
       {hh}<span className="home-clock-sep">:</span>{mm}
     </div>
   )
@@ -63,6 +64,11 @@ function Clock() {
 
 /* ---------------- The day's one goal ---------------- */
 
+/**
+ * Also its own translation key. Module constants here hold the ENGLISH text and
+ * go through t() at the point they are rendered — a t() call out here would run
+ * once at import, before the store has told i18n what language the app is in.
+ */
 const GOAL_PROMPT = 'What is your main goal for today?'
 
 /**
@@ -105,7 +111,7 @@ const GoalLine = forwardRef<GoalHandle, { date: string }>(function GoalLine({ da
 
   if (goal && !editing) {
     return (
-      <button type="button" className="home-goal-set" title="Edit today's goal"
+      <button type="button" className="home-goal-set" title={t("Edit today's goal")}
         onClick={() => { setDraft(goal); setEditing(true) }}>
         <span className="home-goal-text">{goal}</span>
         <span className="home-goal-pencil" aria-hidden="true">✎</span>
@@ -118,8 +124,8 @@ const GoalLine = forwardRef<GoalHandle, { date: string }>(function GoalLine({ da
       ref={inputRef}
       type="text"
       className="home-goal-input"
-      placeholder={GOAL_PROMPT}
-      aria-label={GOAL_PROMPT}
+      placeholder={t(GOAL_PROMPT)}
+      aria-label={t(GOAL_PROMPT)}
       value={draft}
       autoFocus={editing}
       onChange={(e) => setDraft(e.target.value)}
@@ -159,6 +165,16 @@ function focusedMinutes(state: AppState, iso: string, nowMin: number): number {
 const RING_SIZE = 68
 const RING_STROKE = 5
 
+/** The ring's spoken form. Written out per language — the goal clause is a
+ * suffix in English and a second clause in Chinese, so there is no shared
+ * skeleton to fill in. */
+function focusLabel(todayMin: number, goal: number | null): string {
+  if (lang() === 'zh') {
+    return goal ? `今天专注 ${fmtDuration(todayMin)}，目标 ${fmtDuration(goal)}` : `今天专注 ${fmtDuration(todayMin)}`
+  }
+  return `${fmtDuration(todayMin)} focused today${goal ? ` of a ${fmtDuration(goal)} goal` : ''}`
+}
+
 /**
  * Today's focused study against the daily goal. Past 100% the ✓ appears and
  * the minutes keep climbing — the goal is a floor, not a ceiling.
@@ -178,7 +194,7 @@ function FocusRing({ state, todayMin }: { state: AppState; todayMin: number }) {
   return (
     <div className="home-focus">
       <svg className="home-ring" width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-        role="img" aria-label={`${fmtDuration(todayMin)} focused today${goal ? ` of a ${fmtDuration(goal)} goal` : ''}`}>
+        role="img" aria-label={focusLabel(todayMin, goal)}>
         <circle className="home-ring-bg" cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={r} fill="none" strokeWidth={RING_STROKE} />
         {goal != null && (
           <circle
@@ -196,7 +212,7 @@ function FocusRing({ state, todayMin }: { state: AppState; todayMin: number }) {
       </svg>
       <div className="home-focus-label">
         <span className="home-focus-num">{fmtDuration(todayMin)}</span>
-        <span className="home-focus-word">Focused today{goal == null && <InfoIcon text={RING_INFO} />}</span>
+        <span className="home-focus-word">{t('Focused today')}{goal == null && <InfoIcon text={t(RING_INFO)} />}</span>
       </div>
     </div>
   )
@@ -217,8 +233,8 @@ function WeatherChip({ label, wx }: { label: string | undefined; wx: TodayWeathe
   if (!label) {
     return (
       <div className="home-wx home-wx-hint">
-        <span>Set a location ⚙</span>
-        <InfoIcon text={LOCATION_INFO} />
+        <span>{t('Set a location ⚙')}</span>
+        <InfoIcon text={t(LOCATION_INFO)} />
       </div>
     )
   }
@@ -433,7 +449,7 @@ function WellnessWhisper({ state, date, onOpen }: { state: AppState; date: strin
   const meals = MEAL_KEYS.filter((k) => (log?.meals?.[k] ?? '').trim()).length
 
   return (
-    <button type="button" className="home-well" onClick={onOpen} title="Today in the journal">
+    <button type="button" className="home-well" onClick={onOpen} title={t('Today in the journal')}>
       <span className="home-well-item">
         <DropGlyph /> {water}/{WATER_MAX}
       </span>
@@ -482,6 +498,7 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
   const { state, dispatch } = useStore()
   const today = todayISO()
   const { wallpaper, mantra, quote } = homePicks(state, today)
+  const zhText = lang() === 'zh'
   const wx = useWeather()
   const [libOpen, setLibOpen] = useState(false)
 
@@ -644,12 +661,12 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
           {dayOff && (
             <div className="home-cheer">
               <span className="home-cheer-glyph" aria-hidden="true">⛱︎</span>
-              <span>day off — nothing urgent today</span>
+              <span>{t('day off — nothing urgent today')}</span>
             </div>
           )}
           {evening && (
             <button type="button" className="home-evening" onClick={() => setPage('journal')}>
-              How was today? <span aria-hidden="true">✎</span>
+              {t('How was today?')} <span aria-hidden="true">✎</span>
             </button>
           )}
           {phase === 'night' && <div className="home-night">{nightLine(today)}</div>}
@@ -657,9 +674,16 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
       </div>
 
       <div className="home-quote" ref={quoteRef}>
-        <span className="home-quote-text">“{quote.text}”</span>
+        {/* Chinese quotes its quotations with 「」 and runs the attribution off a
+            full-width dash with no space — English punctuation round a line of
+            classical Chinese reads like a font that lost its way. */}
+        <span className="home-quote-text">
+          {zhText ? `「${quote.text}」` : `“${quote.text}”`}
+        </span>
         <span className="home-quote-foot">
-          {quote.author && <span className="home-quote-author">— {quote.author}</span>}
+          {quote.author && (
+            <span className="home-quote-author">{zhText ? `——${quote.author}` : `— ${quote.author}`}</span>
+          )}
           <FavHeart kind="quotes" itemKey={quote.text} label="this quote" />
         </span>
       </div>
@@ -676,7 +700,7 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
                 <path d="M2.6 2.4 h2.6 v11.2 H2.6 Z M6.6 2.4 h2.6 v11.2 H6.6 Z M10.9 3 l2.5 -0.5 2.1 10.9 -2.5 0.5 Z"
                   fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
-              {' '}Library
+              {' '}{t('Library')}
             </button>
             <span className={`home-hint home-hint-lib${hints ? ' on' : ''}`} aria-hidden="true">
               <KeyCap k="L" />
@@ -688,18 +712,18 @@ export default function HomePage({ setPage }: { setPage: (p: Page) => void }) {
         {/* The two pages with no button of their own get their labels here,
             floating clear of the rail so showing them shifts nothing. */}
         <div className={`home-hint home-hint-pages${hints ? ' on' : ''}`} aria-hidden="true">
-          <span className="home-hint-page"><KeyCap k="T" /><span>· timer</span></span>
-          <span className="home-hint-page"><KeyCap k="J" /><span>· journal</span></span>
+          <span className="home-hint-page"><KeyCap k="T" /><span>{t('· timer')}</span></span>
+          <span className="home-hint-page"><KeyCap k="J" /><span>{t('· journal')}</span></span>
         </div>
 
         <div className="home-dock-right">
           <FavHeart kind="wallpapers" itemKey={wallpaper.file} label="this wallpaper" />
           <button type="button" className="home-dock-btn" onClick={nextWallpaper}
-            title="Show a different photo today">
-            next wallpaper <span aria-hidden="true">⤳</span>
+            title={t('Show a different photo today')}>
+            {t('next wallpaper')} <span aria-hidden="true">⤳</span>
           </button>
           <button type="button" className={`home-dock-btn home-keys-btn${hintsPinned ? ' on' : ''}`}
-            aria-pressed={hintsPinned} aria-label="Keyboard shortcuts" title="Keyboard shortcuts"
+            aria-pressed={hintsPinned} aria-label={t('Keyboard shortcuts')} title={t('Keyboard shortcuts')}
             onClick={() => { setHintFlash(false); setHintsPinned((v) => !v) }}>
             <KeyboardGlyph />
           </button>

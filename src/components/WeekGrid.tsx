@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useUI } from '../App'
+import { t } from '../i18n'
 import { projectById, taskColor, taskLabel, useStore } from '../store'
 import {
   birthdayLabel, birthdaysForDay, DUE_FLAG, dueBarsForDay, eventColor, examColorsForDay, examRingBackground,
@@ -30,6 +31,11 @@ import {
 
 const HOUR_H = 56
 const SCROLL_TO_HOUR = 7.5
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 interface Props {
   anchor: string
@@ -336,7 +342,7 @@ export default function WeekGrid({ anchor, days }: Props) {
     onPointerDown: (e: React.PointerEvent) => beginDrag(e, init),
   })
   const resizeHandle = (init: Omit<DragInit, 'mode'>) => (
-    <div className="drag-resize" title="Drag to change the length"
+    <div className="drag-resize" title={t('Drag to change the length')}
       onPointerDown={(e) => { e.stopPropagation(); beginDrag(e, { ...init, mode: 'resize' }) }}
       onClick={(e) => e.stopPropagation()} />
   )
@@ -363,19 +369,19 @@ export default function WeekGrid({ anchor, days }: Props) {
    * One reschedule ghost: the slot a task used to occupy, left behind in its
    * own colour with an arrow. Clicking it opens the task; the × puts it away.
    */
-  const ghostChip = ({ task: t, ghost, index }: GhostSlot, timed: boolean) => (
-    <div key={`g-${t.id}-${index}`}
+  const ghostChip = ({ task: tk, ghost, index }: GhostSlot, timed: boolean) => (
+    <div key={`g-${tk.id}-${index}`}
       className={`task-ghost${timed ? ' tg-timed' : ''}`}
       style={{
-        color: taskColor(state, t.projectId),
+        color: taskColor(state, tk.projectId),
         ...(timed ? { top: ((ghost.startMin ?? 0) / 60) * HOUR_H } : null),
       }}
-      title={`Moved away from ${ghost.startMin != null ? fmtTime(ghost.startMin) : 'all-day'} — ${t.title}`}
-      onClick={(e) => { e.stopPropagation(); ui.openTask({ task: t }) }}>
+      title={`${t('Moved away from')} ${ghost.startMin != null ? fmtTime(ghost.startMin) : t('all-day')} — ${tk.title}`}
+      onClick={(e) => { e.stopPropagation(); ui.openTask({ task: tk }) }}>
       <span className="tg-arrow">→</span>
-      <span className="tg-title">{t.title}</span>
-      <button className="tg-x" title="Dismiss this ghost"
-        onClick={(e) => { e.stopPropagation(); dispatch({ type: 'dismissGhost', id: t.id, index }) }}>×</button>
+      <span className="tg-title">{tk.title}</span>
+      <button className="tg-x" title={t('Dismiss this ghost')}
+        onClick={(e) => { e.stopPropagation(); dispatch({ type: 'dismissGhost', id: tk.id, index }) }}>×</button>
     </div>
   )
 
@@ -502,11 +508,11 @@ export default function WeekGrid({ anchor, days }: Props) {
         {/* The corner cell doubles as the daily-log fold, same caret language
             as the three lanes below it. */}
         <button type="button" className="gutter lane-toggle dl-fold"
-          title={dayLogShut ? 'Show the daily log' : 'Hide the daily log'}
+          title={dayLogShut ? t('Show the daily log') : t('Hide the daily log')}
           aria-expanded={!dayLogShut}
           onClick={() => dispatch({ type: 'setCollapseDayLog', on: !dayLogShut })}>
           <span className={`caret ${dayLogShut ? '' : 'open'}`}>▶</span>
-          <span className="lt-word">log</span>
+          <span className="lt-word">{t('log')}</span>
         </button>
         {dates.map((d) => {
           const h = fmtDayHeader(d)
@@ -523,15 +529,15 @@ export default function WeekGrid({ anchor, days }: Props) {
                   number; as the wrap's background it always paints behind the
                   solid today pill inside. */}
               <div className="dh-wrap" style={examBg ? { background: examBg } : undefined}>
-                <div className="dow">{h.dow}</div>
+                <div className="dow">{t(h.dow)}</div>
                 <div className="dnum">
                   <span className="dnum-txt">{d.getDate()}</span>
                 </div>
               </div>
-              <button className="dayoff-btn" title={marked ? 'Unmark day off' : 'Mark as day off'}
+              <button className="dayoff-btn" title={marked ? t('Unmark day off') : t('Mark as day off')}
                 onClick={() => {
                   if (!marked && examColorsForDay(state, iso).length > 0) {
-                    window.alert('This day has an exam scheduled — it can\'t be marked as a day off.')
+                    window.alert(t('This day has an exam scheduled — it can\'t be marked as a day off.'))
                     return
                   }
                   dispatch({ type: 'toggleDayOff', date: iso })
@@ -551,11 +557,11 @@ export default function WeekGrid({ anchor, days }: Props) {
           Collapsible down to a per-day count when the week is busy up here. */}
       <div className={`allday-lane${allDayShut ? ' lane-shut' : ''}`}>
         <button type="button" className="gutter lane-toggle"
-          title={allDayShut ? 'Show all-day items' : 'Collapse all-day items'}
+          title={allDayShut ? t('Show all-day items') : t('Collapse all-day items')}
           aria-expanded={!allDayShut}
           onClick={() => dispatch({ type: 'setCollapseAllDay', on: !allDayShut })}>
           <span className={`caret ${allDayShut ? '' : 'open'}`}>▶</span>
-          <span className="lane-toggle-label">all-day</span>
+          <span className="lane-toggle-label">{t('all-day')}</span>
         </button>
         {dates.map((d) => {
           const iso = toISO(d)
@@ -565,7 +571,9 @@ export default function WeekGrid({ anchor, days }: Props) {
               + items.allDayRecurring.length + birthdaysForDay(state, iso).length
             return (
               <div key={iso} className={`allday-cell allday-count ${isDayOff(state, iso) ? 'day-off' : ''}`}
-                title={n ? `${n} all-day item${n === 1 ? '' : 's'} — click to expand` : 'Click to expand'}
+                title={n
+                  ? `${n} ${n === 1 ? t('all-day item') : t('all-day items')} — ${t('click to expand')}`
+                  : t('Click to expand')}
                 onClick={() => dispatch({ type: 'setCollapseAllDay', on: false })}>
                 {n > 0 && <span className="ac-n">{n}</span>}
               </div>
@@ -723,7 +731,7 @@ export default function WeekGrid({ anchor, days }: Props) {
                         {resizeHandle(grab)}
                         {isExam && (
                           <span className="exam-flag" style={{ color: titleTint(color) }}>
-                            EXAM<span className="exam-bang">{'‼︎'}</span>
+                            {t('EXAM')}<span className="exam-bang">{'‼︎'}</span>
                           </span>
                         )}
                         {isExam && <span className="exam-corner" style={{ background: color }} />}
@@ -847,29 +855,29 @@ export default function WeekGrid({ anchor, days }: Props) {
                     label itself opens the task. A bar goes faded + struck once
                     the work is submitted, and an extended-away deadline (ghost)
                     keeps its original slot the same way, with a small note. */}
-                {dueBarsForDay(state, iso).map(({ task: t, dueMin, ghost }) => {
+                {dueBarsForDay(state, iso).map(({ task: tk, dueMin, ghost }) => {
                   const due = dueMin ?? DUE_EOD_MIN
-                  const color = taskColor(state, t.projectId)
-                  const spent = ghost || !!t.submitted
-                  const openDue = (e: React.MouseEvent) => { e.stopPropagation(); ui.openTask({ task: t }) }
+                  const color = taskColor(state, tk.projectId)
+                  const spent = ghost || !!tk.submitted
+                  const openDue = (e: React.MouseEvent) => { e.stopPropagation(); ui.openTask({ task: tk }) }
                   const tip = ghost
-                    ? `Was due ${fmtTime(due)} — ${t.title} (extension granted)`
-                    : `Due ${fmtTime(due)} — ${t.title}${t.submitted ? ' (submitted)' : ''}`
+                    ? `${t('Was due')} ${fmtTime(due)} — ${tk.title} (${t('extension granted')})`
+                    : `${t('Due')} ${fmtTime(due)} — ${tk.title}${tk.submitted ? ` (${t('submitted')})` : ''}`
                   // An extended-away deadline is history: only the live bar drags.
                   const dueDrag = ghost
                     ? {}
-                    : dragHandlers({ kind: 'due', id: t.id, mode: 'move', occurrence: iso, origStart: due, origEnd: due })
+                    : dragHandlers({ kind: 'due', id: tk.id, mode: 'move', occurrence: iso, origStart: due, origEnd: due })
                   return (
-                    <div key={`due-${t.id}-${ghost ? `x${due}` : 'now'}`}
-                      className={`due-layer${spent ? ' due-spent' : ''}${isDragging('due', t.id) && !ghost ? ' drag-source' : ''}`}
+                    <div key={`due-${tk.id}-${ghost ? `x${due}` : 'now'}`}
+                      className={`due-layer${spent ? ' due-spent' : ''}${isDragging('due', tk.id) && !ghost ? ' drag-source' : ''}`}
                       style={{ top: (due / 60) * HOUR_H }}>
                       {/* Invisible ~8px hit strip centred on the hairline so the
                           whole bar is clickable, not just the label. */}
                       <div className="due-hit" title={tip} onClick={openDue} {...dueDrag} />
                       <div className="due-label" style={{ color }} title={tip} onClick={openDue} {...dueDrag}>
-                        <span className="due-txt">DUE — {t.title}</span>
+                        <span className="due-txt">{t('DUE')} — {tk.title}</span>
                         <span className="due-flag">{DUE_FLAG}</span>
-                        {ghost && <span className="due-ext-note">extension granted</span>}
+                        {ghost && <span className="due-ext-note">{t('extension granted')}</span>}
                       </div>
                       <div className="due-line" style={{ background: color }} />
                     </div>
@@ -887,8 +895,8 @@ export default function WeekGrid({ anchor, days }: Props) {
                     ui.openRecurring({ rt: occ.rt, occurrence: occ.key })
                   }
                   const tip = ghost
-                    ? `Was due ${fmtTime(due)} — ${occ.rt.title} (extension granted)`
-                    : `Due ${fmtTime(due)} — ${occ.rt.title}`
+                    ? `${t('Was due')} ${fmtTime(due)} — ${occ.rt.title} (${t('extension granted')})`
+                    : `${t('Due')} ${fmtTime(due)} — ${occ.rt.title}`
                   const dueDrag = ghost
                     ? {}
                     : dragHandlers({
@@ -901,9 +909,9 @@ export default function WeekGrid({ anchor, days }: Props) {
                       style={{ top: (due / 60) * HOUR_H }}>
                       <div className="due-hit" title={tip} onClick={openDue} {...dueDrag} />
                       <div className="due-label" style={{ color }} title={tip} onClick={openDue} {...dueDrag}>
-                        <span className="due-txt">DUE — {occ.rt.title} ↻</span>
+                        <span className="due-txt">{t('DUE')} — {occ.rt.title} ↻</span>
                         <span className="due-flag">{DUE_FLAG}</span>
-                        {ghost && <span className="due-ext-note">extension granted</span>}
+                        {ghost && <span className="due-ext-note">{t('extension granted')}</span>}
                       </div>
                       <div className="due-line" style={{ background: color }} />
                     </div>
@@ -929,7 +937,7 @@ export default function WeekGrid({ anchor, days }: Props) {
                   return (
                     <div key={s.id} className="study-layer" style={{ top, height }}>
                       <div className="study-stripe" style={{ background: color }} onClick={open}
-                        title={`Study session · ${fmtDuration(sessionDuration(s, now.minutes))}`}>
+                        title={`${t('Study session')} · ${fmtDuration(sessionDuration(s, now.minutes))}`}>
                         {spans.map((sp, i) => (
                           <div key={`seg${i}`} className="study-seg"
                             style={{
@@ -949,7 +957,7 @@ export default function WeekGrid({ anchor, days }: Props) {
                       </div>
                       <div className="study-edge top" onClick={open}>{fmtTime(s.startMin)}</div>
                       <div className="study-edge bottom" onClick={open}>
-                        {s.endMin == null ? 'now' : fmtTime(end)}
+                        {s.endMin == null ? t('now') : fmtTime(end)}
                       </div>
                       <div className="study-info" onClick={open}>
                         {/* One chip per class the session passed through, in order,
@@ -1035,16 +1043,16 @@ export default function WeekGrid({ anchor, days }: Props) {
             applies to that date: the year's goals plus its own month's. */}
         <div className={`habits-lane${habitsShut ? ' lane-shut' : ''}`}>
           <button type="button" className="gutter lane-toggle"
-            title={habitsShut ? 'Show habit goals' : 'Collapse habit goals'}
+            title={habitsShut ? t('Show habit goals') : t('Collapse habit goals')}
             aria-expanded={!habitsShut}
             onClick={() => dispatch({ type: 'setCollapseHabits', on: !habitsShut })}>
             <span className={`caret ${habitsShut ? '' : 'open'}`}>▶</span>
-            <span className="lane-toggle-label">habits</span>
+            <span className="lane-toggle-label">{t('habits')}</span>
           </button>
           {/* Nothing to track anywhere in view: one hint instead of seven
               identical empty columns. */}
           {!habitsShut && !dates.some((d) => goalsForDate(state, toISO(d)).length > 0) ? (
-            <div className="habits-hint">No habit goals yet — add them in the month or year view.</div>
+            <div className="habits-hint">{t('No habit goals yet — add them in the month or year view.')}</div>
           ) : dates.map((d) => {
             const iso = toISO(d)
             const goals = goalsForDate(state, iso)
@@ -1053,7 +1061,9 @@ export default function WeekGrid({ anchor, days }: Props) {
               const done = goals.filter((g) => isTicked(state, g.id, iso)).length
               return (
                 <div key={iso} className={`habits-cell habits-count${dayOff}`}
-                  title={goals.length ? `${done} of ${goals.length} ticked — click to expand` : 'Click to expand'}
+                  title={goals.length
+                    ? `${fill(t('{done} of {total} ticked'), { done, total: goals.length })} — ${t('click to expand')}`
+                    : t('Click to expand')}
                   onClick={() => dispatch({ type: 'setCollapseHabits', on: false })}>
                   {goals.length > 0 && <span className="hb-n">{done}/{goals.length}</span>}
                 </div>
@@ -1072,7 +1082,7 @@ export default function WeekGrid({ anchor, days }: Props) {
                     </button>
                   )
                 })}
-                {goals.length === 0 && <span className="hb-empty">No goals</span>}
+                {goals.length === 0 && <span className="hb-empty">{t('No goals')}</span>}
               </div>
             )
           })}
@@ -1083,7 +1093,7 @@ export default function WeekGrid({ anchor, days }: Props) {
             found by scrolling past the last hour). */}
         <div className={`journal-lane${journalShut ? ' lane-shut' : ''}`}>
           <button type="button" className="gutter lane-toggle"
-            title={journalShut ? 'Show journal boxes' : 'Collapse journal boxes'}
+            title={journalShut ? t('Show journal boxes') : t('Collapse journal boxes')}
             aria-expanded={!journalShut}
             onClick={() => dispatch({ type: 'setCollapseJournal', on: !journalShut })}>
             <span className={`caret ${journalShut ? '' : 'open'}`}>▶</span>
@@ -1093,11 +1103,11 @@ export default function WeekGrid({ anchor, days }: Props) {
             return (
               <div key={iso} className={`journal-cell ${isDayOff(state, iso) ? 'day-off' : ''}`}>
                 <button type="button" className="jl-head"
-                  title={journalShut ? 'Show journal boxes' : 'Collapse journal boxes'}
+                  title={journalShut ? t('Show journal boxes') : t('Collapse journal boxes')}
                   onClick={() => dispatch({ type: 'setCollapseJournal', on: !journalShut })}>
                   <PencilGlyph size={11} />
-                  <span>Journal</span>
-                  {journalShut && state.dayLogs[iso]?.journal && <span className="jl-dot" aria-label="Has an entry">•</span>}
+                  <span>{t('Journal')}</span>
+                  {journalShut && state.dayLogs[iso]?.journal && <span className="jl-dot" aria-label={t('Has an entry')}>•</span>}
                 </button>
                 {!journalShut && <JournalBox date={iso} />}
               </div>
@@ -1120,7 +1130,7 @@ export default function WeekGrid({ anchor, days }: Props) {
           <button type="button" onClick={() => {
             ui.openEvent({ date: slotChooser.iso, startMin: slotChooser.startMin, endMin: slotChooser.endMin })
             setSlotChooser(null)
-          }}>Event</button>
+          }}>{t('Event')}</button>
           {/* A plain click still hands the task editor nothing but the day —
               only a dragged span gives it a time and an expected-time block. */}
           <button type="button" onClick={() => {
@@ -1128,7 +1138,7 @@ export default function WeekGrid({ anchor, days }: Props) {
               ? { date: slotChooser.iso, startMin: slotChooser.startMin, endMin: slotChooser.endMin }
               : { date: slotChooser.iso })
             setSlotChooser(null)
-          }}>Task</button>
+          }}>{t('Task')}</button>
           <button type="button" onClick={() => {
             ui.openLogStudy({
               date: slotChooser.iso,
@@ -1136,7 +1146,7 @@ export default function WeekGrid({ anchor, days }: Props) {
               endMin: slotChooser.endMin ?? Math.min(24 * 60, slotChooser.startMin + 60),
             })
             setSlotChooser(null)
-          }}>Study log</button>
+          }}>{t('Study log')}</button>
         </div>,
         document.body,
       )}

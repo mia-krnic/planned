@@ -7746,7 +7746,8 @@ body.drawer-lock { overflow: hidden; overscroll-behavior: none; }
 /* ---------- end Weight in the sleep row ---------- */
 
 /* ---------- Page-tab icons ---------- */
-.page-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+/* CJK labels would otherwise break per character when the bar tightens. */
+.page-tabs button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .page-tabs .tab-glyph { flex: none; opacity: 0.75; }
 .page-tabs button.active .tab-glyph { opacity: 1; }
 /* ---------- end Page-tab icons ---------- */

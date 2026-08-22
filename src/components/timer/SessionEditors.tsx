@@ -5,6 +5,7 @@
  * during AND after a session, so they live outside any single view.
  */
 import { useMemo } from 'react'
+import { t } from '../../i18n'
 import { classColorGroups, useStore } from '../../store'
 import type { AppState, ClassSegment, ID, StudyBreak, StudySession } from '../../types'
 import { cbTint } from '../../utils/color'
@@ -29,7 +30,7 @@ export type SegmentPatch = Pick<StudySession, 'classId' | 'classSegments'>
  */
 export function classOnlyGroups(state: AppState): ColorGroup[] {
   return [
-    { options: [{ value: '', label: 'Unassigned', color: NEUTRAL_COLOR }] },
+    { options: [{ value: '', label: t('Unassigned'), color: NEUTRAL_COLOR }] },
     ...classColorGroups(state),
   ]
 }
@@ -40,7 +41,7 @@ export function classOnlyGroups(state: AppState): ColorGroup[] {
 export const BREAK_TAGS = ['rest', 'meal', 'restroom', 'other'] as const
 
 export function breakTagLabel(tag: string | undefined): string {
-  return tag ? tag : 'untagged'
+  return tag ? t(tag) : t('untagged')
 }
 
 /**
@@ -108,12 +109,12 @@ export function BreakTagSelect({ value, onChange }: {
   onChange: (tag: string | undefined) => void
 }) {
   return (
-    <select className="brk-tag" title="Why the break?" value={value ?? ''}
+    <select className="brk-tag" title={t('Why the break?')} value={value ?? ''}
       onChange={(e) => onChange(e.target.value || undefined)}>
-      <option value="">tag…</option>
-      {BREAK_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
+      <option value="">{t('tag…')}</option>
+      {BREAK_TAGS.map((tag) => <option key={tag} value={tag}>{t(tag)}</option>)}
       {value && !BREAK_TAGS.includes(value as typeof BREAK_TAGS[number]) && (
-        <option value={value}>{value}</option>
+        <option value={value}>{t(value)}</option>
       )}
     </select>
   )
@@ -130,15 +131,15 @@ export function BreakTagChips({ value, color, onChange }: {
   onChange: (tag: string | undefined) => void
 }) {
   return (
-    <div className="brk-chips" role="group" aria-label="Tag this break">
-      <span className="brk-chips-lbl">Why the break?</span>
-      {BREAK_TAGS.map((t) => (
-        <button key={t} type="button"
-          className={`brk-chip ${value === t ? 'on' : ''}`}
-          style={value === t ? { borderColor: color, color } : undefined}
-          aria-pressed={value === t}
-          onClick={() => onChange(value === t ? undefined : t)}>
-          {t}
+    <div className="brk-chips" role="group" aria-label={t('Tag this break')}>
+      <span className="brk-chips-lbl">{t('Why the break?')}</span>
+      {BREAK_TAGS.map((tag) => (
+        <button key={tag} type="button"
+          className={`brk-chip ${value === tag ? 'on' : ''}`}
+          style={value === tag ? { borderColor: color, color } : undefined}
+          aria-pressed={value === tag}
+          onClick={() => onChange(value === tag ? undefined : tag)}>
+          {t(tag)}
         </button>
       ))}
     </div>
@@ -159,7 +160,7 @@ export function BreaksEditor({ breaks, bound, onChange }: {
 
   return (
     <div className="brk-list">
-      {breaks.length === 0 && <div className="st-empty">No breaks logged.</div>}
+      {breaks.length === 0 && <div className="st-empty">{t('No breaks logged.')}</div>}
       {breaks.map((b, i) => (
         <div key={i} className="brk-row">
           <TimeSelect value={minToHm(b.startMin)} onChange={(v) => {
@@ -172,10 +173,10 @@ export function BreaksEditor({ breaks, bound, onChange }: {
             setBreak(i, { ...b, startMin: b.startMin, durMin: Math.max(1, newEnd - b.startMin) })
           }} />
           <BreakTagSelect value={b.tag} onChange={(tag) => setBreak(i, { ...b, tag })} />
-          <button type="button" className="brk-del" title="Remove break" onClick={() => removeBreak(i)}>×</button>
+          <button type="button" className="brk-del" title={t('Remove break')} onClick={() => removeBreak(i)}>×</button>
         </div>
       ))}
-      <button type="button" className="btn brk-add" onClick={addBreak}>+ Add break</button>
+      <button type="button" className="btn brk-add" onClick={addBreak}>{t('+ Add break')}</button>
     </div>
   )
 }
@@ -216,7 +217,7 @@ export function SegmentsEditor({ session, endMin, onChange }: {
       {segs.map((seg, i) => (
         <div key={i} className="brk-row seg-row">
           {i === 0 ? (
-            <span className="seg-fixed" title="The first slice always starts with the session">
+            <span className="seg-fixed" title={t('The first slice always starts with the session')}>
               {fmtTime(seg.startMin)}
             </span>
           ) : (
@@ -230,12 +231,12 @@ export function SegmentsEditor({ session, endMin, onChange }: {
           {i === 0 ? (
             <span className="seg-del-spacer" />
           ) : (
-            <button type="button" className="brk-del" title="Remove this switch" onClick={() => removeSeg(i)}>×</button>
+            <button type="button" className="brk-del" title={t('Remove this switch')} onClick={() => removeSeg(i)}>×</button>
           )}
         </div>
       ))}
       {roomToAdd && (
-        <button type="button" className="btn brk-add" onClick={addSeg}>+ Add switch</button>
+        <button type="button" className="btn brk-add" onClick={addSeg}>{t('+ Add switch')}</button>
       )}
     </div>
   )
@@ -263,7 +264,7 @@ export function UploadPicker({ classId, linked, color, onToggle }: {
     <>
       {here.length === 0 ? (
         <div className="st-empty">
-          {classId ? 'No binder files in this class yet.' : 'Pick a class to link its binder files.'}
+          {classId ? t('No binder files in this class yet.') : t('Pick a class to link its binder files.')}
         </div>
       ) : (
         <div className="st-list">
@@ -279,15 +280,15 @@ export function UploadPicker({ classId, linked, color, onToggle }: {
       )}
       {elsewhere.length > 0 && (
         <div className="st-linked">
-          <div className="st-linked-head">Linked earlier in this session</div>
+          <div className="st-linked-head">{t('Linked earlier in this session')}</div>
           {elsewhere.map((u) => {
             const cls = state.classes.find((c) => c.id === u.classId)
             return (
               <div key={u.id} className="st-linked-row">
                 <span className="st-linked-dot" style={{ background: cls?.color ?? 'var(--text-faint)' }} />
                 <span className="st-linked-title">{u.title}</span>
-                <span className="st-when">{cls?.name ?? 'other class'}</span>
-                <button type="button" className="brk-del" title="Unlink" onClick={() => onToggle(u.id)}>×</button>
+                <span className="st-when">{cls?.name ?? t('other class')}</span>
+                <button type="button" className="brk-del" title={t('Unlink')} onClick={() => onToggle(u.id)}>×</button>
               </div>
             )
           })}

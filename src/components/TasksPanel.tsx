@@ -3,6 +3,7 @@ import { useUI } from '../App'
 import { classById, projectById, taskColor, useStore } from '../store'
 import type { Task } from '../types'
 import { DUE_EOD_MIN } from '../types'
+import { t } from '../i18n'
 import { addDays, fmtFriendly, fmtTime, fromISO, toISO, todayISO } from '../utils/date'
 import { cbTint, dueTint, hexToRgba, titleTint } from '../utils/color'
 import { DUE_FLAG, fmtDue } from '../utils/agenda'
@@ -35,35 +36,36 @@ export default function TasksPanel({ mode, onExpand }: Props) {
     return cls ? cls.name : p.name
   }
 
-  const taskRow = (t: Task) => {
-    const color = taskColor(state, t.projectId)
-    const label = projectLabel(t.projectId)
-    const overdue = !t.done && t.date != null && t.date < today
+  // Named `task`, not `t`: `t` is the translation function in this file now.
+  const taskRow = (task: Task) => {
+    const color = taskColor(state, task.projectId)
+    const label = projectLabel(task.projectId)
+    const overdue = !task.done && task.date != null && task.date < today
     return (
-      <div key={t.id} className="task-row" onClick={() => ui.openTask({ task: t })}>
-        <TaskCheck task={t} color={color} />
+      <div key={task.id} className="task-row" onClick={() => ui.openTask({ task })}>
+        <TaskCheck task={task} color={color} />
         <div className="body">
           {label && (
             <span className="tag" style={{ background: hexToRgba(color, 0.22), color }}>{label}</span>
           )}
-          <div className={`title ${t.done ? 'done-strike' : ''}`} style={{ color: titleTint(color) }}>{t.title}</div>
-          {t.date && (
+          <div className={`title ${task.done ? 'done-strike' : ''}`} style={{ color: titleTint(color) }}>{task.title}</div>
+          {task.date && (
             <div className={`due ${overdue ? 'overdue' : ''}`}>
-              {overdue ? 'Overdue · ' : 'Scheduled '}{fmtFriendly(t.date)}
-              {t.startMin != null ? ` at ${fmtTime(t.startMin)}` : ''}
+              {overdue ? `${t('Overdue')} · ` : `${t('Scheduled')} `}{fmtFriendly(task.date)}
+              {task.startMin != null ? ` ${t('at')} ${fmtTime(task.startMin)}` : ''}
             </div>
           )}
-          {fmtDue(t) && (
+          {fmtDue(task) && (
             <div className="due-note" style={dueTint(color)}>
-              {DUE_FLAG} {fmtDue(t)}{t.extensions?.length ? ' · extended' : ''}
+              {DUE_FLAG} {fmtDue(task)}{task.extensions?.length ? ` · ${t('extended')}` : ''}
             </div>
           )}
-          {t.submitted && <div className="submitted-note">✓ submitted</div>}
-          {t.location && <div className="loc-note">⌖ {t.location}</div>}
+          {task.submitted && <div className="submitted-note">✓ {t('submitted')}</div>}
+          {task.location && <div className="loc-note">⌖ {task.location}</div>}
         </div>
-        <button className={`pin-btn ${t.pinned ? 'pinned' : ''}`}
-          title={t.pinned ? 'Unpin' : 'Pin to top'}
-          onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleTaskPin', id: t.id }) }}>⚲</button>
+        <button className={`pin-btn ${task.pinned ? 'pinned' : ''}`}
+          title={task.pinned ? t('Unpin') : t('Pin to top')}
+          onClick={(e) => { e.stopPropagation(); dispatch({ type: 'toggleTaskPin', id: task.id }) }}>⚲</button>
       </div>
     )
   }
@@ -119,13 +121,13 @@ export default function TasksPanel({ mode, onExpand }: Props) {
     <div className={`tasks-panel ${mode === 'full' ? 'full' : ''}`}>
       {mode === 'full' && <AmbientWallpaper variant="sides" />}
       <div className="tp-head">
-        <h2>Tasks</h2>
+        <h2>{t('Tasks')}</h2>
         <div className="tp-tabs">
-          <button className={tab === 'upcoming' ? 'active' : ''} onClick={() => setTab('upcoming')}>Upcoming</button>
-          <button className={tab === 'projects' ? 'active' : ''} onClick={() => setTab('projects')}>Projects</button>
+          <button className={tab === 'upcoming' ? 'active' : ''} onClick={() => setTab('upcoming')}>{t('Upcoming')}</button>
+          <button className={tab === 'projects' ? 'active' : ''} onClick={() => setTab('projects')}>{t('Projects')}</button>
         </div>
-        <button className="btn icon" title="Add task" onClick={() => ui.openTask({ date: today })}>＋</button>
-        <button className="btn icon" title={mode === 'sidebar' ? 'Expand to full screen' : 'Back to calendar'} onClick={onExpand}>
+        <button className="btn icon" title={t('Add task')} onClick={() => ui.openTask({ date: today })}>＋</button>
+        <button className="btn icon" title={mode === 'sidebar' ? t('Expand to full screen') : t('Back to calendar')} onClick={onExpand}>
           {mode === 'sidebar' ? '⤢' : '⤡'}
         </button>
       </div>
@@ -138,20 +140,22 @@ export default function TasksPanel({ mode, onExpand }: Props) {
               <input type="checkbox" className="cb"
                 checked={!!state.nlQuickAdd}
                 onChange={(e) => dispatch({ type: 'setNlQuickAdd', on: e.target.checked })} />
-              Natural-language quick add
-              <InfoIcon text="When on, the quick-add inputs in the projects tree parse things like 'essay draft tue 4pm p:PHIL due fri 17:00 @library' into title/date/time/project/due/location. When off, whatever you type is used verbatim as the title." />
+              {t('Natural-language quick add')}
+              <InfoIcon text={t("When on, the quick-add inputs in the projects tree parse things like 'essay draft tue 4pm p:PHIL due fri 17:00 @library' into title/date/time/project/due/location. When off, whatever you type is used verbatim as the title.")} />
             </label>
             <button className="btn small nlqa-syntax-btn" onClick={() => setSyntaxOpen((v) => !v)}>
-              {syntaxOpen ? 'Hide syntax' : 'Show syntax'}
+              {syntaxOpen ? t('Hide syntax') : t('Show syntax')}
             </button>
+            {/* The syntax the parser accepts is English and stays English — only
+                the labels around the examples are translated. */}
             {syntaxOpen && (
               <div className="nlqa-syntax">
-                <div><b>Dates:</b> today, tomorrow, tmrw, mon…sun, aug 30, 30/8</div>
-                <div><b>Times:</b> 4pm, 4:30pm, 16:30</div>
-                <div><b>Due:</b> <code>due &lt;date&gt; [time]</code> — e.g. <code>due fri 17:00</code></div>
-                <div><b>Project:</b> <code>p:&lt;name&gt;</code> — case-insensitive prefix match</div>
-                <div><b>Location:</b> <code>@place</code></div>
-                <div><b>Title:</b> anything unmatched</div>
+                <div><b>{t('Dates:')}</b> today, tomorrow, tmrw, mon…sun, aug 30, 30/8</div>
+                <div><b>{t('Times:')}</b> 4pm, 4:30pm, 16:30</div>
+                <div><b>{t('Due:')}</b> <code>due &lt;date&gt; [time]</code> — {t('e.g.')} <code>due fri 17:00</code></div>
+                <div><b>{t('Project:')}</b> <code>p:&lt;name&gt;</code> — {t('case-insensitive prefix match')}</div>
+                <div><b>{t('Location:')}</b> <code>@place</code></div>
+                <div><b>{t('Title:')}</b> {t('anything unmatched')}</div>
               </div>
             )}
           </div>
@@ -166,7 +170,7 @@ export default function TasksPanel({ mode, onExpand }: Props) {
                 <div className="pin-box-head" onClick={() => setPinnedOpen((v) => !v)}>
                   <span className={`caret ${pinnedOpen ? 'open' : ''}`}>▶</span>
                   <span className="pin-glyph">⚲</span>
-                  Pinned <span className="dg-count">{pinned.length}</span>
+                  {t('Pinned')} <span className="dg-count">{pinned.length}</span>
                 </div>
                 {pinnedOpen && <div className="pin-box-body">{pinned.map(taskRow)}</div>}
               </div>
@@ -175,20 +179,20 @@ export default function TasksPanel({ mode, onExpand }: Props) {
               <div className="date-group due-group">
                 <div className="dg-title dg-title-clickable dg-title-due" onClick={() => setDueOpen((v) => !v)}>
                   <span className={`caret ${dueOpen ? 'open' : ''}`}>▶</span>
-                  Due <span className="dg-count">{dueAll.length}</span>
+                  {t('Due')} <span className="dg-count">{dueAll.length}</span>
                 </div>
                 {dueOpen && dueAll.map(taskRow)}
               </div>
             )}
-            {group('Overdue', overdue.map(taskRow), 'overdue')}
-            {group('Today', [...recToday.map(recurringRow), ...dueToday.map(taskRow)])}
-            {group('Tomorrow', dueTomorrow.map(taskRow))}
-            {group('This week', thisWeek.map(taskRow))}
-            {group('Later', later.map(taskRow))}
-            {group('Someday', someday.map(taskRow))}
+            {group(t('Overdue'), overdue.map(taskRow), 'overdue')}
+            {group(t('Today'), [...recToday.map(recurringRow), ...dueToday.map(taskRow)])}
+            {group(t('Tomorrow'), dueTomorrow.map(taskRow))}
+            {group(t('This week'), thisWeek.map(taskRow))}
+            {group(t('Later'), later.map(taskRow))}
+            {group(t('Someday'), someday.map(taskRow))}
             {pinned.length + dueAll.length + overdue.length + dueToday.length + recToday.length + dueTomorrow.length +
               thisWeek.length + later.length + someday.length === 0 && (
-              <div className="empty-hint">Nothing here — add a task with ＋</div>
+              <div className="empty-hint">{t('Nothing here — add a task with ＋')}</div>
             )}
           </>
         )}

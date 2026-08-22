@@ -6,6 +6,13 @@ import {
 } from '../utils/agenda'
 import { hexToRgba } from '../utils/color'
 import { fromISO, isSameDay, monthMatrix, MONTHS, toISO, todayISO, weekdayLabels } from '../utils/date'
+import { lang, t } from '../i18n'
+import { dowInitial } from './MiniMonth'
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 import { isTicked, monthDates, progress, yearGoals } from '../utils/habits'
 import { GoalName } from './HabitGantt'
 import InfoIcon from './InfoIcon'
@@ -33,10 +40,10 @@ function YearMiniMonth({ year, month, onPick }: { year: number; month: number; o
 
   return (
     <div className="mini-month yv-mm">
-      <div className="mm-head"><span className="mm-title">{MONTHS[month]}</span></div>
+      <div className="mm-head"><span className="mm-title">{t(MONTHS[month])}</span></div>
       <div className="mm-grid">
         {weekdayLabels(state.weekStart).map((d, i) => (
-          <div key={i} className="mm-dow">{d[0]}</div>
+          <div key={i} className="mm-dow">{dowInitial(d)}</div>
         ))}
         {matrix.flat().map((d) => {
           const iso = toISO(d)
@@ -109,9 +116,11 @@ export default function YearView({ anchor, setAnchor, setView }: Props) {
       <div className="yv-head">
         <h2 className="yv-year">{year}</h2>
         <span className="yv-sub">
-          {goals.length === 0 ? 'no year goals yet' : `${goals.length} year goal${goals.length === 1 ? '' : 's'}`}
+          {goals.length === 0
+            ? t('no year goals yet')
+            : fill(t('{n} year goal{s}'), { n: goals.length, s: goals.length === 1 ? '' : 's' })}
         </span>
-        <InfoIcon text={YEAR_INFO} />
+        <InfoIcon text={t(YEAR_INFO)} />
       </div>
 
       <section className="yv-card">
@@ -124,7 +133,10 @@ export default function YearView({ anchor, setAnchor, setView }: Props) {
               </div>
               {months.map((ds, m) => (
                 <div key={m} className="yv-mhead" style={{ width: `calc(${ds.length} * var(--yv-cell))` }}>
-                  <span className="yv-mhead-txt">{MONTHS[m].slice(0, 1)}</span>
+                  {/* One character per month. English uses the initial; Chinese
+                      uses the month number, since '十月'/'十一月'/'十二月' all
+                      begin with the same character. */}
+                  <span className="yv-mhead-txt">{lang() === 'zh' ? m + 1 : MONTHS[m].slice(0, 1)}</span>
                 </div>
               ))}
             </div>
@@ -136,7 +148,9 @@ export default function YearView({ anchor, setAnchor, setView }: Props) {
                   <div className="yv-name">
                     <GoalName goal={g} />
                     <span className="yv-pct"
-                      title={p.pct == null ? 'This year has not started yet' : `${p.done} of ${p.elapsed} days so far`}>
+                      title={p.pct == null
+                        ? t('This year has not started yet')
+                        : fill(t('{done} of {elapsed} days so far'), { done: p.done, elapsed: p.elapsed })}>
                       {p.pct == null ? '–' : `${p.pct}%`}
                     </span>
                   </div>
@@ -153,13 +167,13 @@ export default function YearView({ anchor, setAnchor, setView }: Props) {
               )
             })}
 
-            {goals.length === 0 && <div className="yv-empty">No year goals yet — add one below.</div>}
+            {goals.length === 0 && <div className="yv-empty">{t('No year goals yet — add one below.')}</div>}
           </div>
         </div>
 
         <div className="yv-add">
-          <input ref={addRef} className="hg-add-input" placeholder="+ Add year goal"
-            aria-label={`Add a year goal for ${year}`}
+          <input ref={addRef} className="hg-add-input" placeholder={t('+ Add year goal')}
+            aria-label={fill(t('Add a year goal for {year}'), { year })}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {

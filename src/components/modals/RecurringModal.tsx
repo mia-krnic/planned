@@ -3,6 +3,7 @@ import type { RecurringModalInit } from '../../App'
 import { uid, useStore } from '../../store'
 import type { Freq, RecurException, RecurKind, RecurRule, RecurringTask } from '../../types'
 import { hmToMin, minToHm, todayISO, WEEKDAYS } from '../../utils/date'
+import { dowInitial } from '../MiniMonth'
 import { occurrenceAt, type EditScope } from '../../utils/occur'
 import ColorSelect, { type ColorGroup } from '../ColorSelect'
 import InfoIcon from '../InfoIcon'
@@ -291,7 +292,7 @@ export default function RecurringModal({ init, onClose }: { init: RecurringModal
                   {WEEKDAYS.map((d, i) => (
                     <button key={d} type="button"
                       className={`rt-day${weekdays.includes(i) ? ' on' : ''}`}
-                      onClick={() => toggleDay(i)}>{d[0]}</button>
+                      onClick={() => toggleDay(i)}>{dowInitial(d)}</button>
                   ))}
                 </div>
               </div>

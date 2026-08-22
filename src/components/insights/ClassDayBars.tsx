@@ -1,8 +1,9 @@
+import { t } from '../../i18n'
 import type { AppState } from '../../types'
 import { MONTHS } from '../../utils/date'
 import InfoIcon from '../InfoIcon'
 import {
-  classColorOf, classLabelOf, fmtMins, intervalIn,
+  classColorOf, classLabelOf, fill, fmtMins, intervalIn,
   type IntervalData, type IntervalKey, type Unit,
 } from './insightsData'
 import { buildClassStacks, shortDate } from './chartsData'
@@ -63,25 +64,27 @@ export default function ClassDayBars({ state, data, ival, unit }: {
   // Tooltips name every bucket in full, including the months whose axis label
   // was thinned away — "August 2026" rather than a blank.
   const bucketName = (key: string) =>
-    monthly ? `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}` : shortDate(key)
+    monthly ? `${t(MONTHS[Number(key.slice(5, 7)) - 1])} ${key.slice(0, 4)}` : shortDate(key)
 
   return (
     <>
       <div className="ins2-sub-head">
-        <h3>Study time by class, per {monthly ? 'month' : 'day'}</h3>
-        <InfoIcon text={NOTE} />
+        <h3>{t(monthly ? 'Study time by class, per month' : 'Study time by class, per day')}</h3>
+        <InfoIcon text={t(NOTE)} />
       </div>
 
       {data.totalMin <= 0 ? (
         <div className="ins2-empty">
-          No study time {intervalIn(ival)} to break down by {monthly ? 'month' : 'day'}.
+          {fill(t(monthly
+            ? 'No study time {span} to break down by month.'
+            : 'No study time {span} to break down by day.'), { span: intervalIn(ival) })}
         </div>
       ) : (
         <>
         <div className={wide ? 'ins2-xscroll' : undefined}>
           <svg className="ins2-line" viewBox={`0 0 ${W} ${H}`} role="img"
             style={wide ? { width: `${W}px` } : undefined}
-            aria-label={`Study time per ${monthly ? 'month' : 'day'}, stacked by class`}>
+            aria-label={t(monthly ? 'Study time per month, stacked by class' : 'Study time per day, stacked by class')}>
             {[0, 0.5, 1].map((f) => {
               const gy = PAD_T + INNER_H - f * INNER_H
               return (

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import type { DayLog, WeatherKind } from '../../types'
 import { fmtSleep, fmtWeight, parseSleep, parseWeight } from '../../utils/daylog'
@@ -19,6 +20,11 @@ import {
  */
 
 export const JOURNAL_MAX = 500
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /** Where the counter starts showing itself. */
 const COUNTER_FROM = 440
@@ -78,7 +84,7 @@ export function WeatherRow({ date }: { date: string }) {
       {WEATHER_KINDS.map((k) => (
         <button key={k} type="button"
           className={`dl-wx ${on.includes(k) ? 'on' : ''}`}
-          title={WEATHER_LABEL[k]} aria-label={WEATHER_LABEL[k]} aria-pressed={on.includes(k)}
+          title={t(WEATHER_LABEL[k])} aria-label={t(WEATHER_LABEL[k])} aria-pressed={on.includes(k)}
           onClick={() => toggle(k)}>
           <WeatherGlyph kind={k} size={13} />
         </button>
@@ -101,13 +107,13 @@ function MealRow({ date, mealKey }: { date: string; mealKey: 'b' | 'l' | 'd' }) 
   const Glyph = MEAL_GLYPH[mealKey]
 
   return (
-    <label className="dl-meal" title={MEAL_LABEL[mealKey]}>
+    <label className="dl-meal" title={t(MEAL_LABEL[mealKey])}>
       <span className="dl-meal-icon" aria-hidden="true"><Glyph size={12} /></span>
       <input
         type="text"
         className="dl-meal-input"
         value={f.draft}
-        aria-label={MEAL_LABEL[mealKey]}
+        aria-label={t(MEAL_LABEL[mealKey])}
         onChange={(e) => f.setDraft(e.target.value)}
         onFocus={f.onFocus}
         onBlur={f.onBlur}
@@ -142,12 +148,12 @@ export function WaterRow({ date }: { date: string }) {
   const [log, patch] = useDayLog(date)
   const count = log?.water ?? 0
   return (
-    <div className="dl-water" role="group" aria-label="Glasses of water">
+    <div className="dl-water" role="group" aria-label={t('Glasses of water')}>
       {Array.from({ length: WATER_MAX }, (_, i) => {
         const on = i < count
         return (
           <button key={i} type="button" className={`dl-drop ${on ? 'on' : ''}`}
-            title={`Water · ${on ? i + 1 : i + 1} of ${WATER_MAX}`}
+            title={fill(t('Water · {n} of {max}'), { n: i + 1, max: WATER_MAX })}
             aria-pressed={on}
             onClick={() => patch({ water: i < count ? i : i + 1 })}>
             <svg width="10" height="12" viewBox="0 0 16 19" aria-hidden="true">
@@ -174,7 +180,7 @@ function ShowerToggle({ date }: { date: string }) {
   const on = !!log?.shower
   return (
     <button type="button" className={`dl-drop dl-shower ${on ? 'on' : ''}`}
-      title="Shower" aria-label="Shower" aria-pressed={on}
+      title={t('Shower')} aria-label={t('Shower')} aria-pressed={on}
       onClick={() => patch({ shower: !on })}>
       <ShowerGlyph size={13} struck={on} />
     </button>
@@ -194,12 +200,12 @@ function TeethRow({ date }: { date: string }) {
   const [log, patch] = useDayLog(date)
   const count = log?.teeth ?? 0
   return (
-    <span className="dl-teeth" role="group" aria-label="Brush teeth">
+    <span className="dl-teeth" role="group" aria-label={t('Brush teeth')}>
       {Array.from({ length: TEETH_MAX }, (_, i) => {
         const on = i < count
         return (
           <button key={i} type="button" className={`dl-drop dl-tooth ${on ? 'on' : ''}`}
-            title={`Brush teeth · ${i + 1} of ${TEETH_MAX}`} aria-pressed={on}
+            title={fill(t('Brush teeth · {n} of {max}'), { n: i + 1, max: TEETH_MAX })} aria-pressed={on}
             onClick={() => patch({ teeth: i < count ? i : i + 1 })}>
             <ToothGlyph size={13} struck={on} />
           </button>
@@ -217,7 +223,7 @@ export function MoodRow({ date }: { date: string }) {
       {MOOD_LEVELS.map((m: MoodLevel) => (
         <button key={m} type="button"
           className={`dl-face dl-face-${m} ${mood === m ? 'on' : ''}`}
-          title={MOOD_LABEL[m]} aria-label={MOOD_LABEL[m]} aria-pressed={mood === m}
+          title={t(MOOD_LABEL[m])} aria-label={t(MOOD_LABEL[m])} aria-pressed={mood === m}
           // Clicking the selected face clears the day's mood again.
           onClick={() => patch({ mood: mood === m ? undefined : m })}>
           <MoodFace level={m} size={14} />
@@ -260,7 +266,7 @@ export function SleepRow({ date }: { date: string }) {
 
   return (
     <div className="dl-meal dl-sleep">
-      <label className="dl-sleep-half" title="Hours slept last night">
+      <label className="dl-sleep-half" title={t('Hours slept last night')}>
         <span className="dl-meal-icon" aria-hidden="true"><SleepMoonGlyph size={12} /></span>
         <input
           type="text"
@@ -268,7 +274,7 @@ export function SleepRow({ date }: { date: string }) {
           inputMode="decimal"
           placeholder="7:30"
           value={draft}
-          aria-label="Hours slept last night"
+          aria-label={t('Hours slept last night')}
           onChange={(e) => setDraft(e.target.value)}
           onFocus={() => { focused.current = true }}
           onBlur={commit}
@@ -321,7 +327,7 @@ function WeightHalf({ date }: { date: string }) {
   }
 
   return (
-    <label className="dl-sleep-half dl-weight" title="Weight this morning (kg)">
+    <label className="dl-sleep-half dl-weight" title={t('Weight this morning (kg)')}>
       <span className="dl-meal-icon" aria-hidden="true"><ScaleGlyph size={12} /></span>
       <input
         type="text"
@@ -329,7 +335,7 @@ function WeightHalf({ date }: { date: string }) {
         inputMode="decimal"
         placeholder="kg"
         value={draft}
-        aria-label="Weight this morning in kilograms"
+        aria-label={t('Weight this morning in kilograms')}
         onChange={(e) => setDraft(e.target.value)}
         onFocus={() => { focused.current = true }}
         onBlur={commit}
@@ -370,7 +376,7 @@ interface JournalBoxProps {
 }
 
 /** Auto-expanding entry box for one day, committed on blur. */
-export function JournalBox({ date, placeholder = 'How was today?', minRows = 2 }: JournalBoxProps) {
+export function JournalBox({ date, placeholder = t('How was today?'), minRows = 2 }: JournalBoxProps) {
   const [log, patch] = useDayLog(date)
   const value = log?.journal ?? ''
   const f = useDraft(value, (v) => patch({ journal: v }))
@@ -396,7 +402,7 @@ export function JournalBox({ date, placeholder = 'How was today?', minRows = 2 }
         rows={minRows}
         maxLength={JOURNAL_MAX}
         placeholder={placeholder}
-        aria-label="Journal entry"
+        aria-label={t('Journal entry')}
         value={f.draft}
         onChange={(e) => f.setDraft(e.target.value)}
         onFocus={f.onFocus}

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useUI } from '../App'
+import { t } from '../i18n'
 import { useStore } from '../store'
 import type { HabitGoal } from '../types'
 import { fromISO, MONTHS, todayISO } from '../utils/date'
@@ -7,6 +8,11 @@ import {
   goalsForMonth, isTicked, isYearGoal, monthDates, prevMonthPeriod, progress,
 } from '../utils/habits'
 import InfoIcon from './InfoIcon'
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
 
 /**
  * Hands a goal to the recurring-task editor, prefilled and unsaved: a daily
@@ -28,14 +34,14 @@ function GoalActions({ goal, onRename }: { goal: HabitGoal; onRename: () => void
   const promote = usePromoteGoal()
   return (
     <span className="hg-acts">
-      <button type="button" className="hover-btn" title="Rename goal"
+      <button type="button" className="hover-btn" title={t('Rename goal')}
         onClick={(e) => { e.stopPropagation(); onRename() }}>✎</button>
-      <button type="button" className="hover-btn hg-act-task" title="Promote to a recurring task"
-        onClick={(e) => { e.stopPropagation(); promote(goal) }}>→ task</button>
-      <button type="button" className="hover-btn" title="Delete goal"
+      <button type="button" className="hover-btn hg-act-task" title={t('Promote to a recurring task')}
+        onClick={(e) => { e.stopPropagation(); promote(goal) }}>→ {t('task')}</button>
+      <button type="button" className="hover-btn" title={t('Delete goal')}
         onClick={(e) => {
           e.stopPropagation()
-          if (window.confirm(`Delete goal "${goal.title}"? Its ticks go with it.`)) {
+          if (window.confirm(fill(t('Delete goal "{title}"? Its ticks go with it.'), { title: goal.title }))) {
             dispatch({ type: 'deleteHabitGoal', id: goal.id })
           }
         }}>×</button>
@@ -60,7 +66,7 @@ export function GoalName({ goal }: { goal: HabitGoal }) {
   if (editing) {
     return (
       <input className="hg-rename" autoFocus value={value}
-        aria-label="Goal name"
+        aria-label={t('Goal name')}
         onChange={(e) => setValue(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -72,7 +78,8 @@ export function GoalName({ goal }: { goal: HabitGoal }) {
   return (
     <>
       {isYearGoal(goal) && (
-        <span className="hg-year-tag" title={`Year goal — shows in every month of ${goal.period}`}>⟳</span>
+        <span className="hg-year-tag"
+          title={fill(t('Year goal — shows in every month of {period}'), { period: goal.period })}>⟳</span>
       )}
       <span className="hg-title" title={goal.title}>{goal.title}</span>
       <GoalActions goal={goal} onRename={() => { setValue(goal.title); setEditing(true) }} />
@@ -122,15 +129,18 @@ export default function HabitGantt({ anchor }: { anchor: string }) {
     <section className={`habit-gantt${shut ? ' hg-shut' : ''}`}>
       <div className="hg-bar">
         <button type="button" className="hg-toggle" aria-expanded={!shut}
-          title={shut ? 'Show the habit gantt' : 'Collapse the habit gantt'}
+          title={shut ? t('Show the habit gantt') : t('Collapse the habit gantt')}
           onClick={() => dispatch({ type: 'setCollapseHabits', on: !shut })}>
           <span className={`caret ${shut ? '' : 'open'}`}>▶</span>
-          <span className="hg-heading">Habits</span>
+          <span className="hg-heading">{t('Habits')}</span>
         </button>
-        <InfoIcon text={GANTT_INFO} />
+        <InfoIcon text={t(GANTT_INFO)} />
         <span className="hg-summary">
-          {goals.length === 0 ? 'no goals' : `${goals.length} goal${goals.length === 1 ? '' : 's'}`}
-          {tickedToday != null && goals.length > 0 && ` · ${tickedToday}/${goals.length} today`}
+          {goals.length === 0
+            ? t('no goals')
+            : fill(t(goals.length === 1 ? '{n} goal' : '{n} goals'), { n: goals.length })}
+          {tickedToday != null && goals.length > 0
+            && ` · ${fill(t('{done}/{total} today'), { done: tickedToday, total: goals.length })}`}
         </span>
       </div>
 
@@ -139,7 +149,7 @@ export default function HabitGantt({ anchor }: { anchor: string }) {
           <div className="hg-scroll">
             <div className="hg-table">
               <div className="hg-row hg-headrow">
-                <div className="hg-name hg-name-head">{MONTHS[d.getMonth()]}</div>
+                <div className="hg-name hg-name-head">{t(MONTHS[d.getMonth()])}</div>
                 {dates.map((iso) => (
                   <div key={iso} className={`hg-cell hg-dnum${iso === today ? ' hg-today' : ''}`}>
                     {Number(iso.slice(8))}
@@ -165,27 +175,34 @@ export default function HabitGantt({ anchor }: { anchor: string }) {
                       )
                     })}
                     <div className="hg-pct"
-                      title={p.pct == null ? 'This month has not started yet' : `${p.done} of ${p.elapsed} days so far`}>
+                      title={p.pct == null
+                        ? t('This month has not started yet')
+                        : fill(t('{done} of {elapsed} days so far'), { done: p.done, elapsed: p.elapsed })}>
                       {p.pct == null ? '–' : `${p.pct}%`}
                     </div>
                   </div>
                 )
               })}
 
-              {goals.length === 0 && <div className="hg-empty">Nothing tracked this month yet.</div>}
+              {goals.length === 0 && <div className="hg-empty">{t('Nothing tracked this month yet.')}</div>}
             </div>
           </div>
 
           <div className="hg-foot">
             {ownCount === 0 && carried.length > 0 && (
               <button type="button" className="hg-carry" onClick={carryOver}
-                title={`Recreate the ${carried.length} goal${carried.length === 1 ? '' : 's'} of ${prevMonthPeriod(period)} for this month`}>
-                Carry over last month's goals ↻
+                title={fill(
+                  t(carried.length === 1
+                    ? 'Recreate the {n} goal of {period} for this month'
+                    : 'Recreate the {n} goals of {period} for this month'),
+                  { n: carried.length, period: prevMonthPeriod(period) },
+                )}>
+                {t("Carry over last month's goals")} ↻
               </button>
             )}
             <div className="hg-add">
-              <input ref={addRef} className="hg-add-input" placeholder="+ Add goal"
-                aria-label={`Add a goal for ${MONTHS[d.getMonth()]}`}
+              <input ref={addRef} className="hg-add-input" placeholder={t('+ Add goal')}
+                aria-label={fill(t('Add a goal for {month}'), { month: t(MONTHS[d.getMonth()]) })}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -193,9 +210,9 @@ export default function HabitGantt({ anchor }: { anchor: string }) {
                   if (e.key === 'Escape') { e.preventDefault(); setDraft('') }
                 }} />
               <button type="button" className="hg-add-year"
-                title={`File what you typed as a year goal instead — it shows in every month of ${year}`}
+                title={fill(t('File what you typed as a year goal instead — it shows in every month of {year}'), { year })}
                 onClick={() => addGoal(year)}>
-                + year goal
+                {t('+ year goal')}
               </button>
             </div>
           </div>

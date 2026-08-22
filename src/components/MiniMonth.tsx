@@ -5,10 +5,25 @@ import {
 } from '../utils/agenda'
 import { hexToRgba } from '../utils/color'
 import { fromISO, isSameDay, monthMatrix, MONTHS, toISO, weekdayLabels } from '../utils/date'
+import { lang, t } from '../i18n'
 
 interface Props {
   anchor: string
   onSelect: (iso: string) => void
+}
+
+/** Fills {name} placeholders in a t()'d template (see src/i18n/zh.ts). */
+function fill(tpl: string, v: Record<string, string | number>) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''))
+}
+
+/**
+ * The one-character weekday rail. English takes the initial ('Sun' → 'S');
+ * Chinese takes the last character ('周一' → '一'), since a Chinese initial
+ * would be '周' for every day of the week.
+ */
+export function dowInitial(short: string): string {
+  return lang() === 'zh' ? t(short).slice(-1) : short[0]
 }
 
 /** Condensed month with today marker + colored dots for tasks due that day. */
@@ -30,15 +45,17 @@ export default function MiniMonth({ anchor, onSelect }: Props) {
   return (
     <div className="mini-month">
       <div className="mm-head">
-        <span className="mm-title">{MONTHS[display.m]} {display.y}</span>
+        <span className="mm-title">
+          {fill(t('{month} {year}'), { month: t(MONTHS[display.m]), year: display.y })}
+        </span>
         <span className="mm-nav">
-          <button onClick={() => nav(-1)} aria-label="Previous month">‹</button>
-          <button onClick={() => nav(1)} aria-label="Next month">›</button>
+          <button onClick={() => nav(-1)} aria-label={t('Previous month')}>‹</button>
+          <button onClick={() => nav(1)} aria-label={t('Next month')}>›</button>
         </span>
       </div>
       <div className="mm-grid">
         {weekdayLabels(state.weekStart).map((d, i) => (
-          <div key={i} className="mm-dow">{d[0]}</div>
+          <div key={i} className="mm-dow">{dowInitial(d)}</div>
         ))}
         {matrix.flat().map((d) => {
           const iso = toISO(d)

@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import InfoIcon from '../InfoIcon'
 import { todayISO } from '../../utils/date'
 import { heatmapRangeNoun, type HeatmapRange } from './heatmapGrid'
-import { intervalMeta, type IntervalKey } from './insightsData'
+import { fill, intervalMeta, type IntervalKey } from './insightsData'
 import { WATER_TARGET, journalSpan, waterBuckets, waterStats } from './journalData'
 
 /**
@@ -44,12 +45,9 @@ export default function WaterCard({ ival, range }: { ival: IntervalKey; range: H
   )
 
   const note =
-    `Glasses of water crossed off in the daily log over ${heatmapRangeNoun(range)} — the span ` +
-    `follows the interval at the top of the page ("${intervalMeta(ival).label}"). Only days with a ` +
-    'log entry count: a day you never opened leaves a gap and is left out of the average, while a ' +
-    'logged day with no glasses is a real zero. Past year and All time show one bar per week, ' +
-    'holding that week\'s average per logged day, so the eight-glass target line still reads the ' +
-    'same way.'
+    fill(t('Glasses of water crossed off in the daily log over {span} — the span follows the interval at the top of the page ("{ival}").'),
+      { span: heatmapRangeNoun(range), ival: t(intervalMeta(ival).label) }) + ' ' +
+    t("Only days with a log entry count: a day you never opened leaves a gap and is left out of the average, while a logged day with no glasses is a real zero. Past year and All time show one bar per week, holding that week's average per logged day, so the eight-glass target line still reads the same way.")
 
   const n = Math.max(buckets.length, 1)
   const W = Math.max(BASE_W, PAD_L + PAD_R + n * MIN_BAND)
@@ -70,30 +68,30 @@ export default function WaterCard({ ival, range }: { ival: IntervalKey; range: H
   return (
     <section className="ins2-card">
       <div className="ins2-card-head">
-        <h2 className="ins2-h2">Water</h2>
+        <h2 className="ins2-h2">{t('Water')}</h2>
         <InfoIcon text={note} />
       </div>
 
       <div className="ins2-tiles ins2-tiles-two">
         <div className="ins2-tile">
-          <div className="ins2-tile-label">Average per day</div>
+          <div className="ins2-tile-label">{t('Average per day')}</div>
           <div className={`ins2-tile-value ${stats.loggedDays ? '' : 'na'}`}>
-            {stats.loggedDays ? `${stats.avg.toFixed(1)} / ${WATER_TARGET}` : 'n/a'}
+            {stats.loggedDays ? `${stats.avg.toFixed(1)} / ${WATER_TARGET}` : t('n/a')}
           </div>
           <div className="ins2-tile-sub">
             {stats.loggedDays
-              ? `across ${stats.loggedDays} logged ${stats.loggedDays === 1 ? 'day' : 'days'}`
-              : 'no days logged yet'}
+              ? fill(t('across {n} logged {days}'), { n: stats.loggedDays, days: t(stats.loggedDays === 1 ? 'day' : 'days') })
+              : t('no days logged yet')}
           </div>
         </div>
         <div className="ins2-tile">
-          <div className="ins2-tile-label">Target hit</div>
+          <div className="ins2-tile-label">{t('Target hit')}</div>
           <div className={`ins2-tile-value ${stats.loggedDays ? '' : 'na'}`}>
-            {stats.loggedDays ? stats.targetDays : 'n/a'}
+            {stats.loggedDays ? stats.targetDays : t('n/a')}
           </div>
           <div className="ins2-tile-sub">
             {stats.loggedDays
-              ? `${stats.targetDays === 1 ? 'day' : 'days'} at ${WATER_TARGET} glasses`
+              ? fill(t('{days} at {n} glasses'), { days: t(stats.targetDays === 1 ? 'day' : 'days'), n: WATER_TARGET })
               : heatmapRangeNoun(range)}
           </div>
         </div>
@@ -101,13 +99,13 @@ export default function WaterCard({ ival, range }: { ival: IntervalKey; range: H
 
       {stats.loggedDays === 0 ? (
         <div className="ins2-empty">
-          No water logged in this range yet — cross off a glass in the daily log and the bars appear here.
+          {t('No water logged in this range yet — cross off a glass in the daily log and the bars appear here.')}
         </div>
       ) : (
         <div className={wide ? 'ins2-xscroll' : undefined}>
           <svg className="ins2-line" viewBox={`0 0 ${W} ${H}`} role="img"
             style={wide ? { width: `${W}px` } : undefined}
-            aria-label={`Glasses of water per ${weekly ? 'week' : 'day'}`}>
+            aria-label={t(weekly ? 'Glasses of water per week' : 'Glasses of water per day')}>
             {[0, top / 2, top].map((v) => (
               <g key={v}>
                 <line x1={PAD_L} y1={yOf(v)} x2={W - PAD_R} y2={yOf(v)} className="ins2-axis-grid" />
@@ -126,8 +124,8 @@ export default function WaterCard({ ival, range }: { ival: IntervalKey; range: H
                   rx={Math.min(2, barW / 2)}
                   className={`ins2-water-bar ${b.value >= WATER_TARGET ? 'full' : ''} ${isToday ? 'today' : ''}`}>
                   <title>
-                    {`${b.label} — ${fmtGlasses(b.value)} ${b.value === 1 ? 'glass' : 'glasses'}` +
-                      (weekly ? ` avg over ${b.days} logged ${b.days === 1 ? 'day' : 'days'}` : '')}
+                    {`${b.label} — ${fmtGlasses(b.value)} ${t(b.value === 1 ? 'glass' : 'glasses')}` +
+                      (weekly ? ' ' + fill(t('avg over {n} logged {days}'), { n: b.days, days: t(b.days === 1 ? 'day' : 'days') }) : '')}
                   </title>
                 </rect>
               )
@@ -137,12 +135,12 @@ export default function WaterCard({ ival, range }: { ival: IntervalKey; range: H
                 stops exactly on it. */}
             <line x1={PAD_L} y1={targetY} x2={W - PAD_R} y2={targetY} className="ins2-water-target" />
             <text x={W - PAD_R - 2} y={targetY - 4} textAnchor="end" className="ins2-water-target-label">
-              target {WATER_TARGET}
+              {t('target')} {WATER_TARGET}
             </text>
 
             <text x={PAD_L} y={H - 7} className="ins2-axis-tick">{buckets[0]?.label.split(' – ')[0]}</text>
             <text x={W - PAD_R} y={H - 7} textAnchor="end" className="ins2-axis-tick">
-              {weekly ? 'this week' : 'today'}
+              {t(weekly ? 'this week' : 'today')}
             </text>
           </svg>
         </div>

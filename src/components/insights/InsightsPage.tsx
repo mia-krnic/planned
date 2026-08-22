@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import AmbientWallpaper from '../AmbientWallpaper'
+import { t } from '../../i18n'
 import { useStore } from '../../store'
 import { nowMinutes } from '../../utils/date'
 import BreakAnalytics from './BreakAnalytics'
@@ -55,24 +56,24 @@ export default function InsightsPage() {
       <div className="ins2-wrap">
         <header className="ins2-head">
           <div className="ins2-title">
-            <h1>Insights</h1>
-            <span className="ins2-sub">Study sessions &amp; daily log · {meta.noun}</span>
+            <h1>{t('Insights')}</h1>
+            <span className="ins2-sub">{t('Study sessions & daily log')} · {t(meta.noun)}</span>
           </div>
           <div className="ins2-controls">
-            <div className="ins2-seg" role="tablist" aria-label="Interval">
+            <div className="ins2-seg" role="tablist" aria-label={t('Interval')}>
               {INTERVALS.map((i) => (
                 <button key={i.key} type="button" role="tab" aria-selected={ival === i.key}
                   className={ival === i.key ? 'active' : ''} onClick={() => setIval(i.key)}>
-                  {i.label}
+                  {t(i.label)}
                 </button>
               ))}
             </div>
-            <div className="ins2-seg ins2-seg-unit" role="tablist" aria-label="Duration unit">
+            <div className="ins2-seg ins2-seg-unit" role="tablist" aria-label={t('Duration unit')}>
               {UNITS.map((u) => (
                 <button key={u.key} type="button" role="tab" aria-selected={unit === u.key}
                   className={unit === u.key ? 'active' : ''} onClick={() => setUnit(u.key)}
-                  title={u.key === 'hrs' ? 'Show durations as hours and minutes' : 'Show durations in minutes'}>
-                  {u.label}
+                  title={u.key === 'hrs' ? t('Show durations as hours and minutes') : t('Show durations in minutes')}>
+                  {t(u.label)}
                 </button>
               ))}
             </div>
@@ -82,7 +83,7 @@ export default function InsightsPage() {
         {/* The grids lead: they are the one view of the whole span at a glance,
             and they take their range from the interval toggle right above. */}
         <HeatmapsCard ival={ival} unit={unit} />
-        <SectionDivider label="Productivity insights" note="Study sessions & time at the desk" />
+        <SectionDivider label={t('Productivity insights')} note={t('Study sessions & time at the desk')} />
         <CoreStats data={data} ival={ival} unit={unit} />
         <SubjectBreakdown state={state} data={data} ival={ival} unit={unit} />
         {/* Calendar-week card — only meaningful next to the 7-day interval. It sits
@@ -93,7 +94,7 @@ export default function InsightsPage() {
         <BreakAnalytics data={data} ival={ival} unit={unit} />
 
         {/* Second half: everything below comes from the daily log, not the timer. */}
-        <SectionDivider label="Journal insights" note="From your daily log" />
+        <SectionDivider label={t('Journal insights')} note={t('From your daily log')} />
         <MoodHeatmap ival={ival} range={jrange} />
         <SleepChart ival={ival} range={jrange} />
         <WaterCard ival={ival} range={jrange} />

@@ -539,6 +539,7 @@ export interface AppState {
   showTasksOnCalendar: boolean
   weekStart: 0 | 1 | 6 // first day of the week: Sunday, Monday or Saturday
   theme: 'light' | 'dark' // the RESOLVED theme actually applied
+  language?: 'en' | 'zh' // absent = English
   themeConfig: {
     mode: 'light' | 'dark' | 'auto' // auto flips by time of day
     lightStart: string // 'HH:MM' — auto mode: light theme from this time

@@ -1,3 +1,4 @@
+import { t } from '../../i18n'
 import { fmtMins, type Unit } from './insightsData'
 import { contrastInk } from './chartsData'
 import type { PieSlice } from './ClassPie'
@@ -33,7 +34,7 @@ export default function ClassDonut({ slices, total, unit }: {
   unit: Unit
 }) {
   if (!slices.length || total <= 0) {
-    return <div className="ins2-empty">No study time to break down yet.</div>
+    return <div className="ins2-empty">{t('No study time to break down yet.')}</div>
   }
 
   const only = slices.length === 1
@@ -47,7 +48,7 @@ export default function ClassDonut({ slices, total, unit }: {
   })
 
   return (
-    <svg className="ins2-donut" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Study time per class">
+    <svg className="ins2-donut" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('Study time per class')}>
       {arcs.map(({ s, a0, a1, frac }) => {
         const tip = `${s.label} — ◷ ${fmtMins(s.mins, unit)} | ${Math.round(frac * 100)}%`
         // A single class spans the full turn, where an arc path degenerates —

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
+import { t } from '../../i18n'
 import type { AppState } from '../../types'
 import InfoIcon from '../InfoIcon'
-import { fmtMins, type Unit } from './insightsData'
+import { fill, fmtMins, type Unit } from './insightsData'
 import { buildQuarterGrid } from './chartsData'
 
 /**
@@ -28,19 +29,19 @@ export default function QuarterWeeks({ state, unit, nowMin }: {
   return (
     <>
       <div className="ins2-sub-head ins2-qt-head">
-        <h3>Weeks this quarter</h3>
-        <InfoIcon text={NOTE} />
+        <h3>{t('Weeks this quarter')}</h3>
+        <InfoIcon text={t(NOTE)} />
         <div className="ins2-qt-nav">
-          <button type="button" className="ins2-qt-step" aria-label="Previous quarter"
+          <button type="button" className="ins2-qt-step" aria-label={t('Previous quarter')}
             onClick={() => setOffset((o) => o - 1)}>‹</button>
           <span className="ins2-qt-label">{grid.label}</span>
-          <button type="button" className="ins2-qt-step" aria-label="Next quarter"
+          <button type="button" className="ins2-qt-step" aria-label={t('Next quarter')}
             onClick={() => setOffset((o) => o + 1)}>›</button>
         </div>
       </div>
 
       {!grid.cells.length ? (
-        <div className="ins2-empty">No weeks fall inside {grid.label}.</div>
+        <div className="ins2-empty">{fill(t('No weeks fall inside {quarter}.'), { quarter: grid.label })}</div>
       ) : (
         <>
           <div className="ins2-qt-grid">
@@ -48,7 +49,7 @@ export default function QuarterWeeks({ state, unit, nowMin }: {
               <div
                 key={c.start}
                 className={`ins2-qt-cell${c.isCurrent ? ' now' : ''}${c.mins <= 0 ? ' zero' : ''}${c.isFuture ? ' future' : ''}`}
-                title={`Week of ${c.label.replace(' ~', '')} — ${fmtMins(c.mins, unit)}`}
+                title={`${fill(t('Week of {date}'), { date: c.label.replace(' ~', '') })} — ${fmtMins(c.mins, unit)}`}
               >
                 <span className="ins2-qt-week">{c.label}</span>
                 <span className="ins2-qt-mins">{c.mins > 0 ? fmtMins(c.mins, unit) : '—'}</span>
@@ -56,7 +57,7 @@ export default function QuarterWeeks({ state, unit, nowMin }: {
             ))}
           </div>
           <div className="ins2-qt-total">
-            {grid.label} total · <strong>{fmtMins(grid.totalMin, unit)}</strong> over {grid.cells.length} weeks
+            {grid.label} {t('total')} · <strong>{fmtMins(grid.totalMin, unit)}</strong> {fill(t('over {n} weeks'), { n: grid.cells.length })}
           </div>
         </>
       )}

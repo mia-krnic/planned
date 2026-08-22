@@ -1,3 +1,4 @@
+import { t } from '../../i18n'
 import type { BinderFile, BinderUpload } from '../../types'
 
 /**
@@ -21,7 +22,7 @@ export function uploadGlyph(files: BinderFile[]): string {
 
 /** Hover text for an upload chip: title plus what is actually inside it. */
 export function uploadChipTitle(u: BinderUpload): string {
-  if (!u.files.length) return `${u.title} — no files`
+  if (!u.files.length) return `${u.title} — ${t('no files')}`
   if (u.files.length === 1) return `${u.title} — ${u.files[0].name}`
-  return `${u.title} — ${u.files.length} files: ${u.files.map((f) => f.name).join(', ')}`
+  return `${u.title} — ${u.files.length} ${t('files')}: ${u.files.map((f) => f.name).join(', ')}`
 }

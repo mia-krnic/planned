@@ -4,6 +4,7 @@ import { classById, taskCalendarId, taskColor, taskLabel } from '../store'
 import { eventOccursOn, occurrenceAt, occurrencesOn, recurringDueOn, type RecurOccurrence } from './occur'
 import { hexToRgba, PERSONAL_COLOR } from './color'
 import { fmtFriendly, fmtTime } from './date'
+import { t } from '../i18n'
 
 export interface DayItems {
   timedEvents: CalEvent[]
@@ -263,9 +264,10 @@ export function urgentDueGroups(state: AppState, iso: string): UrgentGroup[] {
 }
 
 /** Compact deadline line for task rows, e.g. "due Fri 8/28 11:59pm". */
-export function fmtDue(t: Task): string | null {
-  if (!t.dueDate) return null
-  return `due ${fmtFriendly(t.dueDate)} ${fmtTime(t.dueMin ?? DUE_EOD_MIN)}`
+// The parameter is `task`, not `t`: `t` is the translation function here.
+export function fmtDue(task: Task): string | null {
+  if (!task.dueDate) return null
+  return `${t('due')} ${fmtFriendly(task.dueDate)} ${fmtTime(task.dueMin ?? DUE_EOD_MIN)}`
 }
 
 /** Up to `n` distinct colours of tasks due on `iso` — the mini-month dots. */
